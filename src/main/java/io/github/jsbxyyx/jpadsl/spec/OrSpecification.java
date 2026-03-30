@@ -8,24 +8,26 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class OrSpecification<T> extends AbstractSpecification<T> {
-    private final List<Specification<T>> specifications;
+    private final List<Specification<T>> specs;
 
     @SafeVarargs
-    public OrSpecification(Specification<T>... specifications) {
-        this.specifications = Arrays.asList(specifications);
+    public OrSpecification(Specification<T>... specs) {
+        this.specs = Arrays.asList(specs);
     }
 
-    public OrSpecification(List<Specification<T>> specifications) {
-        this.specifications = specifications;
+    public OrSpecification(List<Specification<T>> specs) {
+        this.specs = specs;
     }
 
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        Predicate[] predicates = specifications.stream()
+        List<Predicate> predicates = specs.stream()
                 .map(spec -> spec.toPredicate(root, query, cb))
-                .toArray(Predicate[]::new);
-        return cb.or(predicates);
+                .filter(p -> p != null)
+                .collect(Collectors.toList());
+        return cb.or(predicates.toArray(new Predicate[0]));
     }
 }

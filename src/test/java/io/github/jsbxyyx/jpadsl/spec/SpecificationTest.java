@@ -3,6 +3,7 @@ package io.github.jsbxyyx.jpadsl.spec;
 import io.github.jsbxyyx.jpadsl.TestApplication;
 import io.github.jsbxyyx.jpadsl.core.SpecificationDsl;
 import io.github.jsbxyyx.jpadsl.example.entity.User;
+import io.github.jsbxyyx.jpadsl.example.entity.User_;
 import io.github.jsbxyyx.jpadsl.example.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,21 +36,21 @@ class SpecificationTest {
 
     @Test
     void testEqualSpecification() {
-        Specification<User> spec = new EqualSpecification<>("status", "ACTIVE");
+        Specification<User> spec = new EqualSpecification<>(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
     }
 
     @Test
     void testNotEqualSpecification() {
-        Specification<User> spec = new NotEqualSpecification<>("status", "ACTIVE");
+        Specification<User> spec = new NotEqualSpecification<>(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1);
     }
 
     @Test
     void testLikeSpecification() {
-        Specification<User> spec = new LikeSpecification<>("name", "Doe");
+        Specification<User> spec = new LikeSpecification<>(User_.name, "Doe");
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getName()).isEqualTo("John Doe");
@@ -57,28 +58,28 @@ class SpecificationTest {
 
     @Test
     void testInSpecification() {
-        Specification<User> spec = new InSpecification<>("role", Arrays.asList("ADMIN", "USER"));
+        Specification<User> spec = new InSpecification<>(User_.role, Arrays.asList("ADMIN", "USER"));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
     }
 
     @Test
     void testBetweenSpecification() {
-        Specification<User> spec = new BetweenSpecification<>("age", 20, 28);
+        Specification<User> spec = new BetweenSpecification<>(User_.age, 20, 28);
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Only John(25); Bob(17) is out, Jane(30) is out
     }
 
     @Test
     void testGreaterThanSpecification() {
-        Specification<User> spec = new GreaterThanSpecification<>("age", 20);
+        Specification<User> spec = new GreaterThanSpecification<>(User_.age, 20);
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // John(25), Jane(30)
     }
 
     @Test
     void testLessThanSpecification() {
-        Specification<User> spec = new LessThanSpecification<>("age", 20);
+        Specification<User> spec = new LessThanSpecification<>(User_.age, 20);
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Bob(17)
     }
@@ -86,8 +87,8 @@ class SpecificationTest {
     @Test
     void testAndSpecification() {
         Specification<User> spec = new AndSpecification<>(
-            new EqualSpecification<>("status", "ACTIVE"),
-            new GreaterThanSpecification<>("age", 28)
+            new EqualSpecification<>(User_.status, "ACTIVE"),
+            new GreaterThanSpecification<>(User_.age, 28)
         );
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Jane(30, ACTIVE)
@@ -96,8 +97,8 @@ class SpecificationTest {
     @Test
     void testOrSpecification() {
         Specification<User> spec = new OrSpecification<>(
-            new EqualSpecification<>("status", "INACTIVE"),
-            new LikeSpecification<>("name", "Jane")
+            new EqualSpecification<>(User_.status, "INACTIVE"),
+            new LikeSpecification<>(User_.name, "Jane")
         );
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
@@ -106,7 +107,7 @@ class SpecificationTest {
     @Test
     void testNotSpecification() {
         Specification<User> spec = new NotSpecification<>(
-            new EqualSpecification<>("status", "ACTIVE")
+            new EqualSpecification<>(User_.status, "ACTIVE")
         );
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Bob(INACTIVE)
@@ -114,8 +115,8 @@ class SpecificationTest {
 
     @Test
     void testSpecificationDslChaining() {
-        Specification<User> spec = SpecificationDsl.<User>equal("status", "ACTIVE")
-                .and(SpecificationDsl.greaterThan("age", 24));
+        Specification<User> spec = SpecificationDsl.<User, String>equal(User_.status, "ACTIVE")
+                .and(SpecificationDsl.gt(User_.age, 24));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // John(25), Jane(30)
     }

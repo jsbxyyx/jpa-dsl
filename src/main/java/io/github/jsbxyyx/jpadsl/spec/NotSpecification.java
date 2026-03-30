@@ -7,14 +7,15 @@ import jakarta.persistence.criteria.Root;
 import org.springframework.data.jpa.domain.Specification;
 
 public class NotSpecification<T> extends AbstractSpecification<T> {
-    private final Specification<T> specification;
+    private final Specification<T> spec;
 
-    public NotSpecification(Specification<T> specification) {
-        this.specification = specification;
+    public NotSpecification(Specification<T> spec) {
+        this.spec = spec;
     }
 
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        return cb.not(specification.toPredicate(root, query, cb));
+        Predicate predicate = spec.toPredicate(root, query, cb);
+        return predicate == null ? null : cb.not(predicate);
     }
 }

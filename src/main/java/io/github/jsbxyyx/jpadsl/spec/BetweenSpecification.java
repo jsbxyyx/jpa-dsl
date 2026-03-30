@@ -4,22 +4,21 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.metamodel.SingularAttribute;
 
-public class BetweenSpecification<T> extends AbstractSpecification<T> {
-    private final String field;
-    private final Comparable lower;
-    private final Comparable upper;
+public class BetweenSpecification<T, V extends Comparable<? super V>> extends AbstractSpecification<T> {
+    private final SingularAttribute<? super T, V> attr;
+    private final V lower;
+    private final V upper;
 
-    @SuppressWarnings("rawtypes")
-    public BetweenSpecification(String field, Comparable lower, Comparable upper) {
-        this.field = field;
+    public BetweenSpecification(SingularAttribute<? super T, V> attr, V lower, V upper) {
+        this.attr = attr;
         this.lower = lower;
         this.upper = upper;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        return cb.between(resolvePath(root, field), lower, upper);
+        return (lower == null || upper == null) ? null : cb.between(root.get(attr), lower, upper);
     }
 }

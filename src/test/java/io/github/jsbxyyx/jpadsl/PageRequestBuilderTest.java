@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jpadsl;
 
+import io.github.jsbxyyx.jpadsl.testmodel.User_;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -82,5 +83,23 @@ class PageRequestBuilderTest {
                 .isEqualTo(Sort.Direction.ASC);
         assertThat(pageable.getSort().getOrderFor("age").getDirection())
                 .isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void sortBy_metamodelAttribute_shouldUseAttributeName() {
+        Pageable pageable = PageRequestBuilder.builder()
+                .page(0)
+                .size(10)
+                .sortBy(User_.name, Sort.Direction.ASC)
+                .sortBy(User_.age, Sort.Direction.DESC)
+                .build();
+        assertThat(pageable.getPageNumber()).isEqualTo(0);
+        assertThat(pageable.getPageSize()).isEqualTo(10);
+        Sort.Order nameOrder = pageable.getSort().getOrderFor("name");
+        assertThat(nameOrder).isNotNull();
+        assertThat(nameOrder.getDirection()).isEqualTo(Sort.Direction.ASC);
+        Sort.Order ageOrder = pageable.getSort().getOrderFor("age");
+        assertThat(ageOrder).isNotNull();
+        assertThat(ageOrder.getDirection()).isEqualTo(Sort.Direction.DESC);
     }
 }

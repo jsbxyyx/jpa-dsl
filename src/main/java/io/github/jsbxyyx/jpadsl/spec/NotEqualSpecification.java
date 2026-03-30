@@ -4,18 +4,19 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.metamodel.SingularAttribute;
 
-public class NotEqualSpecification<T> extends AbstractSpecification<T> {
-    private final String field;
-    private final Object value;
+public class NotEqualSpecification<T, V> extends AbstractSpecification<T> {
+    private final SingularAttribute<? super T, V> attr;
+    private final V value;
 
-    public NotEqualSpecification(String field, Object value) {
-        this.field = field;
+    public NotEqualSpecification(SingularAttribute<? super T, V> attr, V value) {
+        this.attr = attr;
         this.value = value;
     }
 
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        return cb.notEqual(resolvePath(root, field), value);
+        return value == null ? null : cb.notEqual(root.get(attr), value);
     }
 }

@@ -4,9 +4,14 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.ListJoin;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.SetJoin;
+import jakarta.persistence.metamodel.CollectionAttribute;
+import jakarta.persistence.metamodel.ListAttribute;
+import jakarta.persistence.metamodel.SetAttribute;
+import jakarta.persistence.metamodel.SingularAttribute;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
@@ -15,17 +20,19 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Fluent builder for constructing JPA {@link Specification} instances.
+ * Fluent builder for constructing JPA {@link Specification} instances using
+ * type-safe JPA Static Metamodel attribute references.
  *
- * <p>Supports basic predicates (equal, like, between, etc.), logical composition
- * (and / or / not), and joined entity queries.
+ * <p>All field references use {@link SingularAttribute} or plural attribute types
+ * from the JPA Static Metamodel (e.g. {@code User_.status}), providing compile-time
+ * verification that referenced fields exist and have correct types.
  *
  * <p>Example:
  * <pre>{@code
  * Specification<User> spec = SpecificationBuilder.<User>builder()
- *     .equal("status", "ACTIVE")
- *     .like("name", "%John%")
- *     .greaterThan("age", 18)
+ *     .equal(User_.status, "ACTIVE")
+ *     .like(User_.name, "John")
+ *     .gte(User_.age, 18)
  *     .build();
  * }</pre>
  *
@@ -46,16 +53,16 @@ public class SpecificationBuilder<T> {
     //  Equality / Inequality
     // ------------------------------------------------------------------ //
 
-    public SpecificationBuilder<T> equal(String field, Object value) {
+    public <V> SpecificationBuilder<T> equal(SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
-            specs.add((root, query, cb) -> cb.equal(resolvePath(root, field), value));
+            specs.add((root, query, cb) -> cb.equal(root.get(attr), value));
         }
         return this;
     }
 
-    public SpecificationBuilder<T> notEqual(String field, Object value) {
+    public <V> SpecificationBuilder<T> notEqual(SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
-            specs.add((root, query, cb) -> cb.notEqual(resolvePath(root, field), value));
+            specs.add((root, query, cb) -> cb.notEqual(root.get(attr), value));
         }
         return this;
     }
@@ -64,13 +71,13 @@ public class SpecificationBuilder<T> {
     //  Null checks
     // ------------------------------------------------------------------ //
 
-    public SpecificationBuilder<T> isNull(String field) {
-        specs.add((root, query, cb) -> cb.isNull(resolvePath(root, field)));
+    public SpecificationBuilder<T> isNull(SingularAttribute<? super T, ?> attr) {
+        specs.add((root, query, cb) -> cb.isNull(root.get(attr)));
         return this;
     }
 
-    public SpecificationBuilder<T> isNotNull(String field) {
-        specs.add((root, query, cb) -> cb.isNotNull(resolvePath(root, field)));
+    public SpecificationBuilder<T> isNotNull(SingularAttribute<? super T, ?> attr) {
+        specs.add((root, query, cb) -> cb.isNotNull(root.get(attr)));
         return this;
     }
 
@@ -78,24 +85,26 @@ public class SpecificationBuilder<T> {
     //  String predicates
     // ------------------------------------------------------------------ //
 
-    public SpecificationBuilder<T> like(String field, String pattern) {
-        if (pattern != null) {
-            specs.add((root, query, cb) -> cb.like(resolvePath(root, field).as(String.class), pattern));
+    /**
+     * Adds a LIKE predicate. The value is automatically wrapped with {@code %} on both sides,
+     * producing a "contains" match.
+     */
+    public SpecificationBuilder<T> like(SingularAttribute<? super T, String> attr, String value) {
+        if (value != null) {
+            String pattern = "%" + value + "%";
+            specs.add((root, query, cb) -> cb.like(root.get(attr), pattern));
         }
         return this;
     }
 
-    public SpecificationBuilder<T> notLike(String field, String pattern) {
-        if (pattern != null) {
-            specs.add((root, query, cb) -> cb.notLike(resolvePath(root, field).as(String.class), pattern));
-        }
-        return this;
-    }
-
-    public SpecificationBuilder<T> likeIgnoreCase(String field, String pattern) {
-        if (pattern != null) {
+    /**
+     * Adds a case-insensitive LIKE predicate with automatic {@code %} wrapping.
+     */
+    public SpecificationBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value) {
+        if (value != null) {
+            String pattern = "%" + value.toLowerCase() + "%";
             specs.add((root, query, cb) ->
-                    cb.like(cb.lower(resolvePath(root, field).as(String.class)), pattern.toLowerCase()));
+                    cb.like(cb.lower(root.get(attr)), pattern));
         }
         return this;
     }
@@ -104,40 +113,42 @@ public class SpecificationBuilder<T> {
     //  Comparison predicates
     // ------------------------------------------------------------------ //
 
-    public <Y extends Comparable<? super Y>> SpecificationBuilder<T> greaterThan(String field, Y value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(
+            SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
-            specs.add((root, query, cb) -> cb.greaterThan(resolveComparablePath(root, field), value));
+            specs.add((root, query, cb) -> cb.greaterThan(root.get(attr), value));
         }
         return this;
     }
 
-    public <Y extends Comparable<? super Y>> SpecificationBuilder<T> greaterThanOrEqual(String field, Y value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> gte(
+            SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
-            specs.add((root, query, cb) ->
-                    cb.greaterThanOrEqualTo(resolveComparablePath(root, field), value));
+            specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
         }
         return this;
     }
 
-    public <Y extends Comparable<? super Y>> SpecificationBuilder<T> lessThan(String field, Y value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(
+            SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
-            specs.add((root, query, cb) -> cb.lessThan(resolveComparablePath(root, field), value));
+            specs.add((root, query, cb) -> cb.lessThan(root.get(attr), value));
         }
         return this;
     }
 
-    public <Y extends Comparable<? super Y>> SpecificationBuilder<T> lessThanOrEqual(String field, Y value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> lte(
+            SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
-            specs.add((root, query, cb) ->
-                    cb.lessThanOrEqualTo(resolveComparablePath(root, field), value));
+            specs.add((root, query, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
         }
         return this;
     }
 
-    public <Y extends Comparable<? super Y>> SpecificationBuilder<T> between(String field, Y lower, Y upper) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> between(
+            SingularAttribute<? super T, V> attr, V lower, V upper) {
         if (lower != null && upper != null) {
-            specs.add((root, query, cb) ->
-                    cb.between(resolveComparablePath(root, field), lower, upper));
+            specs.add((root, query, cb) -> cb.between(root.get(attr), lower, upper));
         }
         return this;
     }
@@ -146,23 +157,16 @@ public class SpecificationBuilder<T> {
     //  IN predicate
     // ------------------------------------------------------------------ //
 
-    public SpecificationBuilder<T> in(String field, Collection<?> values) {
+    public <V> SpecificationBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values) {
         if (values != null && !values.isEmpty()) {
-            specs.add((root, query, cb) -> resolvePath(root, field).in(values));
+            specs.add((root, query, cb) -> root.get(attr).in(values));
         }
         return this;
     }
 
-    public SpecificationBuilder<T> in(String field, Object... values) {
-        if (values != null && values.length > 0) {
-            specs.add((root, query, cb) -> resolvePath(root, field).in(Arrays.asList(values)));
-        }
-        return this;
-    }
-
-    public SpecificationBuilder<T> notIn(String field, Collection<?> values) {
+    public <V> SpecificationBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values) {
         if (values != null && !values.isEmpty()) {
-            specs.add((root, query, cb) -> resolvePath(root, field).in(values).not());
+            specs.add((root, query, cb) -> root.get(attr).in(values).not());
         }
         return this;
     }
@@ -173,15 +177,13 @@ public class SpecificationBuilder<T> {
 
     @SafeVarargs
     public final SpecificationBuilder<T> and(Specification<T>... specifications) {
-        Specification<T> combined = Specification.allOf(Arrays.asList(specifications));
-        specs.add(combined);
+        specs.add(Specification.allOf(Arrays.asList(specifications)));
         return this;
     }
 
     @SafeVarargs
     public final SpecificationBuilder<T> or(Specification<T>... specifications) {
-        Specification<T> combined = Specification.anyOf(Arrays.asList(specifications));
-        specs.add(combined);
+        specs.add(Specification.anyOf(Arrays.asList(specifications)));
         return this;
     }
 
@@ -195,35 +197,88 @@ public class SpecificationBuilder<T> {
     // ------------------------------------------------------------------ //
 
     /**
-     * Adds an INNER JOIN predicate on an associated field.
+     * Adds a join on a singular (ManyToOne / OneToOne) association.
      *
-     * @param joinField   the attribute name representing the association
-     * @param joinBuilder a consumer that configures a nested {@link SpecificationBuilder}
-     *                    operating on the joined type
-     * @param <J>         the joined entity type
+     * @param attr      the metamodel attribute for the association (e.g. {@code Order_.user})
+     * @param joinType  INNER, LEFT or RIGHT
+     * @param configure callback to add predicates on the joined entity
+     * @param <J>       the joined entity type
      */
-    public <J> SpecificationBuilder<T> innerJoin(String joinField,
-                                                  JoinSpecification<J> joinBuilder) {
-        specs.add(buildJoinSpec(joinField, JoinType.INNER, joinBuilder));
+    public <J> SpecificationBuilder<T> join(SingularAttribute<? super T, J> attr,
+                                            JoinType joinType,
+                                            JoinSpecification<J> configure) {
+        specs.add((root, query, cb) -> {
+            Join<T, J> join = root.join(attr, joinType);
+            List<Predicate> predicates = new ArrayList<>();
+            configure.configure(join, query, cb, predicates);
+            return cb.and(predicates.toArray(new Predicate[0]));
+        });
         return this;
     }
 
-    public <J> SpecificationBuilder<T> leftJoin(String joinField,
-                                                 JoinSpecification<J> joinBuilder) {
-        specs.add(buildJoinSpec(joinField, JoinType.LEFT, joinBuilder));
+    /**
+     * Adds a join on a plural (OneToMany / ManyToMany) List association.
+     *
+     * @param attr      the metamodel attribute for the association (e.g. {@code User_.orders})
+     * @param joinType  INNER, LEFT or RIGHT
+     * @param configure callback to add predicates on the joined entity
+     * @param <J>       the joined entity type
+     */
+    public <J> SpecificationBuilder<T> join(ListAttribute<? super T, J> attr,
+                                            JoinType joinType,
+                                            JoinSpecification<J> configure) {
+        specs.add((root, query, cb) -> {
+            ListJoin<T, J> join = root.join(attr, joinType);
+            List<Predicate> predicates = new ArrayList<>();
+            configure.configure(join, query, cb, predicates);
+            return cb.and(predicates.toArray(new Predicate[0]));
+        });
         return this;
     }
 
-    public <J> SpecificationBuilder<T> rightJoin(String joinField,
-                                                  JoinSpecification<J> joinBuilder) {
-        specs.add(buildJoinSpec(joinField, JoinType.RIGHT, joinBuilder));
+    /**
+     * Adds a join on a plural (OneToMany / ManyToMany) Set association.
+     *
+     * @param attr      the metamodel attribute for the association
+     * @param joinType  INNER, LEFT or RIGHT
+     * @param configure callback to add predicates on the joined entity
+     * @param <J>       the joined entity type
+     */
+    public <J> SpecificationBuilder<T> join(SetAttribute<? super T, J> attr,
+                                            JoinType joinType,
+                                            JoinSpecification<J> configure) {
+        specs.add((root, query, cb) -> {
+            SetJoin<T, J> join = root.join(attr, joinType);
+            List<Predicate> predicates = new ArrayList<>();
+            configure.configure(join, query, cb, predicates);
+            return cb.and(predicates.toArray(new Predicate[0]));
+        });
         return this;
     }
 
-    // ------------------------------------------------------------------ //
-    //  Raw predicate (escape hatch)
-    // ------------------------------------------------------------------ //
+    /**
+     * Adds a join on a plural (OneToMany / ManyToMany) Collection association.
+     *
+     * @param attr      the metamodel attribute for the association
+     * @param joinType  INNER, LEFT or RIGHT
+     * @param configure callback to add predicates on the joined entity
+     * @param <J>       the joined entity type
+     */
+    public <J> SpecificationBuilder<T> join(CollectionAttribute<? super T, J> attr,
+                                            JoinType joinType,
+                                            JoinSpecification<J> configure) {
+        specs.add((root, query, cb) -> {
+            Join<T, J> join = root.join(attr, joinType);
+            List<Predicate> predicates = new ArrayList<>();
+            configure.configure(join, query, cb, predicates);
+            return cb.and(predicates.toArray(new Predicate[0]));
+        });
+        return this;
+    }
 
+    /**
+     * Adds a raw {@link Specification} predicate (escape hatch for complex cases).
+     */
     public SpecificationBuilder<T> predicate(Specification<T> specification) {
         if (specification != null) {
             specs.add(specification);
@@ -240,38 +295,14 @@ public class SpecificationBuilder<T> {
     }
 
     // ------------------------------------------------------------------ //
-    //  Helpers
-    // ------------------------------------------------------------------ //
-
-    @SuppressWarnings("unchecked")
-    private <X> Path<X> resolvePath(Root<T> root, String field) {
-        if (field.contains(".")) {
-            String[] parts = field.split("\\.", 2);
-            return (Path<X>) root.get(parts[0]).get(parts[1]);
-        }
-        return root.get(field);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <Y extends Comparable<? super Y>> Path<Y> resolveComparablePath(Root<T> root, String field) {
-        return (Path<Y>) (Path<?>) resolvePath(root, field);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <J> Specification<T> buildJoinSpec(String joinField, JoinType joinType,
-                                               JoinSpecification<J> joinBuilder) {
-        return (root, query, cb) -> {
-            Join<T, J> join = root.join(joinField, joinType);
-            List<Predicate> predicates = new ArrayList<>();
-            joinBuilder.configure(join, query, cb, predicates);
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
-    }
-
-    // ------------------------------------------------------------------ //
     //  Inner interface for join configuration
     // ------------------------------------------------------------------ //
 
+    /**
+     * Functional interface for configuring predicates on a joined entity.
+     *
+     * @param <J> the joined entity type
+     */
     @FunctionalInterface
     public interface JoinSpecification<J> {
         void configure(Join<?, J> join, CriteriaQuery<?> query,

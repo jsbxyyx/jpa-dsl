@@ -4,16 +4,17 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.metamodel.SingularAttribute;
 
 public class IsNotNullSpecification<T> extends AbstractSpecification<T> {
-    private final String field;
+    private final SingularAttribute<? super T, ?> attr;
 
-    public IsNotNullSpecification(String field) {
-        this.field = field;
+    public IsNotNullSpecification(SingularAttribute<? super T, ?> attr) {
+        this.attr = attr;
     }
 
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        return resolvePath(root, field).isNotNull();
+        return cb.isNotNull(root.get(attr));
     }
 }
