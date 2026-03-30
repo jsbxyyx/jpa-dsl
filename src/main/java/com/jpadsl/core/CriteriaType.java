@@ -1,5 +1,13 @@
 package com.jpadsl.core;
 
+/**
+ * Enumerates the supported query condition types.
+ *
+ * <p>Used together with {@link Criteria} to represent query conditions as plain objects.
+ * Not used internally by {@link SpecificationBuilder} or {@link SpecificationDsl};
+ * provided as a convenience for consumers who collect criteria before translating them
+ * into {@link org.springframework.data.jpa.domain.Specification} instances.
+ */
 public enum CriteriaType {
     EQUAL,
     NOT_EQUAL,

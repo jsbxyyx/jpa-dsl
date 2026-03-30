@@ -3,7 +3,14 @@ package com.jpadsl.core;
 import java.util.Collection;
 
 /**
- * Encapsulates query condition parameters.
+ * Encapsulates query condition parameters for use when building dynamic queries
+ * programmatically. Intended as a data-transfer object for consumers who wish to
+ * construct and pass query criteria as plain objects before converting them to
+ * {@link org.springframework.data.jpa.domain.Specification} instances.
+ *
+ * <p>This class is not used internally by {@link SpecificationBuilder} or
+ * {@link SpecificationDsl}; it is provided as a convenience for users who prefer
+ * to collect criteria first and translate them later.
  */
 public class Criteria {
     private final String field;
