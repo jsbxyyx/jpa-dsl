@@ -19,8 +19,7 @@ JPA DSL 是一个基于 Spring Data JPA Specification 的流式查询 DSL 框架
 
 ```
 src/
-├── main/java/com/jpadsl/
-│   ├── JpaDslApplication.java              # Spring Boot 启动类
+├── main/java/io/github/jsbxyyx/jpadsl/
 │   ├── core/
 │   │   ├── Criteria.java                   # 查询条件封装
 │   │   ├── CriteriaType.java               # 查询条件类型枚举
@@ -55,7 +54,7 @@ src/
 │       │   └── OrderItemRepository.java
 │       └── service/
 │           └── UserService.java            # DSL 使用示例
-└── test/java/com/jpadsl/
+└── test/java/io/github/jsbxyyx/jpadsl/
     ├── core/
     │   ├── PageRequestBuilderTest.java
     │   └── SpecificationBuilderTest.java
@@ -247,7 +246,7 @@ public interface UserRepository
 ## 运行测试
 
 ```bash
-mvn test
+./mvnw test
 ```
 
 测试覆盖：
