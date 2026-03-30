@@ -1,0 +1,27 @@
+# Compiled class files
+*.class
+
+# Build output
+target/
+
+# Maven Wrapper jar (optional, keep the properties file)
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.eclipse/
+.settings/
+.project
+.classpath
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
