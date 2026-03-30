@@ -8,8 +8,7 @@ target/
 
 # Maven
 .mvn/timing.properties
-!.mvn/wrapper/maven-wrapper.jar
-!.mvn/wrapper/maven-wrapper.properties
+.mvn/wrapper/maven-wrapper.jar
 
 # IntelliJ IDEA
 .idea/
