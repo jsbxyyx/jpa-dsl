@@ -17,11 +17,38 @@ target/
 .project
 .classpath
 
+# Compiled output
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+# Maven
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
 # VS Code
 .vscode/
 
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
