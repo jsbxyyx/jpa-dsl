@@ -63,6 +63,8 @@ public final class EntityGenerator {
         private String outputDir = "src/main/java";
         private boolean useLombok = true;
         private String[] prefixes = new String[0];
+        private String repositoryPackage = null;
+        private boolean repositoryOverride = false;
 
         private Builder() {
         }
@@ -109,6 +111,25 @@ public final class EntityGenerator {
             return this;
         }
 
+        /**
+         * Sets the Java package for generated Spring Data JPA repository interfaces.
+         * When {@code null} or empty (the default), repository generation is skipped.
+         */
+        public Builder repositoryPackage(String repositoryPackage) {
+            this.repositoryPackage = repositoryPackage;
+            return this;
+        }
+
+        /**
+         * Controls whether existing repository files are overwritten.
+         * Defaults to {@code false}: if a repository file already exists it is left unchanged.
+         * When {@code true} the file is always (re-)written.
+         */
+        public Builder repositoryOverride(boolean repositoryOverride) {
+            this.repositoryOverride = repositoryOverride;
+            return this;
+        }
+
         /** Generates entity files for <em>all</em> tables in the database. */
         public void generate() {
             doGenerate((String[]) null);
@@ -130,7 +151,8 @@ public final class EntityGenerator {
             if (entityPackage == null || entityPackage.isEmpty()) {
                 throw new IllegalStateException("entityPackage is required");
             }
-            EntityGenerator.doGenerate(dataSource, entityPackage, outputDir, useLombok, prefixes, tableNames);
+            EntityGenerator.doGenerate(dataSource, entityPackage, outputDir, useLombok, prefixes, tableNames,
+                    repositoryPackage, repositoryOverride);
         }
     }
 
@@ -168,7 +190,8 @@ public final class EntityGenerator {
     // -------------------------------------------------------------------------
 
     private static void doGenerate(DataSource dataSource, String entityPackage, String outputDir,
-                                   boolean useLombok, String[] prefixes, String[] tableNames) {
+                                   boolean useLombok, String[] prefixes, String[] tableNames,
+                                   String repositoryPackage, boolean repositoryOverride) {
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
             String catalog = conn.getCatalog();
@@ -179,6 +202,10 @@ public final class EntityGenerator {
                 List<ColumnInfo> columns = readColumns(meta, catalog, schema, table);
                 Set<String> primaryKeys = readPrimaryKeys(meta, catalog, schema, table);
                 writeEntity(entityPackage, outputDir, table, columns, primaryKeys, useLombok, prefixes);
+                if (repositoryPackage != null && !repositoryPackage.isEmpty()) {
+                    writeRepository(entityPackage, repositoryPackage, outputDir, table, columns,
+                            primaryKeys, prefixes, repositoryOverride);
+                }
             }
         } catch (SQLException | IOException e) {
             throw new RuntimeException("EntityGenerator failed", e);
@@ -406,6 +433,70 @@ public final class EntityGenerator {
 
             w.println("}");
         }
+    }
+
+    private static void writeRepository(String entityPackage, String repositoryPackage, String outputDir,
+                                        String tableName, List<ColumnInfo> columns, Set<String> primaryKeys,
+                                        String[] prefixes, boolean override) throws IOException {
+        String trimmedName = applyTrimPrefix(tableName, prefixes);
+        String entityClassName = toPascalCase(trimmedName);
+        String repositoryClassName = entityClassName + "Repository";
+
+        // Build case-insensitive PK set
+        Set<String> pkLower = new LinkedHashSet<>();
+        for (String pk : primaryKeys) {
+            pkLower.add(pk.toLowerCase());
+        }
+        String pkJavaType = resolvePkJavaType(columns, pkLower);
+
+        File dir = new File(outputDir, repositoryPackage.replace('.', File.separatorChar));
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException("Cannot create directory: " + dir);
+        }
+        File file = new File(dir, repositoryClassName + ".java");
+        if (file.exists() && !override) {
+            return;
+        }
+
+        try (PrintWriter w = new PrintWriter(
+                new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
+            w.println("package " + repositoryPackage + ";");
+            w.println();
+            w.println("import " + entityPackage + "." + entityClassName + ";");
+            w.println("import org.springframework.data.jpa.repository.JpaRepository;");
+            w.println("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;");
+            w.println("import org.springframework.stereotype.Repository;");
+            w.println();
+            w.println("@Repository");
+            w.println("public interface " + repositoryClassName + " extends JpaRepository<"
+                    + entityClassName + ", " + pkJavaType + ">, JpaSpecificationExecutor<"
+                    + entityClassName + "> {");
+            w.println("}");
+        }
+    }
+
+    /**
+     * Resolves the simple Java type name of the primary key for use in repository generation.
+     *
+     * <p>When there is exactly one primary key column and its column info is found in {@code columns},
+     * the corresponding Java type is returned (e.g. {@code "Long"}, {@code "Integer"}, {@code "String"}).
+     * In all other cases — composite primary keys, missing PK column info, or tables without a PK —
+     * {@code "Long"} is returned as a safe default.
+     *
+     * @param columns  the full list of column metadata for the table
+     * @param pkLower  the set of primary key column names in lower-case
+     * @return the simple Java type name for the repository ID parameter
+     */
+    private static String resolvePkJavaType(List<ColumnInfo> columns, Set<String> pkLower) {
+        if (pkLower.size() == 1) {
+            String pkColName = pkLower.iterator().next();
+            for (ColumnInfo col : columns) {
+                if (col.name.toLowerCase().equals(pkColName)) {
+                    return simpleTypeName(toJavaType(col.typeName));
+                }
+            }
+        }
+        return "Long";
     }
 
     /**
