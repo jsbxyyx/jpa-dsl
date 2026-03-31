@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -106,6 +107,7 @@ public final class EntityGenerator {
                         cols.add(columnInfoFromResultSet(rsUpper));
                     }
                 }
+                cols.sort(Comparator.comparingInt(c -> c.ordinalPosition));
                 return cols;
             }
             cols.add(columnInfoFromResultSet(rs));
@@ -113,6 +115,7 @@ public final class EntityGenerator {
                 cols.add(columnInfoFromResultSet(rs));
             }
         }
+        cols.sort(Comparator.comparingInt(c -> c.ordinalPosition));
         return cols;
     }
 
@@ -122,7 +125,8 @@ public final class EntityGenerator {
         boolean nullable = rs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
         String isAutoincrement = rs.getString("IS_AUTOINCREMENT");
         boolean autoIncrement = "YES".equalsIgnoreCase(isAutoincrement);
-        return new ColumnInfo(colName, typeName, nullable, autoIncrement);
+        int ordinalPosition = rs.getInt("ORDINAL_POSITION");
+        return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition);
     }
 
     private static Set<String> readPrimaryKeys(DatabaseMetaData meta, String catalog, String schema,
@@ -382,12 +386,14 @@ public final class EntityGenerator {
         final String typeName;
         final boolean nullable;
         final boolean autoIncrement;
+        final int ordinalPosition;
 
-        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement) {
+        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition) {
             this.name = name;
             this.typeName = typeName;
             this.nullable = nullable;
             this.autoIncrement = autoIncrement;
+            this.ordinalPosition = ordinalPosition;
         }
     }
 }
