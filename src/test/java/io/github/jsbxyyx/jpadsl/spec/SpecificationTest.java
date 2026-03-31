@@ -115,7 +115,7 @@ class SpecificationTest {
 
     @Test
     void testSpecificationDslChaining() {
-        Specification<User> spec = SpecificationDsl.<User, String>equal(User_.status, "ACTIVE")
+        Specification<User> spec = SpecificationDsl.<User, String>eq(User_.status, "ACTIVE")
                 .and(SpecificationDsl.gt(User_.age, 24));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // John(25), Jane(30)

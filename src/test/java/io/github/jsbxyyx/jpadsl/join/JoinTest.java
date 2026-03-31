@@ -96,7 +96,7 @@ class JoinTest {
     @Test
     void fkJoin_withAdditionalFilter() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .join(User_.orders, JoinType.INNER, (join, query, cb, predicates) ->
                         predicates.add(cb.equal(join.get(Order_.status), "PAID")))
                 .build();
@@ -159,7 +159,7 @@ class JoinTest {
     @Test
     void noFkJoin_withUserStatusFilter() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .join(Order.class, JoinType.INNER, (userRoot, orderJoin, cb) ->
                         cb.and(
                                 cb.equal(userRoot.get(User_.id), orderJoin.get(Order_.userId)),

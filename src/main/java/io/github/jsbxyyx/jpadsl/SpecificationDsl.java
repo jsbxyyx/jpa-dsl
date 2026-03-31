@@ -19,7 +19,7 @@ import java.util.List;
  * import static io.github.jsbxyyx.jpadsl.SpecificationDsl.*;
  *
  * Specification<User> spec = and(
- *     equal(User_.status, "ACTIVE"),
+ *     eq(User_.status, "ACTIVE"),
  *     like(User_.name, "John"),
  *     or(
  *         lt(User_.age, 18),
@@ -33,11 +33,11 @@ public final class SpecificationDsl {
     private SpecificationDsl() {
     }
 
-    public static <T, V> Specification<T> equal(SingularAttribute<? super T, V> attr, V value) {
+    public static <T, V> Specification<T> eq(SingularAttribute<? super T, V> attr, V value) {
         return (root, query, cb) -> value == null ? null : cb.equal(root.get(attr), value);
     }
 
-    public static <T, V> Specification<T> notEqual(SingularAttribute<? super T, V> attr, V value) {
+    public static <T, V> Specification<T> ne(SingularAttribute<? super T, V> attr, V value) {
         return (root, query, cb) -> value == null ? null : cb.notEqual(root.get(attr), value);
     }
 

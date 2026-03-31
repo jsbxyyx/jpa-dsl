@@ -47,9 +47,9 @@ class SpecificationBuilderTest {
     }
 
     @Test
-    void builder_equalPredicate() {
+    void builder_eqPredicate() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2)
@@ -60,7 +60,7 @@ class SpecificationBuilderTest {
     @Test
     void builder_multipleCriteria() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .gt(User_.age, 35)
                 .build();
         List<User> result = userRepository.findAll(spec);
@@ -134,9 +134,9 @@ class SpecificationBuilderTest {
     }
 
     @Test
-    void builder_notEqual() {
+    void builder_ne() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .notEqual(User_.status, "ACTIVE")
+                .ne(User_.status, "ACTIVE")
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1)
@@ -169,8 +169,8 @@ class SpecificationBuilderTest {
     @Test
     void builder_orComposition() {
         Specification<User> orSpec = SpecificationDsl.or(
-                SpecificationDsl.equal(User_.name, "Alice"),
-                SpecificationDsl.equal(User_.name, "Charlie")
+                SpecificationDsl.eq(User_.name, "Alice"),
+                SpecificationDsl.eq(User_.name, "Charlie")
         );
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .predicate(orSpec)
@@ -222,7 +222,7 @@ class SpecificationBuilderTest {
     @Test
     void builder_nullValueIsIgnored() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, null)
+                .eq(User_.status, null)
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);

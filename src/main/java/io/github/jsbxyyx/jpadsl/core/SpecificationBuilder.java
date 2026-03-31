@@ -20,7 +20,7 @@ import java.util.List;
  * <p>Usage example:
  * <pre>{@code
  * Specification<User> spec = SpecificationBuilder.<User>builder()
- *     .equal(User_.status, "ACTIVE")
+ *     .eq(User_.status, "ACTIVE")
  *     .like(User_.name, "John")
  *     .gte(User_.age, 18)
  *     .build();
@@ -36,12 +36,12 @@ public class SpecificationBuilder<T> {
         return new SpecificationBuilder<>();
     }
 
-    public <V> SpecificationBuilder<T> equal(SingularAttribute<? super T, V> attr, V value) {
+    public <V> SpecificationBuilder<T> eq(SingularAttribute<? super T, V> attr, V value) {
         specifications.add(new EqualSpecification<>(attr, value));
         return this;
     }
 
-    public <V> SpecificationBuilder<T> notEqual(SingularAttribute<? super T, V> attr, V value) {
+    public <V> SpecificationBuilder<T> ne(SingularAttribute<? super T, V> attr, V value) {
         specifications.add(new NotEqualSpecification<>(attr, value));
         return this;
     }

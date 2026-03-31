@@ -18,7 +18,7 @@ import java.util.List;
 
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.and;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.between;
-import static io.github.jsbxyyx.jpadsl.SpecificationDsl.equal;
+import static io.github.jsbxyyx.jpadsl.SpecificationDsl.eq;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.gt;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.gte;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.in;
@@ -27,7 +27,7 @@ import static io.github.jsbxyyx.jpadsl.SpecificationDsl.isNull;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.lt;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.like;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.not;
-import static io.github.jsbxyyx.jpadsl.SpecificationDsl.notEqual;
+import static io.github.jsbxyyx.jpadsl.SpecificationDsl.ne;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.notIn;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.or;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,8 +60,8 @@ class SpecificationDslTest {
     }
 
     @Test
-    void equal_shouldFilterByStatus() {
-        Specification<User> spec = equal(User_.status, "ACTIVE");
+    void eq_shouldFilterByStatus() {
+        Specification<User> spec = eq(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2)
                 .extracting(User::getName)
@@ -69,8 +69,8 @@ class SpecificationDslTest {
     }
 
     @Test
-    void notEqual_shouldExcludeStatus() {
-        Specification<User> spec = notEqual(User_.status, "ACTIVE");
+    void ne_shouldExcludeStatus() {
+        Specification<User> spec = ne(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1)
                 .extracting(User::getName)
@@ -169,7 +169,7 @@ class SpecificationDslTest {
 
     @Test
     void and_shouldCombinePredicates() {
-        Specification<User> spec = and(equal(User_.status, "ACTIVE"), gt(User_.age, 35));
+        Specification<User> spec = and(eq(User_.status, "ACTIVE"), gt(User_.age, 35));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1)
                 .extracting(User::getName)
@@ -178,7 +178,7 @@ class SpecificationDslTest {
 
     @Test
     void or_shouldCombinePredicates() {
-        Specification<User> spec = or(equal(User_.name, "Alice"), equal(User_.name, "Bob"));
+        Specification<User> spec = or(eq(User_.name, "Alice"), eq(User_.name, "Bob"));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2)
                 .extracting(User::getName)
@@ -187,7 +187,7 @@ class SpecificationDslTest {
 
     @Test
     void not_shouldNegateSpec() {
-        Specification<User> spec = not(equal(User_.status, "ACTIVE"));
+        Specification<User> spec = not(eq(User_.status, "ACTIVE"));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1)
                 .extracting(User::getName)
@@ -197,7 +197,7 @@ class SpecificationDslTest {
     @Test
     void nestedAndOr_shouldWorkCorrectly() {
         Specification<User> spec = and(
-                equal(User_.status, "ACTIVE"),
+                eq(User_.status, "ACTIVE"),
                 or(
                         gt(User_.age, 35),
                         like(User_.name, "lic")

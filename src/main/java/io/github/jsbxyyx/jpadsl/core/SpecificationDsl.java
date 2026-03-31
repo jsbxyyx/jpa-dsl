@@ -15,11 +15,11 @@ public class SpecificationDsl {
 
     private SpecificationDsl() {}
 
-    public static <T, V> Specification<T> equal(SingularAttribute<? super T, V> attr, V value) {
+    public static <T, V> Specification<T> eq(SingularAttribute<? super T, V> attr, V value) {
         return new EqualSpecification<>(attr, value);
     }
 
-    public static <T, V> Specification<T> notEqual(SingularAttribute<? super T, V> attr, V value) {
+    public static <T, V> Specification<T> ne(SingularAttribute<? super T, V> attr, V value) {
         return new NotEqualSpecification<>(attr, value);
     }
 
