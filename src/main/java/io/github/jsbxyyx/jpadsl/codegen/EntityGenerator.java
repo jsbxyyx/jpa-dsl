@@ -24,18 +24,119 @@ import java.util.Set;
  * Utility class that reads database table metadata via JDBC and generates
  * JPA {@code @Entity} Java source files.
  *
- * <p>Usage:
+ * <p>Usage (Builder API):
+ * <pre>{@code
+ * EntityGenerator.builder()
+ *     .dataSource(dataSource)
+ *     .entityPackage("com.example.entity")
+ *     .trimPrefix("t_", "sys_")
+ *     .generate();
+ * }</pre>
+ *
+ * <p>Legacy static API:
  * <pre>{@code
  * EntityGenerator.generate(dataSource, "com.example.entity", "src/main/java");
  * }</pre>
- *
- * <p>You may add Lombok {@code @Data} annotation to the generated classes to
- * automatically generate getters/setters.</p>
  */
 public final class EntityGenerator {
 
     private EntityGenerator() {
     }
+
+    // -------------------------------------------------------------------------
+    // Builder API
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns a new {@link Builder} for fluent configuration.
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Fluent builder for {@link EntityGenerator}.
+     */
+    public static final class Builder {
+        private DataSource dataSource;
+        private String entityPackage;
+        private String outputDir = "src/main/java";
+        private boolean useLombok = true;
+        private String[] prefixes = new String[0];
+
+        private Builder() {
+        }
+
+        /** Sets the JDBC data source (required). */
+        public Builder dataSource(DataSource dataSource) {
+            this.dataSource = dataSource;
+            return this;
+        }
+
+        /** Sets the Java package for generated entity classes (required). */
+        public Builder entityPackage(String entityPackage) {
+            this.entityPackage = entityPackage;
+            return this;
+        }
+
+        /** Sets the root source directory. Defaults to {@code "src/main/java"}. */
+        public Builder outputDir(String outputDir) {
+            this.outputDir = outputDir;
+            return this;
+        }
+
+        /**
+         * Controls Lombok annotation generation. Defaults to {@code true}.
+         * <ul>
+         *   <li>{@code true}: adds {@code @Data} and {@code @Accessors(chain = true)};
+         *       no getter/setter methods are generated.</li>
+         *   <li>{@code false}: generates standard getter methods and chain setter
+         *       methods (setters return {@code this}).</li>
+         * </ul>
+         */
+        public Builder useLombok(boolean useLombok) {
+            this.useLombok = useLombok;
+            return this;
+        }
+
+        /**
+         * Specifies one or more table-name prefixes to strip before converting
+         * the table name to a class name (case-insensitive match).
+         * Example: {@code trimPrefix("t_", "sys_")} turns {@code t_user} into {@code User}.
+         */
+        public Builder trimPrefix(String... prefixes) {
+            this.prefixes = prefixes;
+            return this;
+        }
+
+        /** Generates entity files for <em>all</em> tables in the database. */
+        public void generate() {
+            doGenerate((String[]) null);
+        }
+
+        /**
+         * Generates entity files only for the specified tables.
+         *
+         * @param tableNames the tables to generate
+         */
+        public void generate(String... tableNames) {
+            doGenerate(tableNames);
+        }
+
+        private void doGenerate(String[] tableNames) {
+            if (dataSource == null) {
+                throw new IllegalStateException("dataSource is required");
+            }
+            if (entityPackage == null || entityPackage.isEmpty()) {
+                throw new IllegalStateException("entityPackage is required");
+            }
+            EntityGenerator.doGenerate(dataSource, entityPackage, outputDir, useLombok, prefixes, tableNames);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Backward-compatible static methods
+    // -------------------------------------------------------------------------
 
     /**
      * Generates JPA entity source files for <em>all</em> tables in the database.
@@ -46,7 +147,7 @@ public final class EntityGenerator {
      *                      created automatically
      */
     public static void generate(DataSource dataSource, String entityPackage, String outputDir) {
-        generate(dataSource, entityPackage, outputDir, (String[]) null);
+        builder().dataSource(dataSource).entityPackage(entityPackage).outputDir(outputDir).generate();
     }
 
     /**
@@ -59,6 +160,15 @@ public final class EntityGenerator {
      */
     public static void generate(DataSource dataSource, String entityPackage, String outputDir,
                                 String... tableNames) {
+        builder().dataSource(dataSource).entityPackage(entityPackage).outputDir(outputDir).generate(tableNames);
+    }
+
+    // -------------------------------------------------------------------------
+    // Core implementation
+    // -------------------------------------------------------------------------
+
+    private static void doGenerate(DataSource dataSource, String entityPackage, String outputDir,
+                                   boolean useLombok, String[] prefixes, String[] tableNames) {
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
             String catalog = conn.getCatalog();
@@ -68,7 +178,7 @@ public final class EntityGenerator {
             for (String table : tables) {
                 List<ColumnInfo> columns = readColumns(meta, catalog, schema, table);
                 Set<String> primaryKeys = readPrimaryKeys(meta, catalog, schema, table);
-                writeEntity(entityPackage, outputDir, table, columns, primaryKeys);
+                writeEntity(entityPackage, outputDir, table, columns, primaryKeys, useLombok, prefixes);
             }
         } catch (SQLException | IOException e) {
             throw new RuntimeException("EntityGenerator failed", e);
@@ -154,10 +264,13 @@ public final class EntityGenerator {
     // -------------------------------------------------------------------------
 
     private static void writeEntity(String pkg, String outputDir, String tableName,
-                                    List<ColumnInfo> columns, Set<String> primaryKeys) throws IOException {
+                                    List<ColumnInfo> columns, Set<String> primaryKeys,
+                                    boolean useLombok, String[] prefixes) throws IOException {
         // Normalize names to lowercase so generated annotations are DB-case-agnostic.
         String lowerTable = tableName.toLowerCase();
-        String className = toPascalCase(tableName);
+        // Apply prefix trimming before converting to class name.
+        String trimmedName = applyTrimPrefix(tableName, prefixes);
+        String className = toPascalCase(trimmedName);
 
         // Primary-key lookup is case-insensitive (H2 returns uppercase names).
         Set<String> pkLower = new LinkedHashSet<>();
@@ -167,6 +280,10 @@ public final class EntityGenerator {
 
         // Collect imports
         Set<String> imports = new LinkedHashSet<>();
+        if (useLombok) {
+            imports.add("lombok.Data");
+            imports.add("lombok.experimental.Accessors");
+        }
         imports.add("jakarta.persistence.Column");
         imports.add("jakarta.persistence.Entity");
         imports.add("jakarta.persistence.Table");
@@ -229,8 +346,11 @@ public final class EntityGenerator {
 
             w.println("/**");
             w.println(" * Auto-generated JPA entity for table: " + lowerTable);
-            w.println(" * <p>You may add Lombok @Data annotation to generate getters/setters.</p>");
             w.println(" */");
+            if (useLombok) {
+                w.println("@Data");
+                w.println("@Accessors(chain = true)");
+            }
             w.println("@Entity");
             w.println("@Table(name = \"" + lowerTable + "\")");
             w.println("public class " + className + " {");
@@ -258,8 +378,52 @@ public final class EntityGenerator {
                 w.println();
             }
 
+            if (!useLombok) {
+                // Generate standard getter and chain setter methods.
+                for (ColumnInfo col : columns) {
+                    String javaType = javaTypes.get(col);
+                    String simpleType = simpleTypeName(javaType);
+                    String lowerCol = col.name.toLowerCase();
+                    String fieldName = toCamelCase(lowerCol);
+                    String pascalField = toPascalCase(lowerCol);
+
+                    // Getter
+                    String getterPrefix = "Boolean".equals(simpleType) || "boolean".equals(simpleType) ? "is" : "get";
+                    w.println("    public " + simpleType + " " + getterPrefix + pascalField + "() {");
+                    w.println("        return this." + fieldName + ";");
+                    w.println("    }");
+                    w.println();
+
+                    // Chain setter (returns this)
+                    w.println("    public " + className + " set" + pascalField
+                            + "(" + simpleType + " " + fieldName + ") {");
+                    w.println("        this." + fieldName + " = " + fieldName + ";");
+                    w.println("        return this;");
+                    w.println("    }");
+                    w.println();
+                }
+            }
+
             w.println("}");
         }
+    }
+
+    /**
+     * Strips the first matching prefix from {@code tableName} (case-insensitive).
+     * Returns the original name unchanged if no prefix matches.
+     */
+    private static String applyTrimPrefix(String tableName, String[] prefixes) {
+        if (prefixes == null || prefixes.length == 0) {
+            return tableName;
+        }
+        String lowerName = tableName.toLowerCase();
+        for (String prefix : prefixes) {
+            if (prefix != null && !prefix.isEmpty()
+                    && lowerName.startsWith(prefix.toLowerCase())) {
+                return tableName.substring(prefix.length());
+            }
+        }
+        return tableName;
     }
 
     // -------------------------------------------------------------------------
