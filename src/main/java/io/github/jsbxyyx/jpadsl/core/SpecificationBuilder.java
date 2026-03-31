@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jpadsl.core;
 
 import io.github.jsbxyyx.jpadsl.spec.*;
+import io.github.jsbxyyx.jpadsl.join.JoinStrategyResolver;
 import jakarta.persistence.criteria.*;
 import jakarta.persistence.metamodel.ListAttribute;
 import jakarta.persistence.metamodel.SetAttribute;
@@ -138,5 +139,27 @@ public class SpecificationBuilder<T> {
                     .toArray(Predicate[]::new);
             return cb.and(predicates);
         };
+    }
+
+    /**
+     * Adds a no-foreign-key join between the driving entity and {@code targetEntity}.
+     *
+     * <p>The runtime strategy is resolved automatically by {@link JoinStrategyResolver}:
+     * <ul>
+     *   <li>When Hibernate 6+ is present, a true SQL {@code JOIN ... ON} is produced.</li>
+     *   <li>Otherwise a JPA standard cross-join + WHERE condition is used (INNER join effect).</li>
+     * </ul>
+     *
+     * @param targetEntity the class of the entity to join
+     * @param joinType     INNER, LEFT or RIGHT
+     * @param onCondition  factory for the JOIN ON predicate
+     * @param <J>          the joined entity type
+     */
+    public <J> SpecificationBuilder<T> join(Class<J> targetEntity,
+                                             jakarta.persistence.criteria.JoinType joinType,
+                                             JoinCondition<T, J> onCondition) {
+        specifications.add((root, query, cb) ->
+                JoinStrategyResolver.resolve().buildJoin(root, query, cb, targetEntity, joinType, onCondition));
+        return this;
     }
 }

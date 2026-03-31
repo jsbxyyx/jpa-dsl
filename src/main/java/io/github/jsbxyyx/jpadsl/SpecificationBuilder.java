@@ -1,5 +1,7 @@
 package io.github.jsbxyyx.jpadsl;
 
+import io.github.jsbxyyx.jpadsl.core.JoinCondition;
+import io.github.jsbxyyx.jpadsl.join.JoinStrategyResolver;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Join;
@@ -273,6 +275,39 @@ public class SpecificationBuilder<T> {
             configure.configure(join, query, cb, predicates);
             return cb.and(predicates.toArray(new Predicate[0]));
         });
+        return this;
+    }
+
+    /**
+     * Adds a no-foreign-key join between the driving entity and {@code targetEntity}.
+     *
+     * <p>The runtime strategy is resolved automatically by {@link JoinStrategyResolver}:
+     * <ul>
+     *   <li>When Hibernate 6+ is present, a true SQL {@code JOIN ... ON} is produced
+     *       (full LEFT / RIGHT semantics preserved).</li>
+     *   <li>Otherwise the standard JPA fallback is used: {@code targetEntity} is added
+     *       as a second FROM clause (cross join) and the ON condition moves to WHERE
+     *       (effectively INNER JOIN).</li>
+     * </ul>
+     *
+     * <p>Example:
+     * <pre>{@code
+     * SpecificationBuilder.<User>builder()
+     *     .join(Order.class, JoinType.LEFT, (userRoot, orderJoin, cb) ->
+     *         cb.equal(userRoot.get(User_.id), orderJoin.get(Order_.userId)))
+     *     .build();
+     * }</pre>
+     *
+     * @param targetEntity the class of the entity to join
+     * @param joinType     INNER, LEFT or RIGHT
+     * @param onCondition  factory for the JOIN ON predicate
+     * @param <J>          the joined entity type
+     */
+    public <J> SpecificationBuilder<T> join(Class<J> targetEntity,
+                                            JoinType joinType,
+                                            JoinCondition<T, J> onCondition) {
+        specs.add((root, query, cb) ->
+                JoinStrategyResolver.resolve().buildJoin(root, query, cb, targetEntity, joinType, onCondition));
         return this;
     }
 

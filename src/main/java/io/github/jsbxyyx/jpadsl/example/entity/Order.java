@@ -23,6 +23,14 @@ public class Order {
     @JoinColumn(name = "user_id")
     private User user;
 
+    /**
+     * Stores the raw {@code user_id} FK value as a plain field for use in no-FK join demos.
+     * This column is managed by the {@link #user} association, so this field is read-only
+     * ({@code insertable = false, updatable = false}).
+     */
+    @Column(name = "user_id", insertable = false, updatable = false)
+    private Long userId;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -49,6 +57,7 @@ public class Order {
     public void setStatus(String status) { this.status = status; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+    public Long getUserId() { return userId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public List<OrderItem> getOrderItems() { return orderItems; }
