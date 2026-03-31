@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jpadsl;
 
+import jakarta.persistence.metamodel.SingularAttribute;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -10,13 +11,16 @@ import java.util.List;
 /**
  * Fluent builder for constructing Spring Data {@link Pageable} instances.
  *
+ * <p>Supports both string-based sort properties (for backward compatibility) and
+ * type-safe sort using JPA Static Metamodel attributes via {@link #sortBy}.
+ *
  * <p>Example:
  * <pre>{@code
  * Pageable pageable = PageRequestBuilder.builder()
  *     .page(0)
  *     .size(20)
- *     .asc("lastName")
- *     .desc("createdAt")
+ *     .sortBy(User_.lastName, Sort.Direction.ASC)
+ *     .sortBy(User_.createdAt, Sort.Direction.DESC)
  *     .build();
  * }</pre>
  */
@@ -46,6 +50,17 @@ public class PageRequestBuilder {
             throw new IllegalArgumentException("Page size must not be less than one");
         }
         this.size = size;
+        return this;
+    }
+
+    /**
+     * Adds a sort order using a type-safe JPA Static Metamodel attribute.
+     *
+     * @param attr      the metamodel attribute to sort by (e.g. {@code User_.name})
+     * @param direction sort direction
+     */
+    public PageRequestBuilder sortBy(SingularAttribute<?, ?> attr, Sort.Direction direction) {
+        orders.add(new Sort.Order(direction, attr.getName()));
         return this;
     }
 

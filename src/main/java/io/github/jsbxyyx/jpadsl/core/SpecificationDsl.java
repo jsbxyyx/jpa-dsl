@@ -1,67 +1,67 @@
 package io.github.jsbxyyx.jpadsl.core;
 
 import io.github.jsbxyyx.jpadsl.spec.*;
+import jakarta.persistence.metamodel.SingularAttribute;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 /**
- * Static factory methods for creating Specification instances.
- * Provides a convenient DSL-style API for building query specifications.
+ * Static factory methods for creating Specification instances using type-safe
+ * JPA Static Metamodel attribute references.
  */
 public class SpecificationDsl {
 
     private SpecificationDsl() {}
 
-    public static <T> Specification<T> equal(String field, Object value) {
-        return new EqualSpecification<>(field, value);
+    public static <T, V> Specification<T> equal(SingularAttribute<? super T, V> attr, V value) {
+        return new EqualSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> notEqual(String field, Object value) {
-        return new NotEqualSpecification<>(field, value);
+    public static <T, V> Specification<T> notEqual(SingularAttribute<? super T, V> attr, V value) {
+        return new NotEqualSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> like(String field, String value) {
-        return new LikeSpecification<>(field, value);
+    public static <T> Specification<T> like(SingularAttribute<? super T, String> attr, String value) {
+        return new LikeSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> in(String field, Collection<?> values) {
-        return new InSpecification<>(field, values);
+    public static <T, V> Specification<T> in(SingularAttribute<? super T, V> attr, Collection<V> values) {
+        return new InSpecification<>(attr, values);
     }
 
-    @SafeVarargs
-    public static <T, V> Specification<T> in(String field, V... values) {
-        return new InSpecification<>(field, Arrays.asList(values));
+    public static <T, V extends Comparable<? super V>> Specification<T> between(
+            SingularAttribute<? super T, V> attr, V lower, V upper) {
+        return new BetweenSpecification<>(attr, lower, upper);
     }
 
-    public static <T> Specification<T> between(String field, Comparable<?> lower, Comparable<?> upper) {
-        return new BetweenSpecification<>(field, lower, upper);
+    public static <T, V extends Comparable<? super V>> Specification<T> gt(
+            SingularAttribute<? super T, V> attr, V value) {
+        return new GreaterThanSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> greaterThan(String field, Comparable<?> value) {
-        return new GreaterThanSpecification<>(field, value);
+    public static <T, V extends Comparable<? super V>> Specification<T> lt(
+            SingularAttribute<? super T, V> attr, V value) {
+        return new LessThanSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> lessThan(String field, Comparable<?> value) {
-        return new LessThanSpecification<>(field, value);
+    public static <T, V extends Comparable<? super V>> Specification<T> gte(
+            SingularAttribute<? super T, V> attr, V value) {
+        return new GreaterThanOrEqualSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> greaterThanOrEqual(String field, Comparable<?> value) {
-        return new GreaterThanOrEqualSpecification<>(field, value);
+    public static <T, V extends Comparable<? super V>> Specification<T> lte(
+            SingularAttribute<? super T, V> attr, V value) {
+        return new LessThanOrEqualSpecification<>(attr, value);
     }
 
-    public static <T> Specification<T> lessThanOrEqual(String field, Comparable<?> value) {
-        return new LessThanOrEqualSpecification<>(field, value);
+    public static <T> Specification<T> isNull(SingularAttribute<? super T, ?> attr) {
+        return new IsNullSpecification<>(attr);
     }
 
-    public static <T> Specification<T> isNull(String field) {
-        return new IsNullSpecification<>(field);
-    }
-
-    public static <T> Specification<T> isNotNull(String field) {
-        return new IsNotNullSpecification<>(field);
+    public static <T> Specification<T> isNotNull(SingularAttribute<? super T, ?> attr) {
+        return new IsNotNullSpecification<>(attr);
     }
 
     @SafeVarargs

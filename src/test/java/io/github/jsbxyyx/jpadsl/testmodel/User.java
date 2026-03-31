@@ -11,8 +11,8 @@ import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
 
-@Entity
-@Table(name = "users")
+@Entity(name = "TestUser")
+@Table(name = "test_users")
 public class User {
 
     @Id
@@ -28,7 +28,7 @@ public class User {
 
     private String status;
 
-    @OneToMany(mappedBy = "user")
+    @OneToMany(targetEntity = Order.class, mappedBy = "user")
     private List<Order> orders = new ArrayList<>();
 
     public User() {
@@ -41,43 +41,19 @@ public class User {
         this.status = status;
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
 
-    public String getName() {
-        return name;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public String getEmail() {
-        return email;
-    }
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
-    public Integer getAge() {
-        return age;
-    }
-
-    public void setAge(Integer age) {
-        this.age = age;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public List<Order> getOrders() {
-        return orders;
-    }
+    public List<Order> getOrders() { return orders; }
 }

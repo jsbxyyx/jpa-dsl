@@ -1,17 +1,190 @@
-# JPA DSL - Spring Data JPA Specification DSL 框架
+# JPA DSL — Spring Data JPA Specification DSL SDK
+
+[![Java](https://img.shields.io/badge/Java-17+-blue)](https://www.java.com)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-green)](https://spring.io/projects/spring-boot)
 
 ## 项目介绍
 
-JPA DSL 是一个基于 Spring Data JPA Specification 的流式查询 DSL 框架，提供了简洁、可读性强的 API 来构建复杂的 JPA 查询条件，避免了手写 Specification 的繁琐样板代码。
+JPA DSL 是一个基于 **Spring Data JPA Specification** 的流式查询 DSL SDK，提供**编译期类型安全**的 API 来构建复杂的 JPA 查询条件。
 
-### 核心特性
+- **类型安全**：所有字段引用使用 JPA Static Metamodel（如 `User_.status`），在编译期即可发现字段名拼写错误和类型不匹配。
+- **流式链式 API**：`SpecificationBuilder` 支持链式调用，构建复杂的复合查询。
+- **静态工厂 API**：`SpecificationDsl` 提供静态方法，适合 `import static` 简洁书写。
+- **类型安全 Join**：支持 `SingularAttribute`（ManyToOne/OneToOne）和 `ListAttribute`/`SetAttribute`（OneToMany/ManyToMany）的类型安全 JOIN 操作。
+- **分页排序**：`PageRequestBuilder` 支持通过 metamodel 属性排序。
 
-- **SpecificationBuilder**：链式构建器，支持流式 API 组合多个查询条件
-- **SpecificationDsl**：静态工厂方法，快速创建单个 Specification 实例
-- **PageRequestBuilder**：分页排序构建器，简化 `PageRequest` 的创建
-- **15 种内置 Specification**：覆盖常见查询场景（等于、不等于、模糊、范围、IN、IS NULL 等）
-- **嵌套路径支持**：支持 `"address.city"` 这样的嵌套属性路径
-- **逻辑组合**：支持 AND、OR、NOT 组合
+---
+
+## 快速开始
+
+### 1. 配置 hibernate-jpamodelgen（必须）
+
+在 `pom.xml` 中配置 `hibernate-jpamodelgen` 注解处理器，用于自动生成 `*_` 元模型类：
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <annotationProcessorPaths>
+            <path>
+                <groupId>org.hibernate.orm</groupId>
+                <artifactId>hibernate-jpamodelgen</artifactId>
+                <version>6.4.4.Final</version>
+            </path>
+        </annotationProcessorPaths>
+    </configuration>
+</plugin>
+```
+
+配置后编译项目，Hibernate 会在 `target/generated-sources/annotations` 目录下自动生成如 `User_`、`Order_` 等元模型类。
+
+### 2. 定义实体
+
+```java
+@Entity
+@Table(name = "users")
+public class User {
+    @Id @GeneratedValue
+    private Long id;
+    private String name;
+    private String email;
+    private Integer age;
+    private String status;
+    private String role;
+
+    @OneToMany(mappedBy = "user")
+    private List<Order> orders;
+    // ... getters/setters
+}
+```
+
+### 3. 使用 SpecificationBuilder
+
+```java
+// 使用 User_.xxx 元模型属性，编译期类型安全
+Specification<User> spec = SpecificationBuilder.<User>builder()
+    .equal(User_.status, "ACTIVE")
+    .like(User_.name, "John")       // 自动添加 %，即 %John%
+    .gte(User_.age, 18)
+    .build();
+
+List<User> users = userRepository.findAll(spec);
+```
+
+### 4. 使用 SpecificationDsl（静态方法）
+
+```java
+import static io.github.jsbxyyx.jpadsl.SpecificationDsl.*;
+
+Specification<User> spec = and(
+    equal(User_.status, "ACTIVE"),
+    or(
+        gt(User_.age, 60),
+        lt(User_.age, 18)
+    )
+);
+```
+
+### 5. 分页排序
+
+```java
+Pageable pageable = PageRequestBuilder.builder()
+    .page(0)
+    .size(20)
+    .sortBy(User_.createdAt, Sort.Direction.DESC)   // 类型安全排序
+    .sortBy(User_.name, Sort.Direction.ASC)
+    .build();
+
+Page<User> page = userRepository.findAll(spec, pageable);
+```
+
+---
+
+## API 参考
+
+### SpecificationBuilder / SpecificationDsl
+
+| 方法 | 说明 | 示例 |
+|------|------|------|
+| `equal(attr, value)` | 等于 | `equal(User_.status, "ACTIVE")` |
+| `notEqual(attr, value)` | 不等于 | `notEqual(User_.status, "DELETED")` |
+| `like(attr, value)` | 模糊匹配，自动包裹 `%` | `like(User_.name, "John")` → `%John%` |
+| `likeIgnoreCase(attr, value)` | 不区分大小写模糊匹配 | `likeIgnoreCase(User_.name, "john")` |
+| `in(attr, values)` | IN 集合（单值属性） | `in(User_.role, List.of("ADMIN", "USER"))` |
+| `notIn(attr, values)` | NOT IN 集合 | `notIn(User_.role, List.of("GUEST"))` |
+| `between(attr, lower, upper)` | 范围查询 | `between(User_.age, 18, 60)` |
+| `gt(attr, value)` | 大于 | `gt(User_.age, 18)` |
+| `gte(attr, value)` | 大于等于 | `gte(User_.age, 18)` |
+| `lt(attr, value)` | 小于 | `lt(User_.age, 60)` |
+| `lte(attr, value)` | 小于等于 | `lte(User_.age, 60)` |
+| `isNull(attr)` | IS NULL | `isNull(User_.deletedAt)` |
+| `isNotNull(attr)` | IS NOT NULL | `isNotNull(User_.email)` |
+| `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
+| `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
+| `not(spec)` | NOT 取反 | `not(equal(User_.status, "ACTIVE"))` |
+
+### Join 操作
+
+```java
+// ManyToOne join（如 Order.user）
+Specification<Order> spec = SpecificationBuilder.<Order>builder()
+    .join(Order_.user, JoinType.LEFT,
+          (join, query, cb, predicates) ->
+              predicates.add(cb.equal(join.get(User_.status), "ACTIVE")))
+    .build();
+
+// OneToMany join（如 User.orders）
+Specification<User> spec = SpecificationBuilder.<User>builder()
+    .join(User_.orders, JoinType.INNER,
+          (join, query, cb, predicates) ->
+              predicates.add(cb.equal(join.get(Order_.status), "PAID")))
+    .build();
+```
+
+### PageRequestBuilder
+
+```java
+Pageable pageable = PageRequestBuilder.builder()
+    .page(0)                                              // 页码（从 0 开始）
+    .size(20)                                             // 每页大小
+    .sortBy(User_.createdAt, Sort.Direction.DESC)         // 类型安全排序
+    .build();
+```
+
+---
+
+## 复杂查询示例
+
+```java
+// 查询: 状态为 ACTIVE，年龄在 18-60 之间，邮箱不为空，名字包含 "John"
+Specification<User> spec = SpecificationBuilder.<User>builder()
+    .equal(User_.status, "ACTIVE")
+    .between(User_.age, 18, 60)
+    .isNotNull(User_.email)
+    .like(User_.name, "John")
+    .build();
+
+// 使用静态方法嵌套 AND / OR
+Specification<User> spec = and(
+    equal(User_.status, "ACTIVE"),
+    or(
+        between(User_.age, 18, 25),
+        gte(User_.age, 60)
+    ),
+    not(equal(User_.role, "GUEST"))
+);
+
+// 连表查询：查找关联活跃用户的订单
+Specification<Order> spec = SpecificationBuilder.<Order>builder()
+    .join(Order_.user, JoinType.INNER,
+          (join, query, cb, predicates) -> {
+              predicates.add(cb.equal(join.get(User_.status), "ACTIVE"));
+              predicates.add(cb.gte(join.get(User_.age), 18));
+          })
+    .gte(Order_.amount, new BigDecimal("100.00"))
+    .build();
+```
 
 ---
 
@@ -20,237 +193,45 @@ JPA DSL 是一个基于 Spring Data JPA Specification 的流式查询 DSL 框架
 ```
 src/
 ├── main/java/io/github/jsbxyyx/jpadsl/
+│   ├── SpecificationBuilder.java       # 主要链式构建器（推荐使用）
+│   ├── SpecificationDsl.java           # 静态工厂方法
+│   ├── PageRequestBuilder.java         # 分页排序构建器
 │   ├── core/
-│   │   ├── Criteria.java                   # 查询条件封装
-│   │   ├── CriteriaType.java               # 查询条件类型枚举
-│   │   ├── JoinType.java                   # Join 类型枚举（包装 JPA JoinType）
-│   │   ├── PageRequestBuilder.java         # 分页排序构建器
-│   │   ├── SpecificationBuilder.java       # 链式 Specification 构建器
-│   │   └── SpecificationDsl.java           # Specification 静态工厂方法
+│   │   ├── SpecificationBuilder.java   # core 包链式构建器
+│   │   ├── SpecificationDsl.java       # core 包静态工厂
+│   │   ├── PageRequestBuilder.java     # core 包分页构建器
+│   │   ├── Criteria.java               # 查询条件封装（辅助 DTO）
+│   │   ├── CriteriaType.java           # 查询条件类型枚举
+│   │   └── JoinType.java               # JoinType 包装枚举
 │   ├── spec/
-│   │   ├── AbstractSpecification.java      # 抽象基类（含嵌套路径解析）
-│   │   ├── AndSpecification.java
-│   │   ├── BetweenSpecification.java
+│   │   ├── AbstractSpecification.java
 │   │   ├── EqualSpecification.java
-│   │   ├── GreaterThanOrEqualSpecification.java
-│   │   ├── GreaterThanSpecification.java
-│   │   ├── InSpecification.java
-│   │   ├── IsNotNullSpecification.java
-│   │   ├── IsNullSpecification.java
-│   │   ├── LessThanOrEqualSpecification.java
-│   │   ├── LessThanSpecification.java
 │   │   ├── LikeSpecification.java
-│   │   ├── NotEqualSpecification.java
-│   │   ├── NotSpecification.java
-│   │   └── OrSpecification.java
+│   │   └── ...（其他 Specification 实现类）
 │   └── example/
-│       ├── entity/
-│       │   ├── User.java
-│       │   ├── Order.java
-│       │   └── OrderItem.java
-│       ├── repository/
-│       │   ├── UserRepository.java
-│       │   ├── OrderRepository.java
-│       │   └── OrderItemRepository.java
-│       └── service/
-│           └── UserService.java            # DSL 使用示例
+│       ├── entity/                     # 示例实体（User / Order / OrderItem）
+│       ├── repository/                 # 示例 Repository
+│       └── service/                    # 示例 Service（演示 DSL 用法）
 └── test/java/io/github/jsbxyyx/jpadsl/
-    ├── core/
-    │   ├── PageRequestBuilderTest.java
-    │   └── SpecificationBuilderTest.java
-    ├── spec/
-    │   └── SpecificationTest.java
-    └── example/
-        └── UserServiceTest.java
+    ├── SpecificationBuilderTest.java   # Builder API 集成测试
+    ├── SpecificationDslTest.java       # DSL 静态方法集成测试
+    ├── PageRequestBuilderTest.java     # 分页排序单元测试
+    ├── core/                           # core 包测试
+    ├── example/                        # UserService 集成测试
+    └── spec/                           # Specification 实现类测试
 ```
 
 ---
 
-## 核心 DSL API
+## 验收条件
 
-### 支持的查询条件类型
-
-| 方法 | 说明 | 示例 |
-|------|------|------|
-| `equal(field, value)` | 等于 | `equal("status", "ACTIVE")` |
-| `notEqual(field, value)` | 不等于 | `notEqual("status", "DELETED")` |
-| `like(field, value)` | 模糊匹配（自动添加 `%`） | `like("name", "John")` |
-| `in(field, values)` | IN 集合 | `in("role", Arrays.asList("ADMIN", "USER"))` |
-| `between(field, lower, upper)` | 范围查询 | `between("age", 18, 60)` |
-| `greaterThan(field, value)` | 大于 | `greaterThan("age", 18)` |
-| `lessThan(field, value)` | 小于 | `lessThan("age", 60)` |
-| `greaterThanOrEqual(field, value)` | 大于等于 | `greaterThanOrEqual("age", 18)` |
-| `lessThanOrEqual(field, value)` | 小于等于 | `lessThanOrEqual("age", 60)` |
-| `isNull(field)` | IS NULL | `isNull("deletedAt")` |
-| `isNotNull(field)` | IS NOT NULL | `isNotNull("email")` |
-| `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
-| `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
-| `not(spec)` | NOT 取反 | `not(equal("status", "ACTIVE"))` |
-
----
-
-## SpecificationBuilder 使用
-
-`SpecificationBuilder` 提供链式 API，所有条件默认以 **AND** 组合：
-
-```java
-// 基本用法
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .equal("status", "ACTIVE")
-    .like("name", "John")
-    .greaterThanOrEqual("age", 18)
-    .build();
-
-List<User> users = userRepository.findAll(spec);
-```
-
-```java
-// 组合 OR 条件
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .equal("status", "ACTIVE")
-    .or(
-        SpecificationDsl.equal("role", "ADMIN"),
-        SpecificationDsl.equal("role", "MANAGER")
-    )
-    .build();
-```
-
-```java
-// 使用 NOT
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .not(SpecificationDsl.equal("status", "DELETED"))
-    .build();
-```
-
-```java
-// IN 查询
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .in("status", Arrays.asList("ACTIVE", "PENDING"))
-    .build();
-```
-
-```java
-// 范围查询
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .between("age", 18, 65)
-    .build();
-```
-
-```java
-// 带 JOIN 的查询
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .join("orders", JoinType.LEFT)
-    .equal("status", "ACTIVE")
-    .build();
-```
-
-```java
-// 与分页结合
-PageRequest pageRequest = PageRequestBuilder.builder()
-    .page(0)
-    .size(20)
-    .sortBy("createdAt", Sort.Direction.DESC)
-    .build();
-
-Page<User> page = userRepository.findAll(spec, pageRequest);
-```
-
----
-
-## SpecificationDsl 使用
-
-`SpecificationDsl` 提供静态工厂方法，可与 Spring Data JPA 的 `Specification` 链式方法结合使用：
-
-```java
-// 直接使用静态方法
-Specification<User> spec = SpecificationDsl.equal("status", "ACTIVE");
-
-// 利用 Specification 自带的 and/or/not 链式方法
-Specification<User> spec = SpecificationDsl.<User>equal("status", "ACTIVE")
-    .and(SpecificationDsl.greaterThan("age", 18))
-    .and(SpecificationDsl.like("name", "John"));
-```
-
-```java
-// 嵌套路径（支持关联属性）
-Specification<User> spec = SpecificationDsl.equal("address.city", "Beijing");
-```
-
----
-
-## PageRequestBuilder 使用
-
-```java
-// 简单分页
-PageRequest pageRequest = PageRequestBuilder.builder()
-    .page(0)
-    .size(10)
-    .build();
-
-// 带多字段排序的分页
-PageRequest pageRequest = PageRequestBuilder.builder()
-    .page(0)
-    .size(20)
-    .sortBy("createdAt", Sort.Direction.DESC)
-    .sortBy("name", Sort.Direction.ASC)
-    .build();
-```
-
----
-
-## 自定义 Specification 扩展
-
-继承 `AbstractSpecification<T>` 可快速实现自定义查询条件，并使用其提供的 `resolvePath()` 方法解析嵌套路径：
-
-```java
-public class StartsWithSpecification<T> extends AbstractSpecification<T> {
-    private final String field;
-    private final String prefix;
-
-    public StartsWithSpecification(String field, String prefix) {
-        this.field = field;
-        this.prefix = prefix;
-    }
-
-    @Override
-    public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        return cb.like(resolvePath(root, field), prefix + "%");
-    }
-}
-```
-
-自定义 Specification 可直接通过 `SpecificationBuilder.add()` 加入构建链：
-
-```java
-Specification<User> spec = SpecificationBuilder.<User>builder()
-    .equal("status", "ACTIVE")
-    .add(new StartsWithSpecification<>("name", "John"))
-    .build();
-```
-
----
-
-## Repository 要求
-
-使用 DSL 查询的 Repository 需同时继承 `JpaRepository` 和 `JpaSpecificationExecutor`：
-
-```java
-@Repository
-public interface UserRepository
-    extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
-}
-```
-
----
-
-## 运行测试
-
-```bash
-./mvnw test
-```
-
-测试覆盖：
-- `SpecificationBuilderTest`：15 个测试，覆盖所有查询条件类型及分页排序
-- `PageRequestBuilderTest`：4 个测试，覆盖分页和排序构建
-- `SpecificationTest`：11 个测试，覆盖各 Specification 实现类
-- `UserServiceTest`：9 个测试，覆盖 Service 层 DSL 使用场景
+- ✅ `./mvnw test` 通过（81 个测试全部通过）
+- ✅ 无 `target/**`、`*.class` 被提交
+- ✅ 无 `src/main/resources/application.properties`
+- ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`
+- ✅ API 使用 JPA Static Metamodel（`User_.status` 等），编译期类型安全
+- ✅ 比较 API 已缩写：`gt / lt / gte / lte`
+- ✅ `like` 自动包裹 `%`
+- ✅ `in` 只支持单值属性 + `Collection<V>`
+- ✅ 支持类型安全 Join（`SingularAttribute` 和 `ListAttribute`/`SetAttribute`）
+- ✅ `PageRequestBuilder.sortBy(attr, direction)` 使用 metamodel 属性

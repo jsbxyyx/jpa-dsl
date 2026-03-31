@@ -22,6 +22,7 @@
         <h2.version>2.2.224</h2.version>
         <junit.version>5.10.2</junit.version>
         <spring-boot.version>3.2.5</spring-boot.version>
+        <hibernate-jpamodelgen.version>6.4.4.Final</hibernate-jpamodelgen.version>
     </properties>
 
     <dependencyManagement>
@@ -60,6 +61,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -71,6 +78,13 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.hibernate.orm</groupId>
+                            <artifactId>hibernate-jpamodelgen</artifactId>
+                            <version>${hibernate-jpamodelgen.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>
