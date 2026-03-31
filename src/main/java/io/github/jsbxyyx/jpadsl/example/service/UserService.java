@@ -29,7 +29,7 @@ public class UserService {
 
     public List<User> findActiveUsersByName(String nameKeyword) {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .like(User_.name, nameKeyword)
                 .build();
         return userRepository.findAll(spec);
@@ -37,7 +37,7 @@ public class UserService {
 
     public List<User> findUsersWithComplexConditions(String status, int minAge, Collection<String> roles) {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, status)
+                .eq(User_.status, status)
                 .gte(User_.age, minAge)
                 .in(User_.role, roles)
                 .build();
@@ -45,7 +45,7 @@ public class UserService {
     }
 
     public List<User> findByDsl(String name, int age) {
-        Specification<User> spec = SpecificationDsl.<User, String>equal(User_.name, name)
+        Specification<User> spec = SpecificationDsl.<User, String>eq(User_.name, name)
                 .and(SpecificationDsl.gt(User_.age, age));
         return userRepository.findAll(spec);
     }
@@ -62,7 +62,7 @@ public class UserService {
 
     public Page<User> findUsersPagedAndSorted(String status, int pageNum, int pageSize) {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, status)
+                .eq(User_.status, status)
                 .build();
         Pageable pageable = PageRequestBuilder.builder()
                 .page(pageNum)
@@ -96,7 +96,7 @@ public class UserService {
 
     public List<User> findNonActiveUsers() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .not(SpecificationDsl.equal(User_.status, "ACTIVE"))
+                .not(SpecificationDsl.eq(User_.status, "ACTIVE"))
                 .build();
         return userRepository.findAll(spec);
     }

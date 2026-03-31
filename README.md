@@ -64,7 +64,7 @@ public class User {
 ```java
 // 使用 User_.xxx 元模型属性，编译期类型安全
 Specification<User> spec = SpecificationBuilder.<User>builder()
-    .equal(User_.status, "ACTIVE")
+    .eq(User_.status, "ACTIVE")
     .like(User_.name, "John")       // 自动添加 %，即 %John%
     .gte(User_.age, 18)
     .build();
@@ -78,7 +78,7 @@ List<User> users = userRepository.findAll(spec);
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.*;
 
 Specification<User> spec = and(
-    equal(User_.status, "ACTIVE"),
+    eq(User_.status, "ACTIVE"),
     or(
         gt(User_.age, 60),
         lt(User_.age, 18)
@@ -107,8 +107,8 @@ Page<User> page = userRepository.findAll(spec, pageable);
 
 | 方法 | 说明 | 示例 |
 |------|------|------|
-| `equal(attr, value)` | 等于 | `equal(User_.status, "ACTIVE")` |
-| `notEqual(attr, value)` | 不等于 | `notEqual(User_.status, "DELETED")` |
+| `eq(attr, value)` | 等于 | `eq(User_.status, "ACTIVE")` |
+| `ne(attr, value)` | 不等于 | `ne(User_.status, "DELETED")` |
 | `like(attr, value)` | 模糊匹配，自动包裹 `%` | `like(User_.name, "John")` → `%John%` |
 | `likeIgnoreCase(attr, value)` | 不区分大小写模糊匹配 | `likeIgnoreCase(User_.name, "john")` |
 | `in(attr, values)` | IN 集合（单值属性） | `in(User_.role, List.of("ADMIN", "USER"))` |
@@ -122,7 +122,7 @@ Page<User> page = userRepository.findAll(spec, pageable);
 | `isNotNull(attr)` | IS NOT NULL | `isNotNull(User_.email)` |
 | `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
 | `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
-| `not(spec)` | NOT 取反 | `not(equal(User_.status, "ACTIVE"))` |
+| `not(spec)` | NOT 取反 | `not(eq(User_.status, "ACTIVE"))` |
 
 ### Join 操作
 
@@ -159,7 +159,7 @@ Pageable pageable = PageRequestBuilder.builder()
 ```java
 // 查询: 状态为 ACTIVE，年龄在 18-60 之间，邮箱不为空，名字包含 "John"
 Specification<User> spec = SpecificationBuilder.<User>builder()
-    .equal(User_.status, "ACTIVE")
+    .eq(User_.status, "ACTIVE")
     .between(User_.age, 18, 60)
     .isNotNull(User_.email)
     .like(User_.name, "John")
@@ -167,12 +167,12 @@ Specification<User> spec = SpecificationBuilder.<User>builder()
 
 // 使用静态方法嵌套 AND / OR
 Specification<User> spec = and(
-    equal(User_.status, "ACTIVE"),
+    eq(User_.status, "ACTIVE"),
     or(
         between(User_.age, 18, 25),
         gte(User_.age, 60)
     ),
-    not(equal(User_.role, "GUEST"))
+    not(eq(User_.role, "GUEST"))
 );
 
 // 连表查询：查找关联活跃用户的订单

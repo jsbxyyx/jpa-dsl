@@ -40,7 +40,7 @@ class SpecificationBuilderTest {
     @Test
     void testEqualCondition() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
@@ -50,7 +50,7 @@ class SpecificationBuilderTest {
     @Test
     void testNotEqualCondition() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .notEqual(User_.status, "ACTIVE")
+                .ne(User_.status, "ACTIVE")
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
@@ -149,8 +149,8 @@ class SpecificationBuilderTest {
     void testOrCondition() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .or(
-                    SpecificationDsl.equal(User_.status, "INACTIVE"),
-                    SpecificationDsl.equal(User_.status, "PENDING")
+                    SpecificationDsl.eq(User_.status, "INACTIVE"),
+                    SpecificationDsl.eq(User_.status, "PENDING")
                 )
                 .build();
         List<User> result = userRepository.findAll(spec);
@@ -160,7 +160,7 @@ class SpecificationBuilderTest {
     @Test
     void testNotCondition() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .not(SpecificationDsl.equal(User_.status, "ACTIVE"))
+                .not(SpecificationDsl.eq(User_.status, "ACTIVE"))
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
@@ -170,7 +170,7 @@ class SpecificationBuilderTest {
     @Test
     void testCombinedConditions() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .gt(User_.age, 24)
                 .build();
         List<User> result = userRepository.findAll(spec);
@@ -180,7 +180,7 @@ class SpecificationBuilderTest {
     @Test
     void testPaginationAndSorting() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .equal(User_.status, "ACTIVE")
+                .eq(User_.status, "ACTIVE")
                 .build();
         var pageRequest = PageRequestBuilder.builder()
                 .page(0)
