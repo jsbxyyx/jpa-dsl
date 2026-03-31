@@ -32,6 +32,12 @@ public class Order {
     @JoinColumn(name = "user_id")
     private User user;
 
+    /**
+     * Read-only mirror of the {@code user_id} FK column, used for no-FK join demonstrations.
+     */
+    @Column(name = "user_id", insertable = false, updatable = false)
+    private Long userId;
+
     public Order() {
     }
 
@@ -55,4 +61,5 @@ public class Order {
 
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+    public Long getUserId() { return userId; }
 }
