@@ -280,6 +280,122 @@ class EntityGeneratorTest {
     }
 
     // -------------------------------------------------------------------------
+    // Builder API — repository generation
+    // -------------------------------------------------------------------------
+
+    @Test
+    void testRepositoryGenerated() throws Exception {
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("user_order");
+
+        File repoFile = new File(outputDir, "com/example/repository/UserOrderRepository.java");
+        assertThat(repoFile).exists();
+
+        String content = readFile(repoFile);
+        assertThat(content).contains("package com.example.repository;");
+        assertThat(content).contains("import com.example.entity.UserOrder;");
+        assertThat(content).contains("import org.springframework.data.jpa.repository.JpaRepository;");
+        assertThat(content).contains("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;");
+        assertThat(content).contains("import org.springframework.stereotype.Repository;");
+        assertThat(content).contains("@Repository");
+        assertThat(content).contains("public interface UserOrderRepository extends JpaRepository<UserOrder, Long>");
+        assertThat(content).contains("JpaSpecificationExecutor<UserOrder>");
+    }
+
+    @Test
+    void testRepositorySkippedWhenPackageNull() throws Exception {
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                // repositoryPackage not set — defaults to null
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("user_order");
+
+        File repoFile = new File(outputDir, "com/example/repository/UserOrderRepository.java");
+        assertThat(repoFile).doesNotExist();
+    }
+
+    @Test
+    void testRepositorySkippedWhenPackageEmpty() throws Exception {
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("user_order");
+
+        File repoFile = new File(outputDir, "com/example/repository/UserOrderRepository.java");
+        assertThat(repoFile).doesNotExist();
+    }
+
+    @Test
+    void testRepositorySkipIfExistsByDefault() throws Exception {
+        File repoDir = new File(outputDir, "com/example/repository");
+        repoDir.mkdirs();
+        File repoFile = new File(repoDir, "UserOrderRepository.java");
+        Files.write(repoFile.toPath(), "original content".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                // repositoryOverride defaults to false
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("user_order");
+
+        String content = readFile(repoFile);
+        assertThat(content).isEqualTo("original content");
+    }
+
+    @Test
+    void testRepositoryOverwriteWhenOverrideTrue() throws Exception {
+        File repoDir = new File(outputDir, "com/example/repository");
+        repoDir.mkdirs();
+        File repoFile = new File(repoDir, "UserOrderRepository.java");
+        Files.write(repoFile.toPath(), "original content".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .repositoryOverride(true)
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("user_order");
+
+        String content = readFile(repoFile);
+        assertThat(content).contains("public interface UserOrderRepository");
+        assertThat(content).doesNotContain("original content");
+    }
+
+    @Test
+    void testRepositoryWithTrimPrefix() throws Exception {
+        try (java.sql.Connection conn = dataSource.getConnection();
+             java.sql.Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_product");
+            stmt.execute("CREATE TABLE t_product (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50))");
+        }
+
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .outputDir(outputDir.getAbsolutePath())
+                .trimPrefix("t_")
+                .generate("t_product");
+
+        File repoFile = new File(outputDir, "com/example/repository/ProductRepository.java");
+        assertThat(repoFile).exists();
+
+        String content = readFile(repoFile);
+        assertThat(content).contains("import com.example.entity.Product;");
+        assertThat(content).contains("public interface ProductRepository extends JpaRepository<Product, Long>");
+    }
+
+    // -------------------------------------------------------------------------
     // Naming helpers
     // -------------------------------------------------------------------------
 
