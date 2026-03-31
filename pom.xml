@@ -11,6 +11,7 @@
 
     <name>jpa-dsl</name>
     <description>A DSL SDK based on Spring Data JPA Specification</description>
+    <url>https://github.com/jsbxyyx/jpa-dsl</url>
 
     <licenses>
         <license>
