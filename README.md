@@ -214,6 +214,7 @@ public class UserService {
 |------|------|
 | `UpdateBuilder.builder(entityClass)` | 工厂方法，必须指定实体类 |
 | `set(attr, value)` | 添加 SET 子句；`null` 值将列置为 NULL |
+| `set(attr, value, condition)` | 仅当 condition 为 true 时添加 SET 子句 |
 | `eq / ne / like / likeIgnoreCase` | WHERE 等值 / 不等值 / 模糊匹配条件 |
 | `gt / gte / lt / lte` | WHERE 比较条件 |
 | `between(attr, lower, upper)` | WHERE 范围条件 |

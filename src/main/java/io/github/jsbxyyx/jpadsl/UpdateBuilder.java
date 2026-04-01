@@ -65,6 +65,18 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /**
+     * Conditional overload: adds the SET clause only when {@code condition} is {@code true}.
+     * When {@code condition} is {@code false} the clause is completely skipped.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <V> UpdateBuilder<T> set(SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        if (condition) {
+            setClauses.add(new SetClause(attr, value));
+        }
+        return this;
+    }
+
     // ------------------------------------------------------------------ //
     //  WHERE conditions
     // ------------------------------------------------------------------ //

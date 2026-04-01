@@ -231,4 +231,61 @@ class UpdateBuilderTest {
         int affected = userRepository.executeUpdate(update);
         assertThat(affected).isGreaterThanOrEqualTo(0);
     }
+
+    // ------------------------------------------------------------------ //
+    //  set condition overload tests
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void executeUpdate_setCondition_trueAppliesSetClause() {
+        // condition=true: both SET clauses applied → status and name both updated for Alice
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "BLOCKED", true)   // applied
+                .set(User_.name, "Alice-Updated", true) // applied
+                .eq(User_.name, "Alice")
+                .build();
+
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(1);
+        User found = userRepository.findAll().stream()
+                .filter(u -> "Alice-Updated".equals(u.getName()))
+                .findFirst().orElseThrow();
+        assertThat(found.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void executeUpdate_setCondition_falseSkipsSetClause() {
+        // condition=false: the name SET clause is skipped; only status is updated
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "BLOCKED", true)      // applied
+                .set(User_.name, "Alice-Updated", false) // skipped
+                .eq(User_.name, "Alice")
+                .build();
+
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(1);
+        User found = userRepository.findAll().stream()
+                .filter(u -> "Alice".equals(u.getName())) // name unchanged
+                .findFirst().orElseThrow();
+        assertThat(found.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void executeUpdate_setCondition_allFalse_throwsNoSetClause() {
+        // All SET conditions are false → no SET clauses → must throw
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "BLOCKED", false)
+                .set(User_.name, "Alice-Updated", false)
+                .eq(User_.name, "Alice")
+                .build();
+
+        assertThatThrownBy(() -> userRepository.executeUpdate(update))
+                .isInstanceOfAny(IllegalStateException.class,
+                        InvalidDataAccessApiUsageException.class)
+                .hasMessageContaining("SET clause");
+    }
 }
