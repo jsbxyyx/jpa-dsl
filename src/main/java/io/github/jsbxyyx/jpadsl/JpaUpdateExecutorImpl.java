@@ -2,7 +2,6 @@ package io.github.jsbxyyx.jpadsl;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -14,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * @param <T> the root entity type
  */
-@Repository
 public class JpaUpdateExecutorImpl<T> implements JpaUpdateExecutor<T> {
 
     @PersistenceContext
