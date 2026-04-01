@@ -107,11 +107,11 @@ Page<User> page = userRepository.findAll(spec, pageable);
 
 | 方法 | 说明 | 示例 |
 |------|------|------|
-| `eq(attr, value)` | 等于；value 为 null 时静默跳过 | `eq(User_.status, "ACTIVE")` |
+| `eq(attr, value)` | 等于；value 为任意值（含 null）时均加入条件 | `eq(User_.status, "ACTIVE")` |
 | `eq(attr, value, condition)` | 仅当 condition 为 true 时应用 eq | `eq(User_.status, status, status != null)` |
-| `ne(attr, value)` | 不等于；value 为 null 时静默跳过 | `ne(User_.status, "DELETED")` |
+| `ne(attr, value)` | 不等于；value 为任意值（含 null）时均加入条件 | `ne(User_.status, "DELETED")` |
 | `ne(attr, value, condition)` | 仅当 condition 为 true 时应用 ne | `ne(User_.status, val, flag)` |
-| `like(attr, value)` | 模糊匹配，自动包裹 `%`；value 为 null 时静默跳过 | `like(User_.name, "John")` → `%John%` |
+| `like(attr, value)` | 模糊匹配，自动包裹 `%`；value 为 null 时传入 null pattern | `like(User_.name, "John")` → `%John%` |
 | `like(attr, value, condition)` | 仅当 condition 为 true 时应用 like | `like(User_.name, kw, kw != null)` |
 | `likeIgnoreCase(attr, value)` | 不区分大小写模糊匹配 | `likeIgnoreCase(User_.name, "john")` |
 | `likeIgnoreCase(attr, value, condition)` | 仅当 condition 为 true 时应用 likeIgnoreCase | |
@@ -136,32 +136,24 @@ Page<User> page = userRepository.findAll(spec, pageable);
 | `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
 | `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
 | `not(spec)` | NOT 取反 | `not(eq(User_.status, "ACTIVE"))` |
-| `noWhere()` | 显式声明无 WHERE 条件，允许查全表（见下方安全说明）| `builder().noWhere().build()` |
 
-> **condition 参数重载：** 每个条件方法都提供带 `boolean condition` 参数的重载版本。当 `condition` 为 `false` 时，该条件被完全跳过（相当于未调用）；为 `true` 时，**仅根据 condition 判断是否应用该条件，不再跳过 null 值**（null 值会直接传入 JPA Criteria 表达式）。
+> **condition 参数重载：** 每个条件方法都提供带 `boolean condition` 参数的重载版本。当 `condition` 为 `false` 时，该条件被完全跳过（相当于未调用）；为 `true` 时，该条件无条件加入（包括 null 值）。
+>
+> 基础方法（不带 condition）与 condition 重载的区别：
+>
+> | 调用方式 | value=非null | value=null |
+> |----------|-------------|------------|
+> | `eq(attr, value)` | 加入条件 | **加入条件** |
+> | `eq(attr, value, true)` | 加入条件 | 加入条件 |
+> | `eq(attr, value, false)` | 跳过 | 跳过 |
+>
+> 若需要根据值是否为 null 决定是否加入条件，请使用 condition 重载：
 >
 > ```java
 > String keyword = request.getKeyword(); // 可能为 null
 > Specification<User> spec = SpecificationBuilder.<User>builder()
 >     .eq(User_.status, "ACTIVE")
->     .like(User_.name, keyword, keyword != null)  // keyword 为 null 时整条件跳过（condition=false）
->     .build();
-> ```
->
-> 与不带 condition 的基础方法的区别：
->
-> | 调用方式 | value=非null | value=null |
-> |----------|-------------|------------|
-> | `eq(attr, value)` | 加入条件 | **跳过** |
-> | `eq(attr, value, true)` | 加入条件 | **加入条件（不跳过）** |
-> | `eq(attr, value, false)` | 跳过 | 跳过 |
-
-> **安全机制（防止误查全表）：** 若所有条件均被跳过（condition=false），`build()` 会抛出 `IllegalStateException` 阻止全表查询。condition=true 时，即使 value 为 null 也会计入条件，不会触发全表保护。如确实需要查全表，请显式调用 `.noWhere()`：
->
-> ```java
-> // 查全表（显式声明无 WHERE 条件）
-> Specification<User> spec = SpecificationBuilder.<User>builder()
->     .noWhere()   // ← 必须显式声明，否则 build() 抛出异常
+>     .like(User_.name, keyword, keyword != null)  // keyword 为 null 时整条件跳过
 >     .build();
 > ```
 
@@ -208,7 +200,7 @@ public class UserService {
     public int deactivateOldUsers() {
         UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
             .set(User_.status, "INACTIVE")      // SET 子句（null 值会将列置为 NULL）
-            .eq(User_.status, "ACTIVE")         // WHERE 条件（null 值自动跳过）
+            .eq(User_.status, "ACTIVE")         // WHERE 条件
             .lt(User_.age, 18)
             .build();
         return userRepository.executeUpdate(update);
@@ -227,20 +219,9 @@ public class UserService {
 | `between(attr, lower, upper)` | WHERE 范围条件 |
 | `in / notIn(attr, values)` | WHERE IN / NOT IN 条件 |
 | `isNull / isNotNull(attr)` | WHERE NULL 检查条件 |
-| `noWhere()` | 显式声明无 WHERE 条件，允许更新全表（见下方安全说明）|
 | `build()` | 返回构建完成的 `UpdateBuilder`（传入 `executeUpdate()`）|
 
-> **安全机制（防止误更新全表）：** WHERE 条件中 `null` 值会被静默跳过，但如果所有 WHERE 值均为 `null` 导致没有任何有效条件，`executeUpdate()` 会抛出 `IllegalStateException` 阻止全表更新。如确实需要更新全表，请在链式调用中显式添加 `.noWhere()`：
->
-> ```java
-> // 更新全表（显式声明无 WHERE 条件）
-> UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
->     .set(User_.status, "INACTIVE")
->     .noWhere()   // ← 必须显式声明，否则抛出异常
->     .build();
-> ```
-
-> SET 子句中 `null` 值会将数据库列置为 NULL。
+> SET 子句中 `null` 值会将数据库列置为 NULL。WHERE 条件中的 `null` 值与其他值一样无条件加入（生成 `= NULL` 表达式）。若需跳过某条件，请使用 condition 重载（传入 `false`）。
 
 ### PageRequestBuilder
 

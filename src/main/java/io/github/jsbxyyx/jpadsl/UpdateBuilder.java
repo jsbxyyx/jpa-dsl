@@ -26,12 +26,8 @@ import java.util.List;
  * }</pre>
  *
  * <p>SET clauses always apply (null values set the column to NULL).
- * WHERE predicates silently skip when the supplied value is null,
- * consistent with {@link SpecificationBuilder} behaviour.
- * If <em>all</em> WHERE values are null (resulting in no active predicates),
- * {@code execute()} throws {@link IllegalStateException} to prevent an accidental
- * full-table update.  Call {@link #noWhere()} explicitly to opt in when a
- * full-table update is intentional.
+ * WHERE predicates are also always added unconditionally; use the {@code condition}
+ * overloads to skip a predicate explicitly.
  *
  * @param <T> the root entity type
  */
@@ -40,7 +36,6 @@ public class UpdateBuilder<T> {
     private final Class<T> entityClass;
     private final List<SetClause<T, ?>> setClauses = new ArrayList<>();
     private final List<WhereCondition<T>> whereConditions = new ArrayList<>();
-    private boolean allowFullTableUpdate = false;
 
     private UpdateBuilder(Class<T> entityClass) {
         this.entityClass = entityClass;
@@ -71,13 +66,11 @@ public class UpdateBuilder<T> {
     }
 
     // ------------------------------------------------------------------ //
-    //  WHERE conditions (null values are silently skipped)
+    //  WHERE conditions
     // ------------------------------------------------------------------ //
 
     public <V> UpdateBuilder<T> eq(SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            whereConditions.add((root, cb) -> cb.equal(root.get(attr), value));
-        }
+        whereConditions.add((root, cb) -> cb.equal(root.get(attr), value));
         return this;
     }
 
@@ -94,9 +87,7 @@ public class UpdateBuilder<T> {
     }
 
     public <V> UpdateBuilder<T> ne(SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            whereConditions.add((root, cb) -> cb.notEqual(root.get(attr), value));
-        }
+        whereConditions.add((root, cb) -> cb.notEqual(root.get(attr), value));
         return this;
     }
 
@@ -138,10 +129,8 @@ public class UpdateBuilder<T> {
     }
 
     public UpdateBuilder<T> like(SingularAttribute<? super T, String> attr, String value) {
-        if (value != null) {
-            String pattern = "%" + value + "%";
-            whereConditions.add((root, cb) -> cb.like(root.get(attr), pattern));
-        }
+        String pattern = value != null ? "%" + value + "%" : null;
+        whereConditions.add((root, cb) -> cb.like(root.get(attr), pattern));
         return this;
     }
 
@@ -159,10 +148,8 @@ public class UpdateBuilder<T> {
     }
 
     public UpdateBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value) {
-        if (value != null) {
-            String pattern = "%" + value.toLowerCase() + "%";
-            whereConditions.add((root, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
-        }
+        String pattern = value != null ? "%" + value.toLowerCase() + "%" : null;
+        whereConditions.add((root, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
         return this;
     }
 
@@ -182,9 +169,7 @@ public class UpdateBuilder<T> {
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> gt(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            whereConditions.add((root, cb) -> cb.greaterThan(root.get(attr), value));
-        }
+        whereConditions.add((root, cb) -> cb.greaterThan(root.get(attr), value));
         return this;
     }
 
@@ -202,9 +187,7 @@ public class UpdateBuilder<T> {
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> gte(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            whereConditions.add((root, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
-        }
+        whereConditions.add((root, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
         return this;
     }
 
@@ -222,9 +205,7 @@ public class UpdateBuilder<T> {
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> lt(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            whereConditions.add((root, cb) -> cb.lessThan(root.get(attr), value));
-        }
+        whereConditions.add((root, cb) -> cb.lessThan(root.get(attr), value));
         return this;
     }
 
@@ -242,9 +223,7 @@ public class UpdateBuilder<T> {
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> lte(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            whereConditions.add((root, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
-        }
+        whereConditions.add((root, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
         return this;
     }
 
@@ -262,9 +241,7 @@ public class UpdateBuilder<T> {
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> between(
             SingularAttribute<? super T, V> attr, V lower, V upper) {
-        if (lower != null && upper != null) {
-            whereConditions.add((root, cb) -> cb.between(root.get(attr), lower, upper));
-        }
+        whereConditions.add((root, cb) -> cb.between(root.get(attr), lower, upper));
         return this;
     }
 
@@ -281,9 +258,7 @@ public class UpdateBuilder<T> {
     }
 
     public <V> UpdateBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values) {
-        if (values != null && !values.isEmpty()) {
-            whereConditions.add((root, cb) -> root.get(attr).in(values));
-        }
+        whereConditions.add((root, cb) -> root.get(attr).in(values));
         return this;
     }
 
@@ -299,9 +274,7 @@ public class UpdateBuilder<T> {
     }
 
     public <V> UpdateBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values) {
-        if (values != null && !values.isEmpty()) {
-            whereConditions.add((root, cb) -> root.get(attr).in(values).not());
-        }
+        whereConditions.add((root, cb) -> root.get(attr).in(values).not());
         return this;
     }
 
@@ -313,33 +286,6 @@ public class UpdateBuilder<T> {
         if (condition) {
             whereConditions.add((root, cb) -> root.get(attr).in(values).not());
         }
-        return this;
-    }
-
-    // ------------------------------------------------------------------ //
-    //  Full-table update opt-in
-    // ------------------------------------------------------------------ //
-
-    /**
-     * Explicitly opts in to updating every row in the table (i.e. no WHERE clause).
-     *
-     * <p>By default, {@link JpaUpdateExecutor#executeUpdate} throws
-     * {@link IllegalStateException} when no effective WHERE predicates are present,
-     * to prevent accidental full-table updates caused by all values being {@code null}.
-     * Call this method when a full-table update is intentional:
-     *
-     * <pre>{@code
-     * int affected = userRepository.executeUpdate(
-     *     UpdateBuilder.<User>builder(User.class)
-     *         .set(User_.status, "INACTIVE")
-     *         .noWhere()          // intentional: update every row
-     *         .build());
-     * }</pre>
-     *
-     * @return this builder
-     */
-    public UpdateBuilder<T> noWhere() {
-        this.allowFullTableUpdate = true;
         return this;
     }
 
@@ -366,19 +312,12 @@ public class UpdateBuilder<T> {
      *
      * @param em the entity manager to execute the update with
      * @return the number of rows affected
-     * @throws IllegalStateException if no SET clause has been added, or if no
-     *         effective WHERE predicates are present and {@link #noWhere()} has
-     *         not been called (safety guard against accidental full-table updates)
+     * @throws IllegalStateException if no SET clause has been added
      */
     int execute(EntityManager em) {
         if (setClauses.isEmpty()) {
             throw new IllegalStateException(
                     "At least one SET clause is required before calling execute()");
-        }
-        if (whereConditions.isEmpty() && !allowFullTableUpdate) {
-            throw new IllegalStateException(
-                    "No WHERE conditions are active. This would update every row in the table. "
-                    + "Add at least one WHERE condition, or call noWhere() to allow a full-table update intentionally.");
         }
 
         CriteriaBuilder cb = em.getCriteriaBuilder();

@@ -29,10 +29,9 @@ import java.util.List;
  * from the JPA Static Metamodel (e.g. {@code User_.status}), providing compile-time
  * verification that referenced fields exist and have correct types.
  *
- * <p>Predicate methods silently skip {@code null} values. If <em>all</em> values are
- * {@code null} (resulting in no active predicates), {@link #build()} throws
- * {@link IllegalStateException} to prevent an accidental full-table query.
- * Call {@link #noWhere()} explicitly to opt in when a full-table query is intentional.
+ * <p>Predicate methods always add the predicate unconditionally, even when the supplied
+ * value is {@code null}. Use the {@code condition} overloads (e.g.
+ * {@link #eq(SingularAttribute, Object, boolean)}) to skip a predicate explicitly.
  *
  * <p>Example:
  * <pre>{@code
@@ -48,7 +47,6 @@ import java.util.List;
 public class SpecificationBuilder<T> {
 
     private final List<Specification<T>> specs = new ArrayList<>();
-    private boolean allowFullTableQuery = false;
 
     private SpecificationBuilder() {
     }
@@ -62,9 +60,7 @@ public class SpecificationBuilder<T> {
     // ------------------------------------------------------------------ //
 
     public <V> SpecificationBuilder<T> eq(SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            specs.add((root, query, cb) -> cb.equal(root.get(attr), value));
-        }
+        specs.add((root, query, cb) -> cb.equal(root.get(attr), value));
         return this;
     }
 
@@ -81,9 +77,7 @@ public class SpecificationBuilder<T> {
     }
 
     public <V> SpecificationBuilder<T> ne(SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            specs.add((root, query, cb) -> cb.notEqual(root.get(attr), value));
-        }
+        specs.add((root, query, cb) -> cb.notEqual(root.get(attr), value));
         return this;
     }
 
@@ -137,10 +131,8 @@ public class SpecificationBuilder<T> {
      * producing a "contains" match.
      */
     public SpecificationBuilder<T> like(SingularAttribute<? super T, String> attr, String value) {
-        if (value != null) {
-            String pattern = "%" + value + "%";
-            specs.add((root, query, cb) -> cb.like(root.get(attr), pattern));
-        }
+        String pattern = value != null ? "%" + value + "%" : null;
+        specs.add((root, query, cb) -> cb.like(root.get(attr), pattern));
         return this;
     }
 
@@ -161,11 +153,9 @@ public class SpecificationBuilder<T> {
      * Adds a case-insensitive LIKE predicate with automatic {@code %} wrapping.
      */
     public SpecificationBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value) {
-        if (value != null) {
-            String pattern = "%" + value.toLowerCase() + "%";
-            specs.add((root, query, cb) ->
-                    cb.like(cb.lower(root.get(attr)), pattern));
-        }
+        String pattern = value != null ? "%" + value.toLowerCase() + "%" : null;
+        specs.add((root, query, cb) ->
+                cb.like(cb.lower(root.get(attr)), pattern));
         return this;
     }
 
@@ -189,9 +179,7 @@ public class SpecificationBuilder<T> {
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            specs.add((root, query, cb) -> cb.greaterThan(root.get(attr), value));
-        }
+        specs.add((root, query, cb) -> cb.greaterThan(root.get(attr), value));
         return this;
     }
 
@@ -209,9 +197,7 @@ public class SpecificationBuilder<T> {
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> gte(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
-        }
+        specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
         return this;
     }
 
@@ -229,9 +215,7 @@ public class SpecificationBuilder<T> {
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            specs.add((root, query, cb) -> cb.lessThan(root.get(attr), value));
-        }
+        specs.add((root, query, cb) -> cb.lessThan(root.get(attr), value));
         return this;
     }
 
@@ -249,9 +233,7 @@ public class SpecificationBuilder<T> {
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> lte(
             SingularAttribute<? super T, V> attr, V value) {
-        if (value != null) {
-            specs.add((root, query, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
-        }
+        specs.add((root, query, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
         return this;
     }
 
@@ -269,9 +251,7 @@ public class SpecificationBuilder<T> {
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> between(
             SingularAttribute<? super T, V> attr, V lower, V upper) {
-        if (lower != null && upper != null) {
-            specs.add((root, query, cb) -> cb.between(root.get(attr), lower, upper));
-        }
+        specs.add((root, query, cb) -> cb.between(root.get(attr), lower, upper));
         return this;
     }
 
@@ -292,9 +272,7 @@ public class SpecificationBuilder<T> {
     // ------------------------------------------------------------------ //
 
     public <V> SpecificationBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values) {
-        if (values != null && !values.isEmpty()) {
-            specs.add((root, query, cb) -> root.get(attr).in(values));
-        }
+        specs.add((root, query, cb) -> root.get(attr).in(values));
         return this;
     }
 
@@ -311,9 +289,7 @@ public class SpecificationBuilder<T> {
     }
 
     public <V> SpecificationBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values) {
-        if (values != null && !values.isEmpty()) {
-            specs.add((root, query, cb) -> root.get(attr).in(values).not());
-        }
+        specs.add((root, query, cb) -> root.get(attr).in(values).not());
         return this;
     }
 
@@ -478,47 +454,13 @@ public class SpecificationBuilder<T> {
     }
 
     // ------------------------------------------------------------------ //
-    //  Full-table query opt-in
-    // ------------------------------------------------------------------ //
-
-    /**
-     * Explicitly opts in to querying every row in the table (i.e. no WHERE clause).
-     *
-     * <p>By default, {@link #build()} throws {@link IllegalStateException} when no
-     * effective WHERE predicates are present, to prevent accidental full-table queries
-     * caused by all values being {@code null}.
-     * Call this method when a full-table query is intentional:
-     *
-     * <pre>{@code
-     * Specification<User> spec = SpecificationBuilder.<User>builder()
-     *     .noWhere()          // intentional: query every row
-     *     .build();
-     * }</pre>
-     *
-     * @return this builder
-     */
-    public SpecificationBuilder<T> noWhere() {
-        this.allowFullTableQuery = true;
-        return this;
-    }
-
-    // ------------------------------------------------------------------ //
     //  Build
     // ------------------------------------------------------------------ //
 
     /**
      * Builds and returns the composed {@link Specification}.
-     *
-     * @throws IllegalStateException if no predicates have been added and
-     *         {@link #noWhere()} has not been called (safety guard against
-     *         accidental full-table queries)
      */
     public Specification<T> build() {
-        if (specs.isEmpty() && !allowFullTableQuery) {
-            throw new IllegalStateException(
-                    "No WHERE conditions are active. This would query every row in the table. "
-                    + "Add at least one condition, or call noWhere() to allow a full-table query intentionally.");
-        }
         return Specification.allOf(specs);
     }
 

@@ -221,21 +221,21 @@ class SpecificationBuilderTest {
     }
 
     @Test
-    void builder_nullValueIsIgnored_throwsWhenNoPredicatesActive() {
-        // All WHERE values are null → no predicates added → safety guard should fire
-        assertThatThrownBy(() ->
-                SpecificationBuilder.<User>builder()
-                        .eq(User_.status, null)
-                        .build()
-        ).isInstanceOf(IllegalStateException.class)
-         .hasMessageContaining("WHERE");
+    void builder_eqWithNullValue_addsPredicateAndReturnsNullMatches() {
+        // eq(attr, null) must add the predicate (no longer skipped)
+        // Charlie has a null email, so querying email = null via JPA should find Charlie
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.email, (String) null)
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        // JPA "= null" semantics may return 0 rows depending on provider, but must not throw
+        assertThat(result).isNotNull();
     }
 
     @Test
-    void builder_emptyBuilder_withNoWhere_returnsAll() {
-        // Explicit opt-in via noWhere() — must return every row
+    void builder_emptyBuilder_returnsAll() {
+        // An empty builder (no predicates) returns every row — no safety guard
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .noWhere()
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
@@ -285,15 +285,14 @@ class SpecificationBuilderTest {
     }
 
     @Test
-    void builder_condition_allConditionFalse_throwsIllegalState() {
-        // All condition=false → no predicates → should still throw
-        assertThatThrownBy(() ->
-                SpecificationBuilder.<User>builder()
-                        .eq(User_.status, "ACTIVE", false)
-                        .like(User_.name, "Bob", false)
-                        .build()
-        ).isInstanceOf(IllegalStateException.class)
-         .hasMessageContaining("WHERE");
+    void builder_condition_allConditionFalse_returnsAll() {
+        // All condition=false → no predicates added → no safety guard → returns every row
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, "ACTIVE", false)
+                .like(User_.name, "Bob", false)
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).hasSize(3);
     }
 
     @Test

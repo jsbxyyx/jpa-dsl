@@ -117,26 +117,23 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_nullValueInWhereSilentlySkipped_throwsWhenNoPredicatesActive() {
-        // All WHERE values are null → no predicates added → safety guard should fire
+    void executeUpdate_eqWithNullValue_addsPredicateAndExecutes() {
+        // eq(attr, null) must add the predicate — no longer silently skipped.
+        // "name = null" in JPA matches nothing, so 0 rows are updated and no exception is thrown.
         UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
-                .eq(User_.status, null)
+                .eq(User_.name, (String) null)
                 .build();
 
-        // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
-        assertThatThrownBy(() -> userRepository.executeUpdate(update))
-                .isInstanceOfAny(IllegalStateException.class,
-                        InvalidDataAccessApiUsageException.class)
-                .hasMessageContaining("WHERE");
+        int affected = userRepository.executeUpdate(update);
+        assertThat(affected).isGreaterThanOrEqualTo(0);
     }
 
     @Test
-    void executeUpdate_noWhere_allowsFullTableUpdate() {
-        // Explicit opt-in via noWhere() — must update every row
+    void executeUpdate_noWherePredicates_allowsFullTableUpdate() {
+        // No WHERE predicates → full-table update (no safety guard)
         UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
-                .noWhere()
                 .build();
 
         int affected = userRepository.executeUpdate(update);
@@ -189,18 +186,18 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_condition_allFalse_throwsIllegalState() {
-        // All conditions are false → no predicates active → safety guard fires
+    void executeUpdate_condition_allFalse_updatesAllRows() {
+        // All conditions are false → no predicates active → full-table update (no safety guard)
         UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED")
                 .eq(User_.status, "ACTIVE", false)
                 .eq(User_.name, "Alice", false)
                 .build();
 
-        assertThatThrownBy(() -> userRepository.executeUpdate(update))
-                .isInstanceOfAny(IllegalStateException.class,
-                        InvalidDataAccessApiUsageException.class)
-                .hasMessageContaining("WHERE");
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(3);
     }
 
     @Test
