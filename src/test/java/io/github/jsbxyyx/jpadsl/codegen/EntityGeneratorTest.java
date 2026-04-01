@@ -37,6 +37,10 @@ class EntityGeneratorTest {
                 "  created_at  TIMESTAMP" +
                 ")"
             );
+            stmt.execute("COMMENT ON COLUMN user_order.id IS 'Primary key ID'");
+            stmt.execute("COMMENT ON COLUMN user_order.order_number IS 'Order number'");
+            stmt.execute("COMMENT ON COLUMN user_order.amount IS 'Order amount'");
+            stmt.execute("COMMENT ON COLUMN user_order.created_at IS 'Creation time'");
         }
 
         outputDir = Files.createTempDirectory("entity-gen-test").toFile();
@@ -395,6 +399,30 @@ class EntityGeneratorTest {
         String content = readFile(repoFile);
         assertThat(content).contains("import com.example.entity.Product;");
         assertThat(content).contains("public interface ProductRepository extends JpaRepository<Product, Long>");
+    }
+
+    // -------------------------------------------------------------------------
+    // Column comment -> Javadoc on entity fields
+    // -------------------------------------------------------------------------
+
+    @Test
+    void testColumnCommentsGeneratedAsJavadoc() throws Exception {
+        EntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("user_order");
+
+        File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
+        assertThat(entityFile).exists();
+        String content = readFile(entityFile);
+
+        // Javadoc comments should appear for all commented columns
+        assertThat(content).contains("/**");
+        assertThat(content).contains("     * Primary key ID");
+        assertThat(content).contains("     * Order number");
+        assertThat(content).contains("     * Order amount");
+        assertThat(content).contains("     * Creation time");
     }
 
     // -------------------------------------------------------------------------

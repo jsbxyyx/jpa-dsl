@@ -19,6 +19,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Utility class that reads database table metadata via JDBC and generates
@@ -39,6 +41,8 @@ import java.util.Set;
  * }</pre>
  */
 public final class EntityGenerator {
+
+    private static final Logger LOG = Logger.getLogger(EntityGenerator.class.getName());
 
     private EntityGenerator() {
     }
@@ -192,21 +196,45 @@ public final class EntityGenerator {
     private static void doGenerate(DataSource dataSource, String entityPackage, String outputDir,
                                    boolean useLombok, String[] prefixes, String[] tableNames,
                                    String repositoryPackage, boolean repositoryOverride) {
+        LOG.log(Level.INFO, "EntityGenerator starting: entityPackage={0}, outputDir={1}, useLombok={2}, prefixes={3}, repositoryPackage={4}",
+                new Object[]{entityPackage, outputDir, useLombok, Arrays.toString(prefixes), repositoryPackage});
+        long startTime = System.currentTimeMillis();
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
             String catalog = conn.getCatalog();
             String schema = conn.getSchema();
 
             List<String> tables = resolveTables(meta, catalog, schema, tableNames);
+            LOG.log(Level.INFO, "Resolved {0} table(s): {1}", new Object[]{tables.size(), tables});
+            int processed = 0;
             for (String table : tables) {
+                LOG.log(Level.INFO, "Processing table: {0}", table);
                 List<ColumnInfo> columns = readColumns(meta, catalog, schema, table);
                 Set<String> primaryKeys = readPrimaryKeys(meta, catalog, schema, table);
-                writeEntity(entityPackage, outputDir, table, columns, primaryKeys, useLombok, prefixes);
-                if (repositoryPackage != null && !repositoryPackage.isEmpty()) {
-                    writeRepository(entityPackage, repositoryPackage, outputDir, table, columns,
-                            primaryKeys, prefixes, repositoryOverride);
+                LOG.log(Level.FINE, "Table {0}: {1} column(s), {2} primary key(s): {3}",
+                        new Object[]{table, columns.size(), primaryKeys.size(), primaryKeys});
+                try {
+                    writeEntity(entityPackage, outputDir, table, columns, primaryKeys, useLombok, prefixes);
+                } catch (IOException e) {
+                    LOG.log(Level.SEVERE, "Failed to write entity for table {0}: {1}",
+                            new Object[]{table, e.getMessage()});
+                    throw e;
                 }
+                if (repositoryPackage != null && !repositoryPackage.isEmpty()) {
+                    try {
+                        writeRepository(entityPackage, repositoryPackage, outputDir, table, columns,
+                                primaryKeys, prefixes, repositoryOverride);
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "Failed to write repository for table {0}: {1}",
+                                new Object[]{table, e.getMessage()});
+                        throw e;
+                    }
+                }
+                processed++;
             }
+            long elapsed = System.currentTimeMillis() - startTime;
+            LOG.log(Level.INFO, "EntityGenerator completed: {0} table(s) processed in {1} ms",
+                    new Object[]{processed, elapsed});
         } catch (SQLException | IOException e) {
             throw new RuntimeException("EntityGenerator failed", e);
         }
@@ -263,7 +291,8 @@ public final class EntityGenerator {
         String isAutoincrement = rs.getString("IS_AUTOINCREMENT");
         boolean autoIncrement = "YES".equalsIgnoreCase(isAutoincrement);
         int ordinalPosition = rs.getInt("ORDINAL_POSITION");
-        return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition);
+        String comment = rs.getString("REMARKS");
+        return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition, comment);
     }
 
     private static Set<String> readPrimaryKeys(DatabaseMetaData meta, String catalog, String schema,
@@ -390,6 +419,11 @@ public final class EntityGenerator {
                 String fieldName = toCamelCase(lowerCol);
                 boolean isPk = pkLower.contains(lowerCol);
 
+                if (col.comment != null && !col.comment.isEmpty()) {
+                    w.println("    /**");
+                    w.println("     * " + col.comment.replace("*/", "* /"));
+                    w.println("     */");
+                }
                 if (isPk) {
                     w.println("    @Id");
                     if (col.autoIncrement) {
@@ -433,6 +467,7 @@ public final class EntityGenerator {
 
             w.println("}");
         }
+        LOG.log(Level.INFO, "Entity file written: {0}", file.getAbsolutePath());
     }
 
     private static void writeRepository(String entityPackage, String repositoryPackage, String outputDir,
@@ -455,6 +490,7 @@ public final class EntityGenerator {
         }
         File file = new File(dir, repositoryClassName + ".java");
         if (file.exists() && !override) {
+            LOG.log(Level.INFO, "Repository file skipped (already exists): {0}", file.getAbsolutePath());
             return;
         }
 
@@ -474,6 +510,7 @@ public final class EntityGenerator {
                     + entityClassName + ">, JpaUpdateExecutor<" + entityClassName + "> {");
             w.println("}");
         }
+        LOG.log(Level.INFO, "Repository file written: {0}", file.getAbsolutePath());
     }
 
     /**
@@ -643,13 +680,16 @@ public final class EntityGenerator {
         final boolean nullable;
         final boolean autoIncrement;
         final int ordinalPosition;
+        final String comment;
 
-        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition) {
+        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition,
+                   String comment) {
             this.name = name;
             this.typeName = typeName;
             this.nullable = nullable;
             this.autoIncrement = autoIncrement;
             this.ordinalPosition = ordinalPosition;
+            this.comment = comment;
         }
     }
 }
