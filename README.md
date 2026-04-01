@@ -138,17 +138,25 @@ Page<User> page = userRepository.findAll(spec, pageable);
 | `not(spec)` | NOT 取反 | `not(eq(User_.status, "ACTIVE"))` |
 | `noWhere()` | 显式声明无 WHERE 条件，允许查全表（见下方安全说明）| `builder().noWhere().build()` |
 
-> **condition 参数重载：** 每个条件方法都提供带 `boolean condition` 参数的重载版本。当 `condition` 为 `false` 时，该条件被完全跳过（相当于未调用）；为 `true` 时，则与不带 condition 的版本行为一致（value 为 null 时仍静默跳过）。
+> **condition 参数重载：** 每个条件方法都提供带 `boolean condition` 参数的重载版本。当 `condition` 为 `false` 时，该条件被完全跳过（相当于未调用）；为 `true` 时，**仅根据 condition 判断是否应用该条件，不再跳过 null 值**（null 值会直接传入 JPA Criteria 表达式）。
 >
 > ```java
 > String keyword = request.getKeyword(); // 可能为 null
 > Specification<User> spec = SpecificationBuilder.<User>builder()
 >     .eq(User_.status, "ACTIVE")
->     .like(User_.name, keyword, keyword != null)  // keyword 为 null 时整条件跳过
+>     .like(User_.name, keyword, keyword != null)  // keyword 为 null 时整条件跳过（condition=false）
 >     .build();
 > ```
+>
+> 与不带 condition 的基础方法的区别：
+>
+> | 调用方式 | value=非null | value=null |
+> |----------|-------------|------------|
+> | `eq(attr, value)` | 加入条件 | **跳过** |
+> | `eq(attr, value, true)` | 加入条件 | **加入条件（不跳过）** |
+> | `eq(attr, value, false)` | 跳过 | 跳过 |
 
-> **安全机制（防止误查全表）：** 若所有条件均被跳过（包括 condition=false 或 value=null），`build()` 会抛出 `IllegalStateException` 阻止全表查询。如确实需要查全表，请显式调用 `.noWhere()`：
+> **安全机制（防止误查全表）：** 若所有条件均被跳过（condition=false），`build()` 会抛出 `IllegalStateException` 阻止全表查询。condition=true 时，即使 value 为 null 也会计入条件，不会触发全表保护。如确实需要查全表，请显式调用 `.noWhere()`：
 >
 > ```java
 > // 查全表（显式声明无 WHERE 条件）

@@ -68,9 +68,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * Unlike {@link #eq(SingularAttribute, Object)}, a {@code null} value is <em>not</em> skipped;
+     * the predicate is applied as-is when {@code condition} is {@code true}.
+     */
     public <V> SpecificationBuilder<T> eq(SingularAttribute<? super T, V> attr, V value, boolean condition) {
-        return condition ? eq(attr, value) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.equal(root.get(attr), value));
+        }
+        return this;
     }
 
     public <V> SpecificationBuilder<T> ne(SingularAttribute<? super T, V> attr, V value) {
@@ -80,9 +87,15 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V> SpecificationBuilder<T> ne(SingularAttribute<? super T, V> attr, V value, boolean condition) {
-        return condition ? ne(attr, value) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.notEqual(root.get(attr), value));
+        }
+        return this;
     }
 
     // ------------------------------------------------------------------ //
@@ -96,7 +109,10 @@ public class SpecificationBuilder<T> {
 
     /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
     public SpecificationBuilder<T> isNull(SingularAttribute<? super T, ?> attr, boolean condition) {
-        return condition ? isNull(attr) : this;
+        if (condition) {
+            isNull(attr);
+        }
+        return this;
     }
 
     public SpecificationBuilder<T> isNotNull(SingularAttribute<? super T, ?> attr) {
@@ -106,7 +122,10 @@ public class SpecificationBuilder<T> {
 
     /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
     public SpecificationBuilder<T> isNotNull(SingularAttribute<? super T, ?> attr, boolean condition) {
-        return condition ? isNotNull(attr) : this;
+        if (condition) {
+            isNotNull(attr);
+        }
+        return this;
     }
 
     // ------------------------------------------------------------------ //
@@ -125,9 +144,17 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; {@code null} produces a {@code null} pattern
+     * passed directly to the LIKE expression.
+     */
     public SpecificationBuilder<T> like(SingularAttribute<? super T, String> attr, String value, boolean condition) {
-        return condition ? like(attr, value) : this;
+        if (condition) {
+            String pattern = value != null ? "%" + value + "%" : null;
+            specs.add((root, query, cb) -> cb.like(root.get(attr), pattern));
+        }
+        return this;
     }
 
     /**
@@ -142,10 +169,18 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; {@code null} produces a {@code null} pattern
+     * passed directly to the LIKE expression.
+     */
     public SpecificationBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value,
                                                   boolean condition) {
-        return condition ? likeIgnoreCase(attr, value) : this;
+        if (condition) {
+            String pattern = value != null ? "%" + value.toLowerCase() + "%" : null;
+            specs.add((root, query, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
+        }
+        return this;
     }
 
     // ------------------------------------------------------------------ //
@@ -160,10 +195,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(
             SingularAttribute<? super T, V> attr, V value, boolean condition) {
-        return condition ? gt(attr, value) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.greaterThan(root.get(attr), value));
+        }
+        return this;
     }
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> gte(
@@ -174,10 +215,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V extends Comparable<? super V>> SpecificationBuilder<T> gte(
             SingularAttribute<? super T, V> attr, V value, boolean condition) {
-        return condition ? gte(attr, value) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
+        }
+        return this;
     }
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(
@@ -188,10 +235,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(
             SingularAttribute<? super T, V> attr, V value, boolean condition) {
-        return condition ? lt(attr, value) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.lessThan(root.get(attr), value));
+        }
+        return this;
     }
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> lte(
@@ -202,10 +255,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} value is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V extends Comparable<? super V>> SpecificationBuilder<T> lte(
             SingularAttribute<? super T, V> attr, V value, boolean condition) {
-        return condition ? lte(attr, value) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
+        }
+        return this;
     }
 
     public <V extends Comparable<? super V>> SpecificationBuilder<T> between(
@@ -216,10 +275,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * {@code null} bound values are <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V extends Comparable<? super V>> SpecificationBuilder<T> between(
             SingularAttribute<? super T, V> attr, V lower, V upper, boolean condition) {
-        return condition ? between(attr, lower, upper) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> cb.between(root.get(attr), lower, upper));
+        }
+        return this;
     }
 
     // ------------------------------------------------------------------ //
@@ -233,10 +298,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} or empty collection is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V> SpecificationBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values,
                                           boolean condition) {
-        return condition ? in(attr, values) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> root.get(attr).in(values));
+        }
+        return this;
     }
 
     public <V> SpecificationBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values) {
@@ -246,10 +317,16 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    /**
+     * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
+     * A {@code null} or empty collection is <em>not</em> skipped; the predicate is applied as-is.
+     */
     public <V> SpecificationBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values,
                                              boolean condition) {
-        return condition ? notIn(attr, values) : this;
+        if (condition) {
+            specs.add((root, query, cb) -> root.get(attr).in(values).not());
+        }
+        return this;
     }
 
     // ------------------------------------------------------------------ //

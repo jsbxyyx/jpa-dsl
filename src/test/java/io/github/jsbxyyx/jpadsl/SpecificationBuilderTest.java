@@ -351,4 +351,30 @@ class SpecificationBuilderTest {
         assertThat(userRepository.findAll(spec)).hasSize(2)
                 .extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
+
+    @Test
+    void builder_condition_trueWithNullValue_predicateIsAdded_doesNotThrow() {
+        // condition=true with null value: predicate MUST be added (null guard is bypassed).
+        // build() must not throw the full-table guard because the predicate was registered.
+        // The query may return 0 rows (JPA `= null` semantics), but it must execute cleanly.
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, (String) null, true)  // null value, condition=true → predicate added
+                .build();
+        // Should not throw — just returns whatever JPA produces for "status = NULL"
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void builder_condition_trueWithNullValue_notSkipped_fullTableGuardDoesNotFire() {
+        // Verify that with condition=true the full-table guard is not triggered even with null value,
+        // and that a second non-null predicate works correctly alongside it.
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.email, (String) null, true)   // null value, condition=true → predicate IS added
+                .eq(User_.status, "ACTIVE", false)      // condition=false → skipped
+                .build();
+        // build() should not throw — the first predicate (with null value) counts as added
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).isNotNull();
+    }
 }

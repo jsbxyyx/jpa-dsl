@@ -220,4 +220,18 @@ class UpdateBuilderTest {
                 .findFirst().orElseThrow();
         assertThat(charlie.getStatus()).isEqualTo("SENIOR");
     }
+
+    @Test
+    void executeUpdate_condition_trueWithNullValue_predicateIsAdded_doesNotThrow() {
+        // condition=true with null value: predicate MUST be added (null guard is bypassed).
+        // execute() must not throw the full-table guard because the predicate was registered.
+        // The update may affect 0 rows (JPA `= null` semantics), but it must execute cleanly.
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "UPDATED")
+                .eq(User_.name, (String) null, true)  // null value, condition=true → predicate added
+                .build();
+        // Should not throw — no full-table guard because the predicate was registered
+        int affected = userRepository.executeUpdate(update);
+        assertThat(affected).isGreaterThanOrEqualTo(0);
+    }
 }
