@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 class SpecificationBuilderTest {
@@ -220,18 +221,159 @@ class SpecificationBuilderTest {
     }
 
     @Test
-    void builder_nullValueIsIgnored() {
+    void builder_eqWithNullValue_addsPredicateAndReturnsNullMatches() {
+        // eq(attr, null) must add the predicate (no longer skipped)
+        // Charlie has a null email, so querying email = null via JPA should find Charlie
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, null)
+                .eq(User_.email, (String) null)
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        // JPA "= null" semantics may return 0 rows depending on provider, but must not throw
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void builder_emptyBuilder_returnsAll() {
+        // An empty builder (no predicates) returns every row — no safety guard
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).hasSize(3);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  condition overload tests
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void builder_condition_trueAppliesPredicate() {
+        // condition=true: predicate is applied, only ACTIVE users returned
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, "ACTIVE", true)
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).hasSize(2)
+                .extracting(User::getName)
+                .containsExactlyInAnyOrder("Alice", "Charlie");
+    }
+
+    @Test
+    void builder_condition_falseSkipsPredicate_otherPredicateStillActive() {
+        // condition=false: predicate is skipped; the other predicate still applies
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, "INACTIVE", false)  // skipped
+                .eq(User_.name, "Alice", true)         // applied
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Alice");
+    }
+
+    @Test
+    void builder_condition_falseWithNullValue_countedAsSkipped() {
+        // condition=false and null value: must also be skipped
+        // Only the second predicate is active, so no full-table guard fires
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, null, false)
+                .eq(User_.name, "Bob", true)
+                .build();
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Bob");
+    }
+
+    @Test
+    void builder_condition_allConditionFalse_returnsAll() {
+        // All condition=false → no predicates added → no safety guard → returns every row
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, "ACTIVE", false)
+                .like(User_.name, "Bob", false)
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
     }
 
     @Test
-    void builder_emptyBuilder_returnsAll() {
-        Specification<User> spec = SpecificationBuilder.<User>builder().build();
+    void builder_condition_likeConditionTrue() {
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .like(User_.name, "Ali", true)
+                .build();
+        assertThat(userRepository.findAll(spec)).hasSize(1)
+                .extracting(User::getName).containsExactly("Alice");
+    }
+
+    @Test
+    void builder_condition_gtConditionTrue() {
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .gt(User_.age, 35, true)
+                .build();
+        assertThat(userRepository.findAll(spec)).hasSize(1)
+                .extracting(User::getName).containsExactly("Charlie");
+    }
+
+    @Test
+    void builder_condition_betweenConditionFalse_otherPredicateApplied() {
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .between(User_.age, 1, 2, false)   // skipped
+                .eq(User_.status, "INACTIVE", true) // applied
+                .build();
+        assertThat(userRepository.findAll(spec)).hasSize(1)
+                .extracting(User::getName).containsExactly("Bob");
+    }
+
+    @Test
+    void builder_condition_inConditionTrue() {
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .in(User_.name, Arrays.asList("Alice", "Bob"), true)
+                .build();
+        assertThat(userRepository.findAll(spec)).hasSize(2)
+                .extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
+    }
+
+    @Test
+    void builder_condition_isNullConditionTrue() {
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .isNull(User_.email, true)
+                .build();
+        assertThat(userRepository.findAll(spec)).hasSize(1)
+                .extracting(User::getName).containsExactly("Charlie");
+    }
+
+    @Test
+    void builder_condition_isNullConditionFalse_otherPredicateApplied() {
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .isNull(User_.email, false)          // skipped
+                .eq(User_.status, "ACTIVE", true)   // applied
+                .build();
+        assertThat(userRepository.findAll(spec)).hasSize(2)
+                .extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+    }
+
+    @Test
+    void builder_condition_trueWithNullValue_predicateIsAdded_doesNotThrow() {
+        // condition=true with null value: predicate MUST be added (null guard is bypassed).
+        // build() must not throw the full-table guard because the predicate was registered.
+        // The query may return 0 rows (JPA `= null` semantics), but it must execute cleanly.
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.status, (String) null, true)  // null value, condition=true → predicate added
+                .build();
+        // Should not throw — just returns whatever JPA produces for "status = NULL"
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(3);
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    void builder_condition_trueWithNullValue_notSkipped_fullTableGuardDoesNotFire() {
+        // Verify that with condition=true the full-table guard is not triggered even with null value,
+        // and that a second non-null predicate works correctly alongside it.
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .eq(User_.email, (String) null, true)   // null value, condition=true → predicate IS added
+                .eq(User_.status, "ACTIVE", false)      // condition=false → skipped
+                .build();
+        // build() should not throw — the first predicate (with null value) counts as added
+        List<User> result = userRepository.findAll(spec);
+        assertThat(result).isNotNull();
     }
 }

@@ -107,22 +107,55 @@ Page<User> page = userRepository.findAll(spec, pageable);
 
 | 方法 | 说明 | 示例 |
 |------|------|------|
-| `eq(attr, value)` | 等于 | `eq(User_.status, "ACTIVE")` |
-| `ne(attr, value)` | 不等于 | `ne(User_.status, "DELETED")` |
-| `like(attr, value)` | 模糊匹配，自动包裹 `%` | `like(User_.name, "John")` → `%John%` |
+| `eq(attr, value)` | 等于；value 为任意值（含 null）时均加入条件 | `eq(User_.status, "ACTIVE")` |
+| `eq(attr, value, condition)` | 仅当 condition 为 true 时应用 eq | `eq(User_.status, status, status != null)` |
+| `ne(attr, value)` | 不等于；value 为任意值（含 null）时均加入条件 | `ne(User_.status, "DELETED")` |
+| `ne(attr, value, condition)` | 仅当 condition 为 true 时应用 ne | `ne(User_.status, val, flag)` |
+| `like(attr, value)` | 模糊匹配，自动包裹 `%`；value 为 null 时传入 null pattern | `like(User_.name, "John")` → `%John%` |
+| `like(attr, value, condition)` | 仅当 condition 为 true 时应用 like | `like(User_.name, kw, kw != null)` |
 | `likeIgnoreCase(attr, value)` | 不区分大小写模糊匹配 | `likeIgnoreCase(User_.name, "john")` |
+| `likeIgnoreCase(attr, value, condition)` | 仅当 condition 为 true 时应用 likeIgnoreCase | |
 | `in(attr, values)` | IN 集合（单值属性） | `in(User_.role, List.of("ADMIN", "USER"))` |
+| `in(attr, values, condition)` | 仅当 condition 为 true 时应用 in | |
 | `notIn(attr, values)` | NOT IN 集合 | `notIn(User_.role, List.of("GUEST"))` |
+| `notIn(attr, values, condition)` | 仅当 condition 为 true 时应用 notIn | |
 | `between(attr, lower, upper)` | 范围查询 | `between(User_.age, 18, 60)` |
+| `between(attr, lower, upper, condition)` | 仅当 condition 为 true 时应用 between | |
 | `gt(attr, value)` | 大于 | `gt(User_.age, 18)` |
+| `gt(attr, value, condition)` | 仅当 condition 为 true 时应用 gt | |
 | `gte(attr, value)` | 大于等于 | `gte(User_.age, 18)` |
+| `gte(attr, value, condition)` | 仅当 condition 为 true 时应用 gte | |
 | `lt(attr, value)` | 小于 | `lt(User_.age, 60)` |
+| `lt(attr, value, condition)` | 仅当 condition 为 true 时应用 lt | |
 | `lte(attr, value)` | 小于等于 | `lte(User_.age, 60)` |
+| `lte(attr, value, condition)` | 仅当 condition 为 true 时应用 lte | |
 | `isNull(attr)` | IS NULL | `isNull(User_.deletedAt)` |
+| `isNull(attr, condition)` | 仅当 condition 为 true 时应用 isNull | |
 | `isNotNull(attr)` | IS NOT NULL | `isNotNull(User_.email)` |
+| `isNotNull(attr, condition)` | 仅当 condition 为 true 时应用 isNotNull | |
 | `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
 | `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
 | `not(spec)` | NOT 取反 | `not(eq(User_.status, "ACTIVE"))` |
+
+> **condition 参数重载：** 每个条件方法都提供带 `boolean condition` 参数的重载版本。当 `condition` 为 `false` 时，该条件被完全跳过（相当于未调用）；为 `true` 时，该条件无条件加入（包括 null 值）。
+>
+> 基础方法（不带 condition）与 condition 重载的区别：
+>
+> | 调用方式 | value=非null | value=null |
+> |----------|-------------|------------|
+> | `eq(attr, value)` | 加入条件 | **加入条件** |
+> | `eq(attr, value, true)` | 加入条件 | 加入条件 |
+> | `eq(attr, value, false)` | 跳过 | 跳过 |
+>
+> 若需要根据值是否为 null 决定是否加入条件，请使用 condition 重载：
+>
+> ```java
+> String keyword = request.getKeyword(); // 可能为 null
+> Specification<User> spec = SpecificationBuilder.<User>builder()
+>     .eq(User_.status, "ACTIVE")
+>     .like(User_.name, keyword, keyword != null)  // keyword 为 null 时整条件跳过
+>     .build();
+> ```
 
 ### Join 操作
 
@@ -141,6 +174,55 @@ Specification<User> spec = SpecificationBuilder.<User>builder()
               predicates.add(cb.equal(join.get(Order_.status), "PAID")))
     .build();
 ```
+
+### JpaUpdateExecutor / UpdateBuilder — 批量 UPDATE
+
+`JpaUpdateExecutor<T>` 是类比 `JpaSpecificationExecutor<T>` 的 Repository 混入接口，让 Repository 获得类型安全的批量 UPDATE 能力，**用户无需直接接触 `EntityManager`**。
+
+#### 1. 声明 Repository
+
+```java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long>,
+        JpaSpecificationExecutor<User>,
+        JpaUpdateExecutor<User> {   // ← 新增
+}
+```
+
+#### 2. 在 Service 中使用
+
+```java
+@Service
+public class UserService {
+    @Autowired
+    private UserRepository userRepository;
+
+    public int deactivateOldUsers() {
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+            .set(User_.status, "INACTIVE")      // SET 子句（null 值会将列置为 NULL）
+            .eq(User_.status, "ACTIVE")         // WHERE 条件
+            .lt(User_.age, 18)
+            .build();
+        return userRepository.executeUpdate(update);
+    }
+}
+```
+
+#### UpdateBuilder API
+
+| 方法 | 说明 |
+|------|------|
+| `UpdateBuilder.builder(entityClass)` | 工厂方法，必须指定实体类 |
+| `set(attr, value)` | 添加 SET 子句；`null` 值将列置为 NULL |
+| `set(attr, value, condition)` | 仅当 condition 为 true 时添加 SET 子句 |
+| `eq / ne / like / likeIgnoreCase` | WHERE 等值 / 不等值 / 模糊匹配条件 |
+| `gt / gte / lt / lte` | WHERE 比较条件 |
+| `between(attr, lower, upper)` | WHERE 范围条件 |
+| `in / notIn(attr, values)` | WHERE IN / NOT IN 条件 |
+| `isNull / isNotNull(attr)` | WHERE NULL 检查条件 |
+| `build()` | 返回构建完成的 `UpdateBuilder`（传入 `executeUpdate()`）|
+
+> SET 子句中 `null` 值会将数据库列置为 NULL。WHERE 条件中的 `null` 值与其他值一样无条件加入（生成 `= NULL` 表达式）。若需跳过某条件，请使用 condition 重载（传入 `false`）。
 
 ### PageRequestBuilder
 
@@ -196,6 +278,9 @@ src/
 │   ├── SpecificationBuilder.java       # 主要链式构建器（推荐使用）
 │   ├── SpecificationDsl.java           # 静态工厂方法
 │   ├── PageRequestBuilder.java         # 分页排序构建器
+│   ├── UpdateBuilder.java              # 批量 UPDATE 构建器
+│   ├── JpaUpdateExecutor.java          # Repository 混入接口
+│   ├── JpaUpdateExecutorImpl.java      # 默认实现（内部注入 EntityManager）
 │   ├── core/
 │   │   ├── SpecificationBuilder.java   # core 包链式构建器
 │   │   ├── SpecificationDsl.java       # core 包静态工厂
@@ -225,7 +310,7 @@ src/
 
 ## 验收条件
 
-- ✅ `./mvnw test` 通过（81 个测试全部通过）
+- ✅ `./mvnw test` 通过（111 个测试全部通过）
 - ✅ 无 `target/**`、`*.class` 被提交
 - ✅ 无 `src/main/resources/application.properties`
 - ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`
@@ -235,3 +320,4 @@ src/
 - ✅ `in` 只支持单值属性 + `Collection<V>`
 - ✅ 支持类型安全 Join（`SingularAttribute` 和 `ListAttribute`/`SetAttribute`）
 - ✅ `PageRequestBuilder.sortBy(attr, direction)` 使用 metamodel 属性
+- ✅ `JpaUpdateExecutor<T>` 支持类型安全批量 UPDATE，用户无需注入 `EntityManager`
