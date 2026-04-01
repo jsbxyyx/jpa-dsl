@@ -463,6 +463,7 @@ public final class EntityGenerator {
             w.println("package " + repositoryPackage + ";");
             w.println();
             w.println("import " + entityPackage + "." + entityClassName + ";");
+            w.println("import io.github.jsbxyyx.jpadsl.JpaUpdateExecutor;");
             w.println("import org.springframework.data.jpa.repository.JpaRepository;");
             w.println("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;");
             w.println("import org.springframework.stereotype.Repository;");
@@ -470,7 +471,7 @@ public final class EntityGenerator {
             w.println("@Repository");
             w.println("public interface " + repositoryClassName + " extends JpaRepository<"
                     + entityClassName + ", " + pkJavaType + ">, JpaSpecificationExecutor<"
-                    + entityClassName + "> {");
+                    + entityClassName + ">, JpaUpdateExecutor<" + entityClassName + "> {");
             w.println("}");
         }
     }
