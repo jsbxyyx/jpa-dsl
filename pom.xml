@@ -40,12 +40,12 @@
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-data-jpa.version>3.2.5</spring-data-jpa.version>
+        <spring-data-jpa.version>3.4.0</spring-data-jpa.version>
         <jakarta.persistence.version>3.1.0</jakarta.persistence.version>
         <h2.version>2.2.224</h2.version>
         <junit.version>5.10.2</junit.version>
-        <spring-boot.version>3.2.5</spring-boot.version>
-        <hibernate-jpamodelgen.version>6.4.4.Final</hibernate-jpamodelgen.version>
+        <spring-boot.version>3.4.0</spring-boot.version>
+        <hibernate-jpamodelgen.version>6.6.3.Final</hibernate-jpamodelgen.version>
     </properties>
 
     <dependencyManagement>

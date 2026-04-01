@@ -1,22 +1,24 @@
 package io.github.jsbxyyx.jpadsl;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Default implementation of {@link JpaUpdateExecutor}.
  *
- * <p>Spring Data JPA discovers this bean as the fragment implementation for
- * any repository that extends {@link JpaUpdateExecutor}.  The {@code EntityManager}
- * is injected by the JPA container; user code never has to manage it directly.
+ * <p>Instantiated by {@link JpaUpdateFragmentsContributor} and contributed as a
+ * repository fragment to every Spring Data JPA repository that extends
+ * {@link JpaUpdateExecutor}.
  *
  * @param <T> the root entity type
  */
 public class JpaUpdateExecutorImpl<T> implements JpaUpdateExecutor<T> {
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    private final EntityManager entityManager;
+
+    public JpaUpdateExecutorImpl(EntityManager entityManager) {
+        this.entityManager = entityManager;
+    }
 
     @Transactional
     @Override

@@ -3,21 +3,19 @@ package io.github.jsbxyyx.jpadsl;
 import jakarta.persistence.EntityManager;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
 /**
- * Spring Boot auto-configuration that registers {@link JpaUpdateExecutorImpl}
- * as a bean so that Spring Data JPA can discover it as a custom repository
- * fragment implementation for {@link JpaUpdateExecutor}.
+ * Spring Boot auto-configuration that registers {@link JpaUpdateFragmentsContributor}
+ * so that {@link JpaUpdateExecutorImpl} is automatically contributed as a repository
+ * fragment to any Spring Data JPA repository extending {@link JpaUpdateExecutor}.
  */
 @AutoConfiguration
 @ConditionalOnClass({EntityManager.class, JpaUpdateExecutor.class})
 public class JpaUpdateExecutorAutoConfiguration {
 
     @Bean
-    @ConditionalOnMissingBean(JpaUpdateExecutorImpl.class)
-    public <T> JpaUpdateExecutorImpl<T> jpaUpdateExecutorImpl() {
-        return new JpaUpdateExecutorImpl<>();
+    public JpaUpdateFragmentsContributor jpaUpdateFragmentsContributor() {
+        return new JpaUpdateFragmentsContributor();
     }
 }
