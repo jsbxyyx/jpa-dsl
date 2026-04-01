@@ -123,6 +123,16 @@ Page<User> page = userRepository.findAll(spec, pageable);
 | `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
 | `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
 | `not(spec)` | NOT 取反 | `not(eq(User_.status, "ACTIVE"))` |
+| `noWhere()` | 显式声明无 WHERE 条件，允许查全表（见下方安全说明）| `builder().noWhere().build()` |
+
+> **安全机制（防止误查全表）：** 条件方法遇到 `null` 值时会静默跳过，但如果所有值均为 `null` 导致没有任何有效条件，`build()` 会抛出 `IllegalStateException` 阻止全表查询。如确实需要查全表，请在链式调用中显式添加 `.noWhere()`：
+>
+> ```java
+> // 查全表（显式声明无 WHERE 条件）
+> Specification<User> spec = SpecificationBuilder.<User>builder()
+>     .noWhere()   // ← 必须显式声明，否则 build() 抛出异常
+>     .build();
+> ```
 
 ### Join 操作
 

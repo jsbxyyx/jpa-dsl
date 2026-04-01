@@ -29,6 +29,11 @@ import java.util.List;
  * from the JPA Static Metamodel (e.g. {@code User_.status}), providing compile-time
  * verification that referenced fields exist and have correct types.
  *
+ * <p>Predicate methods silently skip {@code null} values. If <em>all</em> values are
+ * {@code null} (resulting in no active predicates), {@link #build()} throws
+ * {@link IllegalStateException} to prevent an accidental full-table query.
+ * Call {@link #noWhere()} explicitly to opt in when a full-table query is intentional.
+ *
  * <p>Example:
  * <pre>{@code
  * Specification<User> spec = SpecificationBuilder.<User>builder()
@@ -43,6 +48,7 @@ import java.util.List;
 public class SpecificationBuilder<T> {
 
     private final List<Specification<T>> specs = new ArrayList<>();
+    private boolean allowFullTableQuery = false;
 
     private SpecificationBuilder() {
     }
@@ -322,10 +328,47 @@ public class SpecificationBuilder<T> {
     }
 
     // ------------------------------------------------------------------ //
+    //  Full-table query opt-in
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Explicitly opts in to querying every row in the table (i.e. no WHERE clause).
+     *
+     * <p>By default, {@link #build()} throws {@link IllegalStateException} when no
+     * effective WHERE predicates are present, to prevent accidental full-table queries
+     * caused by all values being {@code null}.
+     * Call this method when a full-table query is intentional:
+     *
+     * <pre>{@code
+     * Specification<User> spec = SpecificationBuilder.<User>builder()
+     *     .noWhere()          // intentional: query every row
+     *     .build();
+     * }</pre>
+     *
+     * @return this builder
+     */
+    public SpecificationBuilder<T> noWhere() {
+        this.allowFullTableQuery = true;
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
     //  Build
     // ------------------------------------------------------------------ //
 
+    /**
+     * Builds and returns the composed {@link Specification}.
+     *
+     * @throws IllegalStateException if no predicates have been added and
+     *         {@link #noWhere()} has not been called (safety guard against
+     *         accidental full-table queries)
+     */
     public Specification<T> build() {
+        if (specs.isEmpty() && !allowFullTableQuery) {
+            throw new IllegalStateException(
+                    "No WHERE conditions are active. This would query every row in the table. "
+                    + "Add at least one condition, or call noWhere() to allow a full-table query intentionally.");
+        }
         return Specification.allOf(specs);
     }
 

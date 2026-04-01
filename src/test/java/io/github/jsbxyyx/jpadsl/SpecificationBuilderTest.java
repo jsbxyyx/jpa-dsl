@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 class SpecificationBuilderTest {
@@ -220,17 +221,22 @@ class SpecificationBuilderTest {
     }
 
     @Test
-    void builder_nullValueIsIgnored() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, null)
-                .build();
-        List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(3);
+    void builder_nullValueIsIgnored_throwsWhenNoPredicatesActive() {
+        // All WHERE values are null → no predicates added → safety guard should fire
+        assertThatThrownBy(() ->
+                SpecificationBuilder.<User>builder()
+                        .eq(User_.status, null)
+                        .build()
+        ).isInstanceOf(IllegalStateException.class)
+         .hasMessageContaining("WHERE");
     }
 
     @Test
-    void builder_emptyBuilder_returnsAll() {
-        Specification<User> spec = SpecificationBuilder.<User>builder().build();
+    void builder_emptyBuilder_withNoWhere_returnsAll() {
+        // Explicit opt-in via noWhere() — must return every row
+        Specification<User> spec = SpecificationBuilder.<User>builder()
+                .noWhere()
+                .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
     }
