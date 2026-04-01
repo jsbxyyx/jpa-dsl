@@ -28,6 +28,10 @@ import java.util.List;
  * <p>SET clauses always apply (null values set the column to NULL).
  * WHERE predicates silently skip when the supplied value is null,
  * consistent with {@link SpecificationBuilder} behaviour.
+ * If <em>all</em> WHERE values are null (resulting in no active predicates),
+ * {@code execute()} throws {@link IllegalStateException} to prevent an accidental
+ * full-table update.  Call {@link #noWhere()} explicitly to opt in when a
+ * full-table update is intentional.
  *
  * @param <T> the root entity type
  */
@@ -36,6 +40,7 @@ public class UpdateBuilder<T> {
     private final Class<T> entityClass;
     private final List<SetClause<T, ?>> setClauses = new ArrayList<>();
     private final List<WhereCondition<T>> whereConditions = new ArrayList<>();
+    private boolean allowFullTableUpdate = false;
 
     private UpdateBuilder(Class<T> entityClass) {
         this.entityClass = entityClass;
@@ -164,6 +169,33 @@ public class UpdateBuilder<T> {
     }
 
     // ------------------------------------------------------------------ //
+    //  Full-table update opt-in
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Explicitly opts in to updating every row in the table (i.e. no WHERE clause).
+     *
+     * <p>By default, {@link JpaUpdateExecutor#executeUpdate} throws
+     * {@link IllegalStateException} when no effective WHERE predicates are present,
+     * to prevent accidental full-table updates caused by all values being {@code null}.
+     * Call this method when a full-table update is intentional:
+     *
+     * <pre>{@code
+     * int affected = userRepository.executeUpdate(
+     *     UpdateBuilder.<User>builder(User.class)
+     *         .set(User_.status, "INACTIVE")
+     *         .noWhere()          // intentional: update every row
+     *         .build());
+     * }</pre>
+     *
+     * @return this builder
+     */
+    public UpdateBuilder<T> noWhere() {
+        this.allowFullTableUpdate = true;
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
     //  Build
     // ------------------------------------------------------------------ //
 
@@ -186,12 +218,19 @@ public class UpdateBuilder<T> {
      *
      * @param em the entity manager to execute the update with
      * @return the number of rows affected
-     * @throws IllegalStateException if no SET clause has been added
+     * @throws IllegalStateException if no SET clause has been added, or if no
+     *         effective WHERE predicates are present and {@link #noWhere()} has
+     *         not been called (safety guard against accidental full-table updates)
      */
     int execute(EntityManager em) {
         if (setClauses.isEmpty()) {
             throw new IllegalStateException(
                     "At least one SET clause is required before calling execute()");
+        }
+        if (whereConditions.isEmpty() && !allowFullTableUpdate) {
+            throw new IllegalStateException(
+                    "No WHERE conditions are active. This would update every row in the table. "
+                    + "Add at least one WHERE condition, or call noWhere() to allow a full-table update intentionally.");
         }
 
         CriteriaBuilder cb = em.getCriteriaBuilder();

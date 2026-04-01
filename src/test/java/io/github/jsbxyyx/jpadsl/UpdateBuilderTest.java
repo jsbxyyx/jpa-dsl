@@ -117,16 +117,34 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_nullValueInWhereSilentlySkipped() {
-        // null value in eq() should not add a predicate — matches all rows
+    void executeUpdate_nullValueInWhereSilentlySkipped_throwsWhenNoPredicatesActive() {
+        // All WHERE values are null → no predicates added → safety guard should fire
         UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
                 .eq(User_.status, null)
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
+        assertThatThrownBy(() -> userRepository.executeUpdate(update))
+                .isInstanceOfAny(IllegalStateException.class,
+                        InvalidDataAccessApiUsageException.class)
+                .hasMessageContaining("WHERE");
+    }
 
-        // No WHERE clause added, so all rows are updated
+    @Test
+    void executeUpdate_noWhere_allowsFullTableUpdate() {
+        // Explicit opt-in via noWhere() — must update every row
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "UPDATED")
+                .noWhere()
+                .build();
+
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
         assertThat(affected).isEqualTo(3);
+        assertThat(userRepository.findAll())
+                .extracting(User::getStatus)
+                .containsOnly("UPDATED");
     }
 }

@@ -186,9 +186,20 @@ public class UserService {
 | `between(attr, lower, upper)` | WHERE 范围条件 |
 | `in / notIn(attr, values)` | WHERE IN / NOT IN 条件 |
 | `isNull / isNotNull(attr)` | WHERE NULL 检查条件 |
+| `noWhere()` | 显式声明无 WHERE 条件，允许更新全表（见下方安全说明）|
 | `build()` | 返回构建完成的 `UpdateBuilder`（传入 `executeUpdate()`）|
 
-> **注意：** WHERE 条件中 `null` 值会被静默跳过（与 `SpecificationBuilder` 行为一致）；SET 子句中 `null` 值会将数据库列置为 NULL。
+> **安全机制（防止误更新全表）：** WHERE 条件中 `null` 值会被静默跳过，但如果所有 WHERE 值均为 `null` 导致没有任何有效条件，`executeUpdate()` 会抛出 `IllegalStateException` 阻止全表更新。如确实需要更新全表，请在链式调用中显式添加 `.noWhere()`：
+>
+> ```java
+> // 更新全表（显式声明无 WHERE 条件）
+> UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+>     .set(User_.status, "INACTIVE")
+>     .noWhere()   // ← 必须显式声明，否则抛出异常
+>     .build();
+> ```
+
+> SET 子句中 `null` 值会将数据库列置为 NULL。
 
 ### PageRequestBuilder
 
