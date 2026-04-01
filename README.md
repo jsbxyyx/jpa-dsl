@@ -142,6 +142,54 @@ Specification<User> spec = SpecificationBuilder.<User>builder()
     .build();
 ```
 
+### JpaUpdateExecutor / UpdateBuilder — 批量 UPDATE
+
+`JpaUpdateExecutor<T>` 是类比 `JpaSpecificationExecutor<T>` 的 Repository 混入接口，让 Repository 获得类型安全的批量 UPDATE 能力，**用户无需直接接触 `EntityManager`**。
+
+#### 1. 声明 Repository
+
+```java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long>,
+        JpaSpecificationExecutor<User>,
+        JpaUpdateExecutor<User> {   // ← 新增
+}
+```
+
+#### 2. 在 Service 中使用
+
+```java
+@Service
+public class UserService {
+    @Autowired
+    private UserRepository userRepository;
+
+    public int deactivateOldUsers() {
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+            .set(User_.status, "INACTIVE")      // SET 子句（null 值会将列置为 NULL）
+            .eq(User_.status, "ACTIVE")         // WHERE 条件（null 值自动跳过）
+            .lt(User_.age, 18)
+            .build();
+        return userRepository.executeUpdate(update);
+    }
+}
+```
+
+#### UpdateBuilder API
+
+| 方法 | 说明 |
+|------|------|
+| `UpdateBuilder.builder(entityClass)` | 工厂方法，必须指定实体类 |
+| `set(attr, value)` | 添加 SET 子句；`null` 值将列置为 NULL |
+| `eq / ne / like / likeIgnoreCase` | WHERE 等值 / 不等值 / 模糊匹配条件 |
+| `gt / gte / lt / lte` | WHERE 比较条件 |
+| `between(attr, lower, upper)` | WHERE 范围条件 |
+| `in / notIn(attr, values)` | WHERE IN / NOT IN 条件 |
+| `isNull / isNotNull(attr)` | WHERE NULL 检查条件 |
+| `build()` | 返回构建完成的 `UpdateBuilder`（传入 `executeUpdate()`）|
+
+> **注意：** WHERE 条件中 `null` 值会被静默跳过（与 `SpecificationBuilder` 行为一致）；SET 子句中 `null` 值会将数据库列置为 NULL。
+
 ### PageRequestBuilder
 
 ```java
@@ -196,6 +244,9 @@ src/
 │   ├── SpecificationBuilder.java       # 主要链式构建器（推荐使用）
 │   ├── SpecificationDsl.java           # 静态工厂方法
 │   ├── PageRequestBuilder.java         # 分页排序构建器
+│   ├── UpdateBuilder.java              # 批量 UPDATE 构建器
+│   ├── JpaUpdateExecutor.java          # Repository 混入接口
+│   ├── JpaUpdateExecutorImpl.java      # 默认实现（内部注入 EntityManager）
 │   ├── core/
 │   │   ├── SpecificationBuilder.java   # core 包链式构建器
 │   │   ├── SpecificationDsl.java       # core 包静态工厂
@@ -225,7 +276,7 @@ src/
 
 ## 验收条件
 
-- ✅ `./mvnw test` 通过（81 个测试全部通过）
+- ✅ `./mvnw test` 通过（111 个测试全部通过）
 - ✅ 无 `target/**`、`*.class` 被提交
 - ✅ 无 `src/main/resources/application.properties`
 - ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`
@@ -235,3 +286,4 @@ src/
 - ✅ `in` 只支持单值属性 + `Collection<V>`
 - ✅ 支持类型安全 Join（`SingularAttribute` 和 `ListAttribute`/`SetAttribute`）
 - ✅ `PageRequestBuilder.sortBy(attr, direction)` 使用 metamodel 属性
+- ✅ `JpaUpdateExecutor<T>` 支持类型安全批量 UPDATE，用户无需注入 `EntityManager`
