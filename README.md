@@ -107,25 +107,48 @@ Page<User> page = userRepository.findAll(spec, pageable);
 
 | 方法 | 说明 | 示例 |
 |------|------|------|
-| `eq(attr, value)` | 等于 | `eq(User_.status, "ACTIVE")` |
-| `ne(attr, value)` | 不等于 | `ne(User_.status, "DELETED")` |
-| `like(attr, value)` | 模糊匹配，自动包裹 `%` | `like(User_.name, "John")` → `%John%` |
+| `eq(attr, value)` | 等于；value 为 null 时静默跳过 | `eq(User_.status, "ACTIVE")` |
+| `eq(attr, value, condition)` | 仅当 condition 为 true 时应用 eq | `eq(User_.status, status, status != null)` |
+| `ne(attr, value)` | 不等于；value 为 null 时静默跳过 | `ne(User_.status, "DELETED")` |
+| `ne(attr, value, condition)` | 仅当 condition 为 true 时应用 ne | `ne(User_.status, val, flag)` |
+| `like(attr, value)` | 模糊匹配，自动包裹 `%`；value 为 null 时静默跳过 | `like(User_.name, "John")` → `%John%` |
+| `like(attr, value, condition)` | 仅当 condition 为 true 时应用 like | `like(User_.name, kw, kw != null)` |
 | `likeIgnoreCase(attr, value)` | 不区分大小写模糊匹配 | `likeIgnoreCase(User_.name, "john")` |
+| `likeIgnoreCase(attr, value, condition)` | 仅当 condition 为 true 时应用 likeIgnoreCase | |
 | `in(attr, values)` | IN 集合（单值属性） | `in(User_.role, List.of("ADMIN", "USER"))` |
+| `in(attr, values, condition)` | 仅当 condition 为 true 时应用 in | |
 | `notIn(attr, values)` | NOT IN 集合 | `notIn(User_.role, List.of("GUEST"))` |
+| `notIn(attr, values, condition)` | 仅当 condition 为 true 时应用 notIn | |
 | `between(attr, lower, upper)` | 范围查询 | `between(User_.age, 18, 60)` |
+| `between(attr, lower, upper, condition)` | 仅当 condition 为 true 时应用 between | |
 | `gt(attr, value)` | 大于 | `gt(User_.age, 18)` |
+| `gt(attr, value, condition)` | 仅当 condition 为 true 时应用 gt | |
 | `gte(attr, value)` | 大于等于 | `gte(User_.age, 18)` |
+| `gte(attr, value, condition)` | 仅当 condition 为 true 时应用 gte | |
 | `lt(attr, value)` | 小于 | `lt(User_.age, 60)` |
+| `lt(attr, value, condition)` | 仅当 condition 为 true 时应用 lt | |
 | `lte(attr, value)` | 小于等于 | `lte(User_.age, 60)` |
+| `lte(attr, value, condition)` | 仅当 condition 为 true 时应用 lte | |
 | `isNull(attr)` | IS NULL | `isNull(User_.deletedAt)` |
+| `isNull(attr, condition)` | 仅当 condition 为 true 时应用 isNull | |
 | `isNotNull(attr)` | IS NOT NULL | `isNotNull(User_.email)` |
+| `isNotNull(attr, condition)` | 仅当 condition 为 true 时应用 isNotNull | |
 | `and(specs...)` | AND 组合 | `and(spec1, spec2)` |
 | `or(specs...)` | OR 组合 | `or(spec1, spec2)` |
 | `not(spec)` | NOT 取反 | `not(eq(User_.status, "ACTIVE"))` |
 | `noWhere()` | 显式声明无 WHERE 条件，允许查全表（见下方安全说明）| `builder().noWhere().build()` |
 
-> **安全机制（防止误查全表）：** 条件方法遇到 `null` 值时会静默跳过，但如果所有值均为 `null` 导致没有任何有效条件，`build()` 会抛出 `IllegalStateException` 阻止全表查询。如确实需要查全表，请在链式调用中显式添加 `.noWhere()`：
+> **condition 参数重载：** 每个条件方法都提供带 `boolean condition` 参数的重载版本。当 `condition` 为 `false` 时，该条件被完全跳过（相当于未调用）；为 `true` 时，则与不带 condition 的版本行为一致（value 为 null 时仍静默跳过）。
+>
+> ```java
+> String keyword = request.getKeyword(); // 可能为 null
+> Specification<User> spec = SpecificationBuilder.<User>builder()
+>     .eq(User_.status, "ACTIVE")
+>     .like(User_.name, keyword, keyword != null)  // keyword 为 null 时整条件跳过
+>     .build();
+> ```
+
+> **安全机制（防止误查全表）：** 若所有条件均被跳过（包括 condition=false 或 value=null），`build()` 会抛出 `IllegalStateException` 阻止全表查询。如确实需要查全表，请显式调用 `.noWhere()`：
 >
 > ```java
 > // 查全表（显式声明无 WHERE 条件）

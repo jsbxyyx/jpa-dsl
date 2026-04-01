@@ -147,4 +147,77 @@ class UpdateBuilderTest {
                 .extracting(User::getStatus)
                 .containsOnly("UPDATED");
     }
+
+    // ------------------------------------------------------------------ //
+    //  condition overload tests
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void executeUpdate_condition_trueAppliesWhereClause() {
+        // condition=true: predicate applied → only ACTIVE users updated
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "BLOCKED")
+                .eq(User_.status, "ACTIVE", true)
+                .build();
+
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(2);
+        assertThat(userRepository.findAll())
+                .filteredOn(u -> "BLOCKED".equals(u.getStatus()))
+                .hasSize(2);
+    }
+
+    @Test
+    void executeUpdate_condition_falseSkipsWhereClause_otherPredicateApplied() {
+        // condition=false skips one predicate; the other applies normally
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "BLOCKED")
+                .eq(User_.status, "INACTIVE", false)  // skipped
+                .eq(User_.name, "Alice", true)         // applied
+                .build();
+
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(1);
+        User alice = userRepository.findAll().stream()
+                .filter(u -> "Alice".equals(u.getName()))
+                .findFirst().orElseThrow();
+        assertThat(alice.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void executeUpdate_condition_allFalse_throwsIllegalState() {
+        // All conditions are false → no predicates active → safety guard fires
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "BLOCKED")
+                .eq(User_.status, "ACTIVE", false)
+                .eq(User_.name, "Alice", false)
+                .build();
+
+        assertThatThrownBy(() -> userRepository.executeUpdate(update))
+                .isInstanceOfAny(IllegalStateException.class,
+                        InvalidDataAccessApiUsageException.class)
+                .hasMessageContaining("WHERE");
+    }
+
+    @Test
+    void executeUpdate_condition_gtConditionTrue() {
+        // condition=true: update users with age > 30 (only Charlie, age=40)
+        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "SENIOR")
+                .gt(User_.age, 30, true)
+                .build();
+
+        int affected = userRepository.executeUpdate(update);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(1);
+        User charlie = userRepository.findAll().stream()
+                .filter(u -> "Charlie".equals(u.getName()))
+                .findFirst().orElseThrow();
+        assertThat(charlie.getStatus()).isEqualTo("SENIOR");
+    }
 }

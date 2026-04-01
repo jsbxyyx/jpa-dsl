@@ -81,6 +81,11 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V> UpdateBuilder<T> eq(SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        return condition ? eq(attr, value) : this;
+    }
+
     public <V> UpdateBuilder<T> ne(SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
             whereConditions.add((root, cb) -> cb.notEqual(root.get(attr), value));
@@ -88,14 +93,29 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V> UpdateBuilder<T> ne(SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        return condition ? ne(attr, value) : this;
+    }
+
     public UpdateBuilder<T> isNull(SingularAttribute<? super T, ?> attr) {
         whereConditions.add((root, cb) -> cb.isNull(root.get(attr)));
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public UpdateBuilder<T> isNull(SingularAttribute<? super T, ?> attr, boolean condition) {
+        return condition ? isNull(attr) : this;
+    }
+
     public UpdateBuilder<T> isNotNull(SingularAttribute<? super T, ?> attr) {
         whereConditions.add((root, cb) -> cb.isNotNull(root.get(attr)));
         return this;
+    }
+
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public UpdateBuilder<T> isNotNull(SingularAttribute<? super T, ?> attr, boolean condition) {
+        return condition ? isNotNull(attr) : this;
     }
 
     public UpdateBuilder<T> like(SingularAttribute<? super T, String> attr, String value) {
@@ -106,12 +126,23 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public UpdateBuilder<T> like(SingularAttribute<? super T, String> attr, String value, boolean condition) {
+        return condition ? like(attr, value) : this;
+    }
+
     public UpdateBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value) {
         if (value != null) {
             String pattern = "%" + value.toLowerCase() + "%";
             whereConditions.add((root, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
         }
         return this;
+    }
+
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public UpdateBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value,
+                                           boolean condition) {
+        return condition ? likeIgnoreCase(attr, value) : this;
     }
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> gt(
@@ -122,12 +153,24 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V extends Comparable<? super V>> UpdateBuilder<T> gt(
+            SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        return condition ? gt(attr, value) : this;
+    }
+
     public <V extends Comparable<? super V>> UpdateBuilder<T> gte(
             SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
             whereConditions.add((root, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
         }
         return this;
+    }
+
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V extends Comparable<? super V>> UpdateBuilder<T> gte(
+            SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        return condition ? gte(attr, value) : this;
     }
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> lt(
@@ -138,12 +181,24 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V extends Comparable<? super V>> UpdateBuilder<T> lt(
+            SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        return condition ? lt(attr, value) : this;
+    }
+
     public <V extends Comparable<? super V>> UpdateBuilder<T> lte(
             SingularAttribute<? super T, V> attr, V value) {
         if (value != null) {
             whereConditions.add((root, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
         }
         return this;
+    }
+
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V extends Comparable<? super V>> UpdateBuilder<T> lte(
+            SingularAttribute<? super T, V> attr, V value, boolean condition) {
+        return condition ? lte(attr, value) : this;
     }
 
     public <V extends Comparable<? super V>> UpdateBuilder<T> between(
@@ -154,6 +209,12 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V extends Comparable<? super V>> UpdateBuilder<T> between(
+            SingularAttribute<? super T, V> attr, V lower, V upper, boolean condition) {
+        return condition ? between(attr, lower, upper) : this;
+    }
+
     public <V> UpdateBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values) {
         if (values != null && !values.isEmpty()) {
             whereConditions.add((root, cb) -> root.get(attr).in(values));
@@ -161,11 +222,21 @@ public class UpdateBuilder<T> {
         return this;
     }
 
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V> UpdateBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values, boolean condition) {
+        return condition ? in(attr, values) : this;
+    }
+
     public <V> UpdateBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values) {
         if (values != null && !values.isEmpty()) {
             whereConditions.add((root, cb) -> root.get(attr).in(values).not());
         }
         return this;
+    }
+
+    /** Conditional overload: adds the predicate only when {@code condition} is {@code true}. */
+    public <V> UpdateBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values, boolean condition) {
+        return condition ? notIn(attr, values) : this;
     }
 
     // ------------------------------------------------------------------ //
