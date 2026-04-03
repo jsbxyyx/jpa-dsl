@@ -36,13 +36,13 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_setsFieldWithWhereCondition() {
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+    void update_setsFieldWithWhereCondition() {
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "INACTIVE")
                 .eq(User_.status, "ACTIVE")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear(); // evict stale first-level cache after bulk update
 
         assertThat(affected).isEqualTo(2);
@@ -53,13 +53,13 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_setToNull() {
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+    void update_setToNull() {
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.email, null)
                 .eq(User_.name, "Alice")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear(); // evict stale first-level cache after bulk update
 
         assertThat(affected).isEqualTo(1);
@@ -71,14 +71,14 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_multipleSetClauses() {
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+    void update_multipleSetClauses() {
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BANNED")
                 .set(User_.name, "Bob-Updated")
                 .eq(User_.name, "Bob")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear(); // evict stale first-level cache after bulk update
 
         assertThat(affected).isEqualTo(1);
@@ -90,51 +90,51 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_noMatchingRows() {
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+    void update_noMatchingRows() {
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "DELETED")
                 .eq(User_.name, "NonExistent")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
 
         assertThat(affected).isEqualTo(0);
     }
 
     @Test
-    void executeUpdate_noSetClauses_throwsException() {
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+    void update_noSetClauses_throwsException() {
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .eq(User_.status, "ACTIVE")
                 .build();
 
         // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
-        assertThatThrownBy(() -> userRepository.executeUpdate(update))
+        assertThatThrownBy(() -> userRepository.update(spec))
                 .isInstanceOfAny(IllegalStateException.class,
                         InvalidDataAccessApiUsageException.class)
                 .hasMessageContaining("SET clause");
     }
 
     @Test
-    void executeUpdate_eqWithNullValue_addsPredicateAndExecutes() {
+    void update_eqWithNullValue_addsPredicateAndExecutes() {
         // eq(attr, null) must add the predicate — no longer silently skipped.
         // "name = null" in JPA matches nothing, so 0 rows are updated and no exception is thrown.
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
                 .eq(User_.name, (String) null)
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         assertThat(affected).isGreaterThanOrEqualTo(0);
     }
 
     @Test
-    void executeUpdate_noWherePredicates_allowsFullTableUpdate() {
+    void update_noWherePredicates_allowsFullTableUpdate() {
         // No WHERE predicates → full-table update (no safety guard)
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(3);
@@ -148,14 +148,14 @@ class UpdateBuilderTest {
     // ------------------------------------------------------------------ //
 
     @Test
-    void executeUpdate_condition_trueAppliesWhereClause() {
+    void update_condition_trueAppliesWhereClause() {
         // condition=true: predicate applied → only ACTIVE users updated
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED")
                 .eq(User_.status, "ACTIVE", true)
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(2);
@@ -165,15 +165,15 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_condition_falseSkipsWhereClause_otherPredicateApplied() {
+    void update_condition_falseSkipsWhereClause_otherPredicateApplied() {
         // condition=false skips one predicate; the other applies normally
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED")
                 .eq(User_.status, "INACTIVE", false)  // skipped
                 .eq(User_.name, "Alice", true)         // applied
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
@@ -184,29 +184,29 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_condition_allFalse_updatesAllRows() {
+    void update_condition_allFalse_updatesAllRows() {
         // All conditions are false → no predicates active → full-table update (no safety guard)
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED")
                 .eq(User_.status, "ACTIVE", false)
                 .eq(User_.name, "Alice", false)
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(3);
     }
 
     @Test
-    void executeUpdate_condition_gtConditionTrue() {
+    void update_condition_gtConditionTrue() {
         // condition=true: update users with age > 30 (only Charlie, age=40)
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "SENIOR")
                 .gt(User_.age, 30, true)
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
@@ -217,16 +217,16 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_condition_trueWithNullValue_predicateIsAdded_doesNotThrow() {
+    void update_condition_trueWithNullValue_predicateIsAdded_doesNotThrow() {
         // condition=true with null value: predicate MUST be added (null guard is bypassed).
         // execute() must not throw the full-table guard because the predicate was registered.
         // The update may affect 0 rows (JPA `= null` semantics), but it must execute cleanly.
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
                 .eq(User_.name, (String) null, true)  // null value, condition=true → predicate added
                 .build();
         // Should not throw — no full-table guard because the predicate was registered
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         assertThat(affected).isGreaterThanOrEqualTo(0);
     }
 
@@ -235,15 +235,15 @@ class UpdateBuilderTest {
     // ------------------------------------------------------------------ //
 
     @Test
-    void executeUpdate_setCondition_trueAppliesSetClause() {
+    void update_setCondition_trueAppliesSetClause() {
         // condition=true: both SET clauses applied → status and name both updated for Alice
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED", true)   // applied
                 .set(User_.name, "Alice-Updated", true) // applied
                 .eq(User_.name, "Alice")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
@@ -254,15 +254,15 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_setCondition_falseSkipsSetClause() {
+    void update_setCondition_falseSkipsSetClause() {
         // condition=false: the name SET clause is skipped; only status is updated
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED", true)      // applied
                 .set(User_.name, "Alice-Updated", false) // skipped
                 .eq(User_.name, "Alice")
                 .build();
 
-        int affected = userRepository.executeUpdate(update);
+        int affected = userRepository.update(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
@@ -273,17 +273,41 @@ class UpdateBuilderTest {
     }
 
     @Test
-    void executeUpdate_setCondition_allFalse_throwsNoSetClause() {
+    void update_setCondition_allFalse_throwsNoSetClause() {
         // All SET conditions are false → no SET clauses → must throw
-        UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+        UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED", false)
                 .set(User_.name, "Alice-Updated", false)
                 .eq(User_.name, "Alice")
                 .build();
 
-        assertThatThrownBy(() -> userRepository.executeUpdate(update))
+        assertThatThrownBy(() -> userRepository.update(spec))
                 .isInstanceOfAny(IllegalStateException.class,
                         InvalidDataAccessApiUsageException.class)
                 .hasMessageContaining("SET clause");
     }
+
+    // ------------------------------------------------------------------ //
+    //  Backward-compatibility: deprecated executeUpdate(UpdateBuilder) API
+    // ------------------------------------------------------------------ //
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void executeUpdate_backwardCompat_delegatesToUpdate() {
+        // Verify that the deprecated executeUpdate(UpdateBuilder) still works via
+        // the default interface method that delegates to update(UpdateSpec).
+        UpdateBuilder<User> builder = UpdateBuilder.<User>builder(User.class)
+                .set(User_.status, "INACTIVE")
+                .eq(User_.status, "ACTIVE");
+
+        int affected = userRepository.executeUpdate(builder);
+        testEntityManager.clear();
+
+        assertThat(affected).isEqualTo(2);
+        List<User> inactive = userRepository.findAll().stream()
+                .filter(u -> "INACTIVE".equals(u.getStatus()))
+                .toList();
+        assertThat(inactive).hasSize(3);
+    }
 }
+

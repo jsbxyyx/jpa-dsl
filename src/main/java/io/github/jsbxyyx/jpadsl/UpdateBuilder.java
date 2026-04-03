@@ -17,12 +17,12 @@ import java.util.List;
  *
  * <p>Usage example:
  * <pre>{@code
- * UpdateBuilder<User> update = UpdateBuilder.<User>builder(User.class)
+ * UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
  *     .set(User_.status, "INACTIVE")
  *     .eq(User_.status, "ACTIVE")
  *     .lt(User_.age, 18)
  *     .build();
- * int affected = userRepository.executeUpdate(update);
+ * int affected = userRepository.update(spec);
  * }</pre>
  *
  * <p>SET clauses always apply (null values set the column to NULL).
@@ -306,12 +306,14 @@ public class UpdateBuilder<T> {
     // ------------------------------------------------------------------ //
 
     /**
-     * Returns this builder as the update definition object (the builder itself
-     * carries all SET and WHERE state and is passed to
-     * {@link JpaUpdateExecutor#executeUpdate(UpdateBuilder)}).
+     * Builds and returns an immutable {@link UpdateSpec} that encapsulates all
+     * SET and WHERE clauses collected by this builder.
+     *
+     * @return a new {@link UpdateSpec} ready to be passed to
+     *         {@link JpaUpdateExecutor#update(UpdateSpec)}
      */
-    public UpdateBuilder<T> build() {
-        return this;
+    public UpdateSpec<T> build() {
+        return new UpdateSpec<>(this);
     }
 
     // ------------------------------------------------------------------ //
