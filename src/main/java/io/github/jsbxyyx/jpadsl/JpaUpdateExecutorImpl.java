@@ -22,7 +22,7 @@ public class JpaUpdateExecutorImpl<T> implements JpaUpdateExecutor<T> {
 
     @Transactional
     @Override
-    public int executeUpdate(UpdateBuilder<T> updateBuilder) {
-        return updateBuilder.execute(entityManager);
+    public int update(UpdateSpec<T> updateSpec) {
+        return updateSpec.execute(entityManager);
     }
 }
