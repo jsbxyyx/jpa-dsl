@@ -224,6 +224,54 @@ public class UserService {
 
 > SET 子句中 `null` 值会将数据库列置为 NULL。WHERE 条件中的 `null` 值与其他值一样无条件加入（生成 `= NULL` 表达式）。若需跳过某条件，请使用 condition 重载（传入 `false`）。
 
+### JpaDeleteExecutor / DeleteBuilder — 批量 DELETE
+
+`JpaDeleteExecutor<T>` 是类比 `JpaUpdateExecutor<T>` 的 Repository 混入接口，让 Repository 获得类型安全的批量 DELETE 能力，**用户无需直接接触 `EntityManager`**。
+
+> **安全保护**：`DeleteBuilder` 要求至少有一个 WHERE 条件，否则调用 `delete()` 时抛出 `IllegalStateException`，防止意外全表删除。
+
+#### 1. 声明 Repository
+
+```java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long>,
+        JpaSpecificationExecutor<User>,
+        JpaDeleteExecutor<User> {   // ← 新增
+}
+```
+
+#### 2. 在 Service 中使用
+
+```java
+@Service
+public class UserService {
+    @Autowired
+    private UserRepository userRepository;
+
+    public int deleteInactiveUsers() {
+        DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class)
+            .eq(User_.status, "INACTIVE")   // WHERE 条件（至少一个）
+            .lt(User_.age, 18)
+            .build();
+        return userRepository.delete(spec);
+    }
+}
+```
+
+#### DeleteBuilder API
+
+| 方法 | 说明 |
+|------|------|
+| `DeleteBuilder.builder(entityClass)` | 工厂方法，必须指定实体类 |
+| `eq / ne / like / likeIgnoreCase` | WHERE 等值 / 不等值 / 模糊匹配条件 |
+| `gt / gte / lt / lte` | WHERE 比较条件 |
+| `between(attr, lower, upper)` | WHERE 范围条件 |
+| `in / notIn(attr, values)` | WHERE IN / NOT IN 条件 |
+| `isNull / isNotNull(attr)` | WHERE NULL 检查条件 |
+| `build()` | 返回构建完成的 `DeleteSpec`（传入 `delete()`）|
+
+> 每个条件方法都提供带 `boolean condition` 参数的重载版本。`condition=false` 时条件被完全跳过；`condition=true` 时无条件加入。
+
 ### PageRequestBuilder
 
 ```java
@@ -279,8 +327,13 @@ src/
 │   ├── SpecificationDsl.java           # 静态工厂方法
 │   ├── PageRequestBuilder.java         # 分页排序构建器
 │   ├── UpdateBuilder.java              # 批量 UPDATE 构建器
-│   ├── JpaUpdateExecutor.java          # Repository 混入接口
+│   ├── UpdateSpec.java                 # UpdateBuilder#build() 的不可变产品对象
+│   ├── JpaUpdateExecutor.java          # Repository 混入接口（UPDATE）
 │   ├── JpaUpdateExecutorImpl.java      # 默认实现（内部注入 EntityManager）
+│   ├── DeleteBuilder.java              # 批量 DELETE 构建器
+│   ├── DeleteSpec.java                 # DeleteBuilder#build() 的不可变产品对象
+│   ├── JpaDeleteExecutor.java          # Repository 混入接口（DELETE）
+│   ├── JpaDeleteExecutorImpl.java      # 默认实现（内部注入 EntityManager）
 │   ├── core/
 │   │   ├── SpecificationBuilder.java   # core 包链式构建器
 │   │   ├── SpecificationDsl.java       # core 包静态工厂
@@ -301,6 +354,8 @@ src/
     ├── SpecificationBuilderTest.java   # Builder API 集成测试
     ├── SpecificationDslTest.java       # DSL 静态方法集成测试
     ├── PageRequestBuilderTest.java     # 分页排序单元测试
+    ├── UpdateBuilderTest.java          # 批量 UPDATE 集成测试
+    ├── DeleteBuilderTest.java          # 批量 DELETE 集成测试
     ├── core/                           # core 包测试
     ├── example/                        # UserService 集成测试
     └── spec/                           # Specification 实现类测试
@@ -310,7 +365,7 @@ src/
 
 ## 验收条件
 
-- ✅ `./mvnw test` 通过（111 个测试全部通过）
+- ✅ `./mvnw test` 通过（147 个测试全部通过）
 - ✅ 无 `target/**`、`*.class` 被提交
 - ✅ 无 `src/main/resources/application.properties`
 - ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`
@@ -321,3 +376,5 @@ src/
 - ✅ 支持类型安全 Join（`SingularAttribute` 和 `ListAttribute`/`SetAttribute`）
 - ✅ `PageRequestBuilder.sortBy(attr, direction)` 使用 metamodel 属性
 - ✅ `JpaUpdateExecutor<T>` 支持类型安全批量 UPDATE，用户无需注入 `EntityManager`
+- ✅ `JpaDeleteExecutor<T>` 支持类型安全批量 DELETE，用户无需注入 `EntityManager`
+- ✅ `DeleteBuilder` 安全保护：无 WHERE 条件时拒绝执行，防止意外全表删除
