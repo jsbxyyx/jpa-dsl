@@ -1,1 +1,2 @@
 io.github.jsbxyyx.jpadsl.JpaUpdateExecutorAutoConfiguration
+io.github.jsbxyyx.jpadsl.JpaDeleteExecutorAutoConfiguration
