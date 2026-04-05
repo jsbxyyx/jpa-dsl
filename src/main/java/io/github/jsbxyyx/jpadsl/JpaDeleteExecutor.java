@@ -44,17 +44,4 @@ public interface JpaDeleteExecutor<T> {
     @Transactional
     int delete(DeleteSpec<T> deleteSpec);
 
-    /**
-     * Executes a batch delete built by {@link DeleteBuilder}.
-     *
-     * @param deleteBuilder the delete definition (WHERE conditions)
-     * @return the number of rows affected
-     * @throws IllegalStateException if no WHERE condition was added to the builder
-     * @deprecated Use {@link #delete(DeleteSpec)} instead.
-     */
-    @Deprecated
-    @Transactional
-    default int executeDelete(DeleteBuilder<T> deleteBuilder) {
-        return delete(deleteBuilder.build());
-    }
 }

@@ -365,7 +365,7 @@ src/
 
 ## 验收条件
 
-- ✅ `./mvnw test` 通过（147 个测试全部通过）
+- ✅ `./mvnw test` 通过（146 个测试全部通过）
 - ✅ 无 `target/**`、`*.class` 被提交
 - ✅ 无 `src/main/resources/application.properties`
 - ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`

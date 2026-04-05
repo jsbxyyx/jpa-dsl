@@ -217,20 +217,4 @@ class DeleteBuilderTest {
                 .containsOnly("Alice");
     }
 
-    // ------------------------------------------------------------------ //
-    //  Backward-compatibility: deprecated executeDelete(DeleteBuilder) API
-    // ------------------------------------------------------------------ //
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void executeDelete_backwardCompat_delegatesToDelete() {
-        DeleteBuilder<User> builder = DeleteBuilder.<User>builder(User.class)
-                .eq(User_.status, "INACTIVE");
-
-        int affected = userRepository.executeDelete(builder);
-        testEntityManager.clear();
-
-        assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll()).hasSize(2);
-    }
 }
