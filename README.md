@@ -272,6 +272,83 @@ public class UserService {
 
 > 每个条件方法都提供带 `boolean condition` 参数的重载版本。`condition=false` 时条件被完全跳过；`condition=true` 时无条件加入。
 
+### JpaSelectExecutor / SelectBuilder — 简单 DTO 投影查询
+
+`JpaSelectExecutor<T>` 是类比 `JpaUpdateExecutor<T>` 的 Repository 混入接口，让 Repository 获得**部分字段 DTO 构造投影**能力（等价于 `@Query("select new Dto(...) from Entity")`），**用户无需编写 `@Query` 字符串，也无需直接接触 `EntityManager`**。
+
+> **支持范围（简单投影）**：只支持 **root 单表字段**投影（`SingularAttribute`），DTO 使用**构造器投影**（`record` 或具有匹配构造器的 class）。Join 场景请使用 Spring Data JPA 的 `@Query`。
+
+#### 1. 定义 DTO（record 或 class）
+
+```java
+// 构造器参数顺序必须与 select(...) 字段顺序一致
+public record UserDto(Long id, String username, String nickname) {}
+```
+
+#### 2. 声明 Repository
+
+```java
+@Repository
+public interface UserRepository extends JpaRepository<User, Long>,
+        JpaSpecificationExecutor<User>,
+        JpaSelectExecutor<User> {   // ← 新增
+}
+```
+
+#### 3. 在 Service 中使用
+
+```java
+@Service
+public class UserService {
+    @Autowired
+    private UserRepository userRepository;
+
+    // List 查询（无分页）
+    public List<UserDto> findActiveUsers(String keyword) {
+        Specification<User> where = SpecificationBuilder.<User>builder()
+            .like(User_.username, keyword, keyword != null)
+            .eq(User_.status, "ACTIVE")
+            .build();
+
+        SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
+            .select(User_.id, User_.username, User_.nickname)
+            .where(where)
+            .mapTo(UserDto.class);
+
+        return userRepository.select(spec);
+    }
+
+    // 分页查询（含排序）
+    public Page<UserDto> pageActiveUsers(String keyword, Pageable pageable) {
+        Specification<User> where = SpecificationBuilder.<User>builder()
+            .like(User_.username, keyword, keyword != null)
+            .build();
+
+        SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
+            .select(User_.id, User_.username, User_.nickname)
+            .where(where)
+            .mapTo(UserDto.class);
+
+        // pageable 可带 Sort，如 PageRequest.of(0, 10, Sort.by(DESC, "username"))
+        return userRepository.selectPage(spec, pageable);
+    }
+}
+```
+
+#### SelectBuilder API
+
+| 方法 | 说明 |
+|------|------|
+| `SelectBuilder.from(entityClass)` | 工厂方法，指定查询根实体 |
+| `select(attr1, attr2, ...)` | 指定要投影的字段（`SingularAttribute`，顺序与 DTO 构造器一致） |
+| `where(Specification<T>)` | 可选，指定 WHERE 过滤条件（复用 `SpecificationBuilder` 构建） |
+| `mapTo(DtoClass.class)` | 指定 DTO 类型并构建 `SelectSpec`（至少调用一次 `select(...)` 后调用） |
+
+| 执行方法 | 说明 |
+|---------|------|
+| `select(SelectSpec<T,R>)` | 执行查询，返回 `List<R>` |
+| `selectPage(SelectSpec<T,R>, Pageable)` | 执行分页查询，返回 `Page<R>`（内部自动执行 count 查询） |
+
 ### PageRequestBuilder
 
 ```java
@@ -334,6 +411,10 @@ src/
 │   ├── DeleteSpec.java                 # DeleteBuilder#build() 的不可变产品对象
 │   ├── JpaDeleteExecutor.java          # Repository 混入接口（DELETE）
 │   ├── JpaDeleteExecutorImpl.java      # 默认实现（内部注入 EntityManager）
+│   ├── SelectBuilder.java              # DTO 投影查询构建器
+│   ├── SelectSpec.java                 # SelectBuilder#mapTo() 的不可变产品对象
+│   ├── JpaSelectExecutor.java          # Repository 混入接口（SELECT 投影）
+│   ├── JpaSelectExecutorImpl.java      # 默认实现（Criteria API，内部注入 EntityManager）
 │   ├── core/
 │   │   ├── SpecificationBuilder.java   # core 包链式构建器
 │   │   ├── SpecificationDsl.java       # core 包静态工厂
@@ -356,6 +437,7 @@ src/
     ├── PageRequestBuilderTest.java     # 分页排序单元测试
     ├── UpdateBuilderTest.java          # 批量 UPDATE 集成测试
     ├── DeleteBuilderTest.java          # 批量 DELETE 集成测试
+    ├── SelectBuilderTest.java          # DTO 投影查询集成测试
     ├── core/                           # core 包测试
     ├── example/                        # UserService 集成测试
     └── spec/                           # Specification 实现类测试
@@ -365,7 +447,7 @@ src/
 
 ## 验收条件
 
-- ✅ `./mvnw test` 通过（146 个测试全部通过）
+- ✅ `./mvnw test` 通过（157 个测试全部通过）
 - ✅ 无 `target/**`、`*.class` 被提交
 - ✅ 无 `src/main/resources/application.properties`
 - ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`
@@ -378,3 +460,5 @@ src/
 - ✅ `JpaUpdateExecutor<T>` 支持类型安全批量 UPDATE，用户无需注入 `EntityManager`
 - ✅ `JpaDeleteExecutor<T>` 支持类型安全批量 DELETE，用户无需注入 `EntityManager`
 - ✅ `DeleteBuilder` 安全保护：无 WHERE 条件时拒绝执行，防止意外全表删除
+- ✅ `JpaSelectExecutor<T>` 支持 DTO 构造投影 (`select` / `selectPage`)，无需编写 `@Query`
+- ✅ `SelectBuilder` 类型安全：字段通过 JPA Static Metamodel 引用，构造投影顺序与 DTO 构造器一致
