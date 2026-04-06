@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate;
@@ -12,10 +13,14 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Fluent builder for WHERE clause predicates.
+ * Fluent builder for WHERE (and HAVING) clause predicates.
  *
  * <p>All field references use {@link SFunction} method references to guarantee static compilation.
  * Each method has a {@code boolean condition} overload that skips the predicate when {@code false}.
+ *
+ * <p>In addition, every predicate method has a {@link SqlExpression}-based overload that accepts
+ * function or aggregate expressions as the left-hand operand, enabling conditions such as
+ * {@code UPPER(t.email) = ?} or {@code COUNT(*) > ?}.
  *
  * @param <T> the root entity type
  */
@@ -51,6 +56,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** Equality predicate with an arbitrary SQL expression on the left (e.g. a function call). */
+    public WhereBuilder<T> eq(SqlExpression<?> expression, Object value) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.EQ, value));
+        return this;
+    }
+
     public WhereBuilder<T> ne(SFunction<T, ?> prop, Object value) {
         return ne(prop, value, true);
     }
@@ -59,6 +70,12 @@ public final class WhereBuilder<T> {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.NE, value));
         }
+        return this;
+    }
+
+    /** Inequality predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> ne(SqlExpression<?> expression, Object value) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.NE, value));
         return this;
     }
 
@@ -77,6 +94,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** Greater-than predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> gt(SqlExpression<?> expression, Object value) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.GT, value));
+        return this;
+    }
+
     public WhereBuilder<T> gte(SFunction<T, ?> prop, Object value) {
         return gte(prop, value, true);
     }
@@ -85,6 +108,12 @@ public final class WhereBuilder<T> {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.GTE, value));
         }
+        return this;
+    }
+
+    /** Greater-than-or-equal predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> gte(SqlExpression<?> expression, Object value) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.GTE, value));
         return this;
     }
 
@@ -99,6 +128,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** Less-than predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> lt(SqlExpression<?> expression, Object value) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LT, value));
+        return this;
+    }
+
     public WhereBuilder<T> lte(SFunction<T, ?> prop, Object value) {
         return lte(prop, value, true);
     }
@@ -107,6 +142,12 @@ public final class WhereBuilder<T> {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LTE, value));
         }
+        return this;
+    }
+
+    /** Less-than-or-equal predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> lte(SqlExpression<?> expression, Object value) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LTE, value));
         return this;
     }
 
@@ -125,6 +166,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** LIKE predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> like(SqlExpression<?> expression, String pattern) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE, "%" + pattern + "%"));
+        return this;
+    }
+
     // ------------------------------------------------------------------ //
     //  IN / NOT IN
     // ------------------------------------------------------------------ //
@@ -140,6 +187,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** IN predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> in(SqlExpression<?> expression, Collection<?> values) {
+        predicates.add(LeafPredicate.ofExprIn(expression, values, false));
+        return this;
+    }
+
     public WhereBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values) {
         return notIn(prop, values, true);
     }
@@ -148,6 +201,12 @@ public final class WhereBuilder<T> {
         if (condition) {
             predicates.add(LeafPredicate.ofIn(resolve(prop), alias, values, true));
         }
+        return this;
+    }
+
+    /** NOT IN predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> notIn(SqlExpression<?> expression, Collection<?> values) {
+        predicates.add(LeafPredicate.ofExprIn(expression, values, true));
         return this;
     }
 
@@ -166,6 +225,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** BETWEEN predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> between(SqlExpression<?> expression, Object lo, Object hi) {
+        predicates.add(LeafPredicate.ofExprBetween(expression, lo, hi));
+        return this;
+    }
+
     // ------------------------------------------------------------------ //
     //  IS NULL / IS NOT NULL
     // ------------------------------------------------------------------ //
@@ -181,6 +246,12 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    /** IS NULL predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> isNull(SqlExpression<?> expression) {
+        predicates.add(LeafPredicate.ofExprNullCheck(expression, true));
+        return this;
+    }
+
     public WhereBuilder<T> isNotNull(SFunction<T, ?> prop) {
         return isNotNull(prop, true);
     }
@@ -189,6 +260,12 @@ public final class WhereBuilder<T> {
         if (condition) {
             predicates.add(LeafPredicate.ofNullCheck(resolve(prop), alias, false));
         }
+        return this;
+    }
+
+    /** IS NOT NULL predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> isNotNull(SqlExpression<?> expression) {
+        predicates.add(LeafPredicate.ofExprNullCheck(expression, false));
         return this;
     }
 

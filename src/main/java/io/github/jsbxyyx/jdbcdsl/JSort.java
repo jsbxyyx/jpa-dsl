@@ -151,7 +151,7 @@ public final class JSort<T> implements Iterable<JOrder<T>> {
     public Optional<JOrder<T>> getOrderFor(SFunction<T, ?> prop) {
         PropertyRef ref = PropertyRefResolver.resolve(prop);
         return orders.stream()
-                .filter(o -> o.getPropertyRef().equals(ref))
+                .filter(o -> o.getPropertyRef() != null && o.getPropertyRef().equals(ref))
                 .findFirst();
     }
 
@@ -227,6 +227,10 @@ public final class JSort<T> implements Iterable<JOrder<T>> {
         }
         List<Sort.Order> springOrders = new ArrayList<>(orders.size());
         for (JOrder<T> o : orders) {
+            if (o.getPropertyRef() == null) {
+                // Function/expression-based orders cannot be represented in Spring's Sort; skip.
+                continue;
+            }
             Sort.Direction dir = o.isAscending() ? Sort.Direction.ASC : Sort.Direction.DESC;
             Sort.Order springOrder = new Sort.Order(dir, o.getPropertyRef().propertyName())
                     .with(toSpringNullHandling(o.getNullHandling()));
@@ -235,7 +239,7 @@ public final class JSort<T> implements Iterable<JOrder<T>> {
             }
             springOrders.add(springOrder);
         }
-        return Sort.by(springOrders);
+        return springOrders.isEmpty() ? Sort.unsorted() : Sort.by(springOrders);
     }
 
     private static Sort.NullHandling toSpringNullHandling(JOrder.NullHandling nh) {

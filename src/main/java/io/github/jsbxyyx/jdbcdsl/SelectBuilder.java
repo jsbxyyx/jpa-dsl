@@ -1,5 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
 import java.util.ArrayList;
@@ -9,7 +11,7 @@ import java.util.function.Consumer;
 /**
  * Fluent builder for {@link SelectSpec}.
  *
- * <p>Usage example:
+ * <p>Usage example (plain column selection):
  * <pre>{@code
  * SelectSpec<User, UserDto> spec = SelectBuilder
  *     .from(User.class)
@@ -18,15 +20,40 @@ import java.util.function.Consumer;
  *     .orderBy(JSort.byAsc(User::getName))
  *     .mapTo(UserDto.class);
  * }</pre>
+ *
+ * <p>Usage example (function expressions):
+ * <pre>{@code
+ * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+ *
+ * SelectSpec<User, UserDto> spec = SelectBuilder
+ *     .from(User.class)
+ *     .select(col(User::getId), upper(User::getEmail))
+ *     .where(w -> w.eq(upper(User::getEmail), "ADMIN@EXAMPLE.COM"))
+ *     .mapTo(UserDto.class);
+ * }</pre>
+ *
+ * <p>Usage example (GROUP BY / HAVING):
+ * <pre>{@code
+ * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+ *
+ * SelectSpec<User, StatusCountDto> spec = SelectBuilder
+ *     .from(User.class)
+ *     .select(col(User::getStatus), countStar())
+ *     .groupBy(User::getStatus)
+ *     .having(h -> h.gt(countStar(), 5))
+ *     .mapTo(StatusCountDto.class);
+ * }</pre>
  */
 public final class SelectBuilder<T> {
 
     private final Class<T> entityClass;
     private final String alias;
-    private final List<PropertyRef> selectedProperties = new ArrayList<>();
+    private final List<SqlExpression<?>> selectedExpressions = new ArrayList<>();
     private PredicateNode where;
     private final List<JoinSpec> joins = new ArrayList<>();
     private JSort<T> sort = JSort.unsorted();
+    private final List<SqlExpression<?>> groupByExpressions = new ArrayList<>();
+    private PredicateNode having;
 
     private SelectBuilder(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
@@ -43,11 +70,27 @@ public final class SelectBuilder<T> {
         return new SelectBuilder<>(entityClass, alias);
     }
 
-    /** Specifies which properties to include in the SELECT clause (in order). */
+    /**
+     * Specifies which properties to include in the SELECT clause (in order).
+     * Each {@link SFunction} is wrapped as a {@link ColumnExpression}.
+     */
     @SafeVarargs
     public final SelectBuilder<T> select(SFunction<T, ?>... props) {
         for (SFunction<T, ?> prop : props) {
-            selectedProperties.add(PropertyRefResolver.resolve(prop));
+            selectedExpressions.add(ColumnExpression.of(prop));
+        }
+        return this;
+    }
+
+    /**
+     * Specifies which SQL expressions to include in the SELECT clause (in order).
+     * Accepts any combination of {@link ColumnExpression}, {@link io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression},
+     * {@link io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression}, and
+     * {@link io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression}.
+     */
+    public SelectBuilder<T> select(SqlExpression<?>... expressions) {
+        for (SqlExpression<?> expr : expressions) {
+            selectedExpressions.add(expr);
         }
         return this;
     }
@@ -82,11 +125,45 @@ public final class SelectBuilder<T> {
     }
 
     /**
+     * Adds GROUP BY columns specified as method references.
+     * Each {@link SFunction} is wrapped as a {@link ColumnExpression}.
+     */
+    @SafeVarargs
+    public final SelectBuilder<T> groupBy(SFunction<T, ?>... props) {
+        for (SFunction<T, ?> prop : props) {
+            groupByExpressions.add(ColumnExpression.of(prop));
+        }
+        return this;
+    }
+
+    /**
+     * Adds GROUP BY expressions (columns, functions, etc.).
+     */
+    public SelectBuilder<T> groupBy(SqlExpression<?>... expressions) {
+        for (SqlExpression<?> expr : expressions) {
+            groupByExpressions.add(expr);
+        }
+        return this;
+    }
+
+    /**
+     * Adds a HAVING predicate via a nested builder.
+     * The builder supports both column-based predicates and aggregate-expression predicates.
+     */
+    public SelectBuilder<T> having(Consumer<WhereBuilder<T>> consumer) {
+        WhereBuilder<T> wb = new WhereBuilder<>(entityClass, alias);
+        consumer.accept(wb);
+        this.having = wb.buildNode();
+        return this;
+    }
+
+    /**
      * Finalizes the spec by specifying the DTO class to project results into.
      *
-     * @param dtoClass the result type; must have a constructor matching the selected properties in order
+     * @param dtoClass the result type; must have a constructor matching the selected expressions in order
      */
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
-        return new SelectSpec<>(entityClass, alias, selectedProperties, where, joins, sort, dtoClass);
+        return new SelectSpec<>(entityClass, alias, selectedExpressions, where, joins, sort,
+                dtoClass, groupByExpressions, having);
     }
 }

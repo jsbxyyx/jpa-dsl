@@ -43,7 +43,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec) {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        RowMapper<R> mapper = buildRowMapper(spec.getDtoClass(), spec.getSelectedProperties().size());
+        RowMapper<R> mapper = buildRowMapper(spec.getDtoClass(), spec.getSelectedExpressions().size());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
 
@@ -69,7 +69,7 @@ public final class JdbcDslExecutor {
                 selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
 
         RowMapper<R> mapper = buildRowMapper(effectiveSpec.getDtoClass(),
-                effectiveSpec.getSelectedProperties().size());
+                effectiveSpec.getSelectedExpressions().size());
         List<R> content = jdbc.query(paginatedSql, paginatedParams, mapper);
 
         return new PageImpl<>(content, pageable.toSpringPageable(), totalCount);
@@ -129,11 +129,13 @@ public final class JdbcDslExecutor {
             return new SelectSpec<>(
                     spec.getEntityClass(),
                     spec.getAlias(),
-                    spec.getSelectedProperties(),
+                    spec.getSelectedExpressions(),
                     spec.getWhere(),
                     spec.getJoins(),
                     pageableSort,
-                    spec.getDtoClass());
+                    spec.getDtoClass(),
+                    spec.getGroupByExpressions(),
+                    spec.getHaving());
         }
         return spec;
     }
