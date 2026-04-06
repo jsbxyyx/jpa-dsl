@@ -393,7 +393,7 @@ public final class JdbcEntityGenerator {
                     String fieldName = toCamelCase(lowerCol);
                     String pascalField = toPascalCase(lowerCol);
 
-                    String getterPrefix = "Boolean".equals(simpleType) || "boolean".equals(simpleType) ? "is" : "get";
+                    String getterPrefix = "boolean".equals(simpleType) ? "is" : "get";
                     w.println("    public " + simpleType + " " + getterPrefix + pascalField + "() {");
                     w.println("        return this." + fieldName + ";");
                     w.println("    }");
