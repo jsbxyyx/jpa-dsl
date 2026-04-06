@@ -3,6 +3,7 @@ package io.github.jsbxyyx.jpadsl;
 import jakarta.persistence.EntityManager;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnClass({EntityManager.class, JpaDeleteExecutor.class})
+@ConditionalOnProperty(prefix = "jpadsl", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class JpaDeleteExecutorAutoConfiguration {
 
     @Bean
