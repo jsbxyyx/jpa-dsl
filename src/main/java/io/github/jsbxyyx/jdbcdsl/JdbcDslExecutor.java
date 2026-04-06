@@ -140,8 +140,10 @@ public final class JdbcDslExecutor {
                     }
                 } else {
                     Field f = fieldMap.get(key);
-                    if (f != null && value != null) {
+                    if (f != null) {
                         Object converted = convertValue(value, f.getType(), conversionService);
+                        // Skip null injection into primitive fields to avoid NullPointerException
+                        if (converted == null && f.getType().isPrimitive()) continue;
                         try {
                             f.set(instance, converted);
                         } catch (IllegalAccessException e) {
@@ -158,7 +160,8 @@ public final class JdbcDslExecutor {
 
     private static Object convertValue(Object value, Class<?> targetType,
                                        ConversionService cs) {
-        if (value == null || targetType == null) return value;
+        if (targetType == null) return value;
+        if (value == null) return null; // null is valid for reference types; callers guard primitives
         if (targetType.isInstance(value)) return value;
         if (cs.canConvert(value.getClass(), targetType)) {
             return cs.convert(value, targetType);
