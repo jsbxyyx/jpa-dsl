@@ -608,3 +608,80 @@ io.github.jsbxyyx.jdbcdsl/
 - ✅ `JpaSelectExecutor<T>` 支持 DTO 构造投影 (`select` / `selectPage`)，无需编写 `@Query`
 - ✅ `SelectBuilder` 类型安全：字段通过 JPA Static Metamodel 引用，构造投影顺序与 DTO 构造器一致
 
+---
+
+## Spring Boot 集成：jpa-dsl 与 jdbc-dsl 并存
+
+`main` 分支同时包含 **jpa-dsl** 与 **jdbc-dsl** 两套实现，通过 Spring Boot Auto-configuration 各自独立注册，互不干扰。
+
+### 开关配置（`application.properties`）
+
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| `jpadsl.enabled` | `true` | 控制 jpa-dsl 相关 Bean 的注册（三个 FragmentsContributor） |
+| `jdbcdsl.enabled` | `true` | 控制 jdbc-dsl 相关 Bean 的注册（Dialect + JdbcDslExecutor） |
+
+```properties
+# 同时启用（默认，无需显式配置）
+jpadsl.enabled=true
+jdbcdsl.enabled=true
+
+# 仅启用 jpa-dsl，禁用 jdbc-dsl
+jpadsl.enabled=true
+jdbcdsl.enabled=false
+
+# 仅启用 jdbc-dsl，禁用 jpa-dsl
+jpadsl.enabled=false
+jdbcdsl.enabled=true
+```
+
+两个开关完全独立，默认均为 `true`（`matchIfMissing=true`），不配置时两套均生效。
+
+### jdbc-dsl Dialect 自动识别
+
+当 `jdbcdsl.enabled=true` 且 Spring 上下文中存在 `DataSource` 时，`JdbcDslAutoConfiguration`
+会自动从 JDBC metadata（`DatabaseMetaData.getDatabaseProductName()`）识别数据库并创建对应的 `Dialect` Bean：
+
+| 数据库 ProductName | 使用的 Dialect |
+|--------------------|---------------|
+| 含 `MySQL` 或 `MariaDB`（含大小写变体） | `MySqlDialect`（`LIMIT :_limit OFFSET :_offset`） |
+| 含 `PostgreSQL` 或 `postgres` | `PostgresDialect`（`LIMIT :_limit OFFSET :_offset`） |
+| 含 `Microsoft SQL Server` 或 `SQL Server` | `SqlServerDialect`（`OFFSET … ROWS FETCH NEXT … ROWS ONLY`） |
+| 含 `H2` | `H2Dialect`（`LIMIT :_limit OFFSET :_offset`） |
+| 无法识别 | **默认 `MySqlDialect`**，并输出 `WARN` 日志 |
+
+> **MariaDB 视为 MySQL**：MariaDB 的 ProductName 含 `mariadb`，映射到 `MySqlDialect`（LIMIT/OFFSET 语法）。
+>
+> **无法识别时 fallback**：当 ProductName 为 null、抛出异常，或不匹配上述任何规则时，均 fallback 到 `MySqlDialect` 并输出一条 `WARN` 日志。
+
+**覆盖自动识别**：如需使用特定 Dialect，只需自行声明一个 `Dialect` Bean，自动识别逻辑将跳过（`@ConditionalOnMissingBean`）：
+
+```java
+@Configuration
+public class MyDialectConfig {
+    @Bean
+    public Dialect dialect() {
+        return new Sql2008Dialect(); // 强制使用 SQL:2008 标准方言
+    }
+}
+```
+
+### JSort / JPageable 输出适配（仅导出，不接受输入）
+
+`JSort<T>` 和 `JPageable<T>` 仅接受自研的 `SFunction` 方法引用作为排序字段输入（**不接受 Spring `Sort` / `Pageable` 作为输入**），
+但提供两个**单向输出**适配方法，用于与下游 Spring 接口对接：
+
+```java
+// JSort → Spring Sort（仅输出）
+JSort<User> jsort = JSort.byAsc(User::getUsername).andDesc(User::getAge);
+Sort springSort = jsort.toSpringSort();
+
+// JPageable → Spring Pageable（仅输出）
+JPageable<User> jpageable = JPageable.of(0, 10, JSort.byAsc(User::getUsername));
+Pageable springPageable = jpageable.toSpringPageable();
+```
+
+> **设计约束**：不提供 `fromSpringSort` / `fromSpringPageable` 等输入方向的适配，以强制调用方使用
+> 类型安全的 `SFunction` 方法引用，避免运行时字段名拼写错误。
+
+
