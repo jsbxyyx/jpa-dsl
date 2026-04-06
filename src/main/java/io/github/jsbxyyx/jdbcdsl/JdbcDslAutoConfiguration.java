@@ -64,10 +64,10 @@ public class JdbcDslAutoConfiguration {
                 if (lower.contains("mysql") || lower.contains("mariadb")) {
                     return new MySqlDialect();
                 }
-                if (lower.contains("postgresql") || lower.contains("postgres")) {
+                if (lower.contains("postgres")) {
                     return new PostgresDialect();
                 }
-                if (lower.contains("microsoft sql server") || lower.contains("sql server")) {
+                if (lower.contains("sql server")) {
                     return new SqlServerDialect();
                 }
                 if (lower.contains("h2")) {
