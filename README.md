@@ -447,7 +447,8 @@ src/
 
 ## 验收条件
 
-- ✅ `./mvnw test` 通过（157 个测试全部通过）
+  
+- ✅ `./mvnw test` 通过（262 个测试全部通过）
 - ✅ 无 `target/**`、`*.class` 被提交
 - ✅ 无 `src/main/resources/application.properties`
 - ✅ 包名根路径：`io.github.jsbxyyx.jpadsl`
@@ -460,5 +461,150 @@ src/
 - ✅ `JpaUpdateExecutor<T>` 支持类型安全批量 UPDATE，用户无需注入 `EntityManager`
 - ✅ `JpaDeleteExecutor<T>` 支持类型安全批量 DELETE，用户无需注入 `EntityManager`
 - ✅ `DeleteBuilder` 安全保护：无 WHERE 条件时拒绝执行，防止意外全表删除
+
+
+---
+
+## jdbc-dsl — JdbcTemplate 自研 DSL
+
+`jdbc-dsl` 是一套完全独立的 **JdbcTemplate DSL**，位于 `io.github.jsbxyyx.jdbcdsl` 包，不依赖、不引用 `jpa-dsl` 代码。
+
+### 设计原则
+
+- **仅使用 `SFunction` 方法引用**（`User::getName`），禁止字符串字段名，保证静态编译安全。
+- **不接受 Spring `Pageable/Sort` 作为输入**；但提供 `toSpringPageable()` / `toSpringSort()` 输出适配方法。
+- 通过读取 `jakarta.persistence` 注解（`@Entity/@Table/@Column/@Id`）建立表/列元信息。
+- 使用 `NamedParameterJdbcTemplate` 执行参数化 SQL（`:p1, :p2, ...`）。
+
+### 快速示例
+
+```java
+// 1. 创建执行器
+JdbcDslExecutor executor = new JdbcDslExecutor(namedParameterJdbcTemplate);
+
+// 2. 构建 SelectSpec — 字段引用全部使用方法引用
+SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
+        .select(User::getId, User::getUsername)
+        .where(w -> w
+                .eq(User::getStatus, "ACTIVE")
+                .gt(User::getAge, 18, someCondition))
+        .orderBy(JSort.byAsc(User::getUsername).andDesc(User::getAge))
+        .mapTo(UserDto.class);
+
+// 3. 查询列表
+List<UserDto> list = executor.select(spec);
+
+// 4. 分页查询
+JPageable<User> pageable = JPageable.of(0, 10, JSort.byAsc(User::getUsername));
+Page<UserDto> page = executor.selectPage(spec, pageable);
+
+// 5. 导出为 Spring 分页（仅输出，不接受输入）
+Pageable springPageable = pageable.toSpringPageable();
+Sort springSort = JSort.byAsc(User::getUsername).toSpringSort();
+```
+
+### WHERE DSL
+
+```java
+.where(w -> w
+    .eq(User::getStatus, "ACTIVE")           // =
+    .ne(User::getStatus, "DELETED")          // <>
+    .gt(User::getAge, 18)                    // >
+    .gte(User::getAge, 18)                   // >=
+    .lt(User::getAge, 60)                    // <
+    .lte(User::getAge, 60)                   // <=
+    .like(User::getUsername, "ali")          // LIKE '%ali%'
+    .in(User::getStatus, List.of("A","B"))   // IN (...)
+    .notIn(User::getStatus, List.of("D"))    // NOT IN (...)
+    .between(User::getAge, 20, 40)           // BETWEEN ? AND ?
+    .isNull(User::getEmail)                  // IS NULL
+    .isNotNull(User::getEmail)               // IS NOT NULL
+    .or(sub -> sub                           // OR 嵌套
+            .eq(User::getStatus, "A")
+            .eq(User::getStatus, "B"))
+    // condition 重载：false 时跳过该条件
+    .eq(User::getStatus, "ACTIVE", someBoolean)
+)
+```
+
+### JOIN
+
+```java
+SelectSpec<Order, OrderDto> spec = SelectBuilder.from(Order.class, "o")
+        .select(Order::getId, Order::getOrderNo, Order::getAmount)
+        .join(User.class, "u", JoinType.INNER,
+                ob -> ob.eq(Order::getUserId, "o", User::getId, "u"))
+        // 跨表 WHERE：使用 eq(SFunction, alias, value) 重载
+        .where(w -> w.eq(User::getStatus, "u", "ACTIVE"))
+        .mapTo(OrderDto.class);
+```
+
+> **注意**：包含 JOIN 的 `selectPage` 使用 `COUNT(*)` 计数，可能因重复行导致计数偏高。
+> 如需精确计数，请在业务层自行实现 `COUNT(DISTINCT ...)` 查询。
+
+### 分页方言
+
+| 方言 | SQL 语法 | 适用数据库 |
+|------|---------|-----------|
+| `Sql2008Dialect`（默认）| `OFFSET :_offset ROWS FETCH NEXT :_limit ROWS ONLY` | H2, PostgreSQL, SQL Server |
+| `MySqlDialect` | `LIMIT :_limit OFFSET :_offset` | MySQL, MariaDB, H2 |
+
+```java
+// 使用 MySQL 方言
+JdbcDslExecutor executor = new JdbcDslExecutor(jdbcTemplate, new MySqlDialect());
+```
+
+### DTO 投影
+
+`JdbcDslExecutor` 通过**构造器投影**映射结果：
+
+- SELECT 列别名为 `c0, c1, ...`，与 `select(...)` 的字段顺序一致。
+- 自动查找参数数量匹配的构造器并注入结果。
+
+```java
+// DTO 构造器参数顺序必须与 select() 中的字段顺序一致
+public class UserDto {
+    public UserDto(Long id, String username) { ... }
+}
+
+SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
+        .select(User::getId, User::getUsername)  // c0=id, c1=username
+        .mapTo(UserDto.class);
+```
+
+### 列名映射规则
+
+- 有 `@Column(name = "xxx")`：使用指定列名。
+- 无 `@Column` 注解：列名默认等于 Java 属性名（**不**做 snake_case 自动转换）。
+- 如需 snake_case 映射，请在实体字段上显式添加 `@Column(name = "xxx")`。
+
+### 包结构
+
+```
+io.github.jsbxyyx.jdbcdsl/
+├── SFunction.java              # 可序列化方法引用函数接口
+├── PropertyRef.java            # 字段引用（ownerClass + propertyName）
+├── PropertyRefResolver.java    # SFunction → PropertyRef 解析（含缓存）
+├── EntityMeta.java             # 实体元数据（表名、列映射、ID）
+├── EntityMetaReader.java       # 读取 @Table/@Column/@Id 注解（含缓存）
+├── WhereBuilder.java           # WHERE 条件构建器
+├── SelectBuilder.java          # SELECT DSL 入口
+├── SelectSpec.java             # 不可变查询规格
+├── JSort.java                  # 类型安全排序（SFunction 方法引用）
+├── JPageable.java              # 类型安全分页
+├── JOrder.java                 # 单字段排序项
+├── JoinSpec.java               # JOIN 规格
+├── JoinType.java               # INNER / LEFT / RIGHT
+├── OnBuilder.java              # JOIN ON 条件构建器
+├── RenderedSql.java            # 渲染结果（SQL + 参数）
+├── SqlRenderer.java            # SQL 渲染引擎
+├── JdbcDslExecutor.java        # 执行器
+└── dialect/
+    ├── Dialect.java            # 分页方言接口
+    ├── MySqlDialect.java       # MySQL/H2 兼容方言
+    └── Sql2008Dialect.java     # SQL:2008 标准方言（默认）
+```
+
 - ✅ `JpaSelectExecutor<T>` 支持 DTO 构造投影 (`select` / `selectPage`)，无需编写 `@Query`
 - ✅ `SelectBuilder` 类型安全：字段通过 JPA Static Metamodel 引用，构造投影顺序与 DTO 构造器一致
+
