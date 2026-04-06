@@ -110,8 +110,10 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("t.id AS c0");
-        assertThat(rendered.getSql()).contains("UPPER(t.username) AS c1");
+        // ColumnExpression gets property-name alias; FunctionExpression gets no alias
+        assertThat(rendered.getSql()).contains("t.id AS id");
+        assertThat(rendered.getSql()).contains("UPPER(t.username)");
+        assertThat(rendered.getSql()).doesNotContain("UPPER(t.username) AS");
     }
 
     @Test
@@ -121,8 +123,8 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("t.status AS c0");
-        assertThat(rendered.getSql()).contains("COUNT(*) AS c1");
+        assertThat(rendered.getSql()).contains("t.status AS status");
+        assertThat(rendered.getSql()).contains("COUNT(*)");
     }
 
     @Test
@@ -132,7 +134,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("COUNT(DISTINCT t.status) AS c0");
+        assertThat(rendered.getSql()).contains("COUNT(DISTINCT t.status)");
     }
 
     @Test
@@ -142,7 +144,8 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("COALESCE(t.email, 'N/A') AS c1");
+        assertThat(rendered.getSql()).contains("t.id AS id");
+        assertThat(rendered.getSql()).contains("COALESCE(t.email, 'N/A')");
     }
 
     // ------------------------------------------------------------------ //
@@ -259,7 +262,9 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("UPPER(TRIM(t.username)) AS c0");
+        // Function expressions get no alias by default
+        assertThat(rendered.getSql()).contains("UPPER(TRIM(t.username))");
+        assertThat(rendered.getSql()).doesNotContain("UPPER(TRIM(t.username)) AS");
     }
 
     // ------------------------------------------------------------------ //
@@ -277,10 +282,46 @@ class SqlFunctionsTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql())
-                .contains("t.id AS c0")
-                .contains("t.username AS c1")
+                .contains("t.id AS id")
+                .contains("t.username AS username")
                 .contains("t.status = :p1")
                 .contains("t.age > :p2")
                 .contains("ORDER BY t.username ASC");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Explicit alias via .as()
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void aliasedExpression_functionWithAs_rendersExplicitAlias() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(upper(TUser::getEmail).as("emailUpper"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("UPPER(t.email) AS emailUpper");
+    }
+
+    @Test
+    void aliasedExpression_aggregateWithAs_rendersExplicitAlias() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(countStar().as("cnt"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("COUNT(*) AS cnt");
+    }
+
+    @Test
+    void aliasedExpression_inWhereClause_usesInnerExpression() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId)
+                .where(w -> w.eq(upper(TUser::getEmail).as("emailUpper"), "TEST@EXAMPLE.COM"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        // WHERE should use the inner expression, not the alias
+        assertThat(rendered.getSql()).contains("UPPER(t.email) = :p1");
     }
 }

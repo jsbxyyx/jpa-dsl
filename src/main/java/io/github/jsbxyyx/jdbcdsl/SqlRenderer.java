@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.AliasedExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
@@ -21,8 +22,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Renders a {@link SelectSpec} into a parameterized {@link RenderedSql}.
  *
- * <p>Column aliases are {@code c0, c1, ...} corresponding to the selected expression order.
- * Named parameters are {@code :p1, :p2, ...}.
+ * <p>SELECT clause alias strategy:
+ * <ul>
+ *   <li>When no {@code select(...)} expressions are specified, all entity columns are expanded
+ *       as {@code alias.column AS propertyName} (sorted by property name for stable ordering).</li>
+ *   <li>{@link ColumnExpression}: rendered as {@code alias.column AS propertyName}.</li>
+ *   <li>{@link AliasedExpression}: rendered as {@code <inner> AS <alias>} using the explicit alias.</li>
+ *   <li>Function / aggregate / literal expressions: rendered without alias (follow JDBC column label).</li>
+ * </ul>
+ *
+ * <p>Named parameters are {@code :p1, :p2, ...}.
  */
 public final class SqlRenderer {
 
@@ -45,12 +54,18 @@ public final class SqlRenderer {
         sb.append("SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
         if (exprs.isEmpty()) {
-            sb.append(alias).append(".*");
+            // No explicit select(): expand all entity columns sorted by property name.
+            // This produces stable, property-name-aliased columns for setter-based mapping.
+            EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+            StringJoiner cols = new StringJoiner(", ");
+            meta.getPropertyToColumn().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> cols.add(alias + "." + e.getValue() + " AS " + e.getKey()));
+            sb.append(cols);
         } else {
             StringJoiner cols = new StringJoiner(", ");
-            for (int i = 0; i < exprs.size(); i++) {
-                SqlExpression<?> expr = exprs.get(i);
-                cols.add(renderExpression(expr, spec, params, paramIdx) + " AS c" + i);
+            for (SqlExpression<?> expr : exprs) {
+                cols.add(renderSelectItem(expr, spec, params, paramIdx));
             }
             sb.append(cols);
         }
@@ -167,17 +182,47 @@ public final class SqlRenderer {
     // ------------------------------------------------------------------ //
 
     /**
+     * Renders a single SELECT clause item, adding an appropriate column alias:
+     * <ul>
+     *   <li>{@link AliasedExpression} → {@code <inner> AS <alias>}</li>
+     *   <li>{@link ColumnExpression} → {@code alias.column AS propertyName}</li>
+     *   <li>Function / aggregate / literal → no alias (JDBC column label is used by the mapper)</li>
+     * </ul>
+     */
+    private static <T, R> String renderSelectItem(SqlExpression<?> expr,
+                                                   SelectSpec<T, R> spec,
+                                                   Map<String, Object> params,
+                                                   AtomicInteger paramIdx) {
+        if (expr instanceof AliasedExpression<?> aliased) {
+            return renderExpression(aliased.getInner(), spec, params, paramIdx)
+                    + " AS " + aliased.getAlias();
+        } else if (expr instanceof ColumnExpression<?> col) {
+            String sql = renderColumnExpression(col, spec);
+            String propName = col.getPropertyRef().propertyName();
+            return sql + " AS " + propName;
+        } else {
+            // Function / aggregate / literal: no alias; mapper relies on JDBC columnLabel.
+            return renderExpression(expr, spec, params, paramIdx);
+        }
+    }
+
+    /**
      * Recursively renders a {@link SqlExpression} into its SQL string representation.
      * {@link ColumnExpression}s are rendered as {@code alias.column_name}.
      * {@link FunctionExpression}s and {@link AggregateExpression}s are rendered as
      * {@code FUNC(arg1, arg2, ...)}.
      * {@link LiteralExpression}s are embedded verbatim.
+     * {@link AliasedExpression}s are rendered by delegating to their inner expression
+     * (alias is handled separately in the SELECT clause via {@link #renderSelectItem}).
      */
     static <T, R> String renderExpression(SqlExpression<?> expression,
                                           SelectSpec<T, R> spec,
                                           Map<String, Object> params,
                                           AtomicInteger paramIdx) {
-        if (expression instanceof ColumnExpression<?> col) {
+        if (expression instanceof AliasedExpression<?> aliased) {
+            // In non-SELECT contexts (WHERE / ORDER BY / HAVING), render the inner expression.
+            return renderExpression(aliased.getInner(), spec, params, paramIdx);
+        } else if (expression instanceof ColumnExpression<?> col) {
             return renderColumnExpression(col, spec);
         } else if (expression instanceof FunctionExpression<?> fn) {
             return renderFunctionExpression(fn, spec, params, paramIdx);

@@ -160,10 +160,31 @@ public final class SelectBuilder<T> {
     /**
      * Finalizes the spec by specifying the DTO class to project results into.
      *
-     * @param dtoClass the result type; must have a constructor matching the selected expressions in order
+     * <p>The DTO must be a JavaBean with a no-arg constructor and setter methods for each
+     * property that should be populated from the query result.
+     *
+     * @param dtoClass the result type; must have a no-arg constructor and setters
      */
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
         return new SelectSpec<>(entityClass, alias, selectedExpressions, where, joins, sort,
                 dtoClass, groupByExpressions, having);
+    }
+
+    /**
+     * Finalizes the spec by mapping results directly to the entity class.
+     *
+     * <p>This is a convenience shorthand for {@code mapTo(entityClass)}. When no explicit
+     * {@link #select(SFunction[])} is specified, all entity columns are automatically expanded
+     * in the SELECT clause (sorted by property name) with property-name aliases, so the entity
+     * fields are populated via setter injection.
+     *
+     * <p>The entity must have a no-arg constructor and setter methods for each property
+     * that should be populated from the query result.
+     *
+     * @return a spec where the result type {@code R} equals the entity type {@code T}
+     */
+    public SelectSpec<T, T> mapToEntity() {
+        return new SelectSpec<>(entityClass, alias, selectedExpressions, where, joins, sort,
+                entityClass, groupByExpressions, having);
     }
 }

@@ -17,6 +17,7 @@ import org.springframework.test.context.jdbc.Sql;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -262,5 +263,122 @@ class JdbcDslIntegrationTest {
         assertThat(result).hasSize(2)
                 .extracting(UserDto::getUsername)
                 .containsExactlyInAnyOrder("alice", "charlie");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  mapToEntity: expand all columns, setter mapping
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void mapToEntity_noExplicitSelect_returnsFullyPopulatedEntities() {
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .mapToEntity();
+
+        List<TUser> result = executor.select(spec);
+        assertThat(result).hasSize(3);
+        // All fields should be non-null (populated via setter/field injection)
+        assertThat(result).allSatisfy(u -> {
+            assertThat(u.getId()).as("id must not be null").isNotNull();
+            assertThat(u.getUsername()).as("username must not be null").isNotNull();
+            assertThat(u.getStatus()).as("status must not be null").isNotNull();
+        });
+    }
+
+    @Test
+    void mapToEntity_withWhere_returnsFilteredEntities() {
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+
+        List<TUser> result = executor.select(spec);
+        assertThat(result).hasSize(2)
+                .extracting(TUser::getStatus)
+                .containsOnly("ACTIVE");
+        assertThat(result).extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("alice", "charlie");
+    }
+
+    @Test
+    void mapToEntity_orderEntity_returnsAllFields() {
+        SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
+                .mapToEntity();
+
+        List<TOrder> result = executor.select(spec);
+        assertThat(result).hasSize(3);
+        assertThat(result).allSatisfy(o -> {
+            assertThat(o.getId()).as("id must not be null").isNotNull();
+            assertThat(o.getOrderNo()).as("orderNo must not be null").isNotNull();
+            assertThat(o.getAmount()).as("amount must not be null").isNotNull();
+        });
+    }
+
+    // ------------------------------------------------------------------ //
+    //  DTO setter mapping
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void mapToDto_setterMapping_allFieldsPopulated() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(3)
+                .allSatisfy(dto -> {
+                    assertThat(dto.getId()).as("id must not be null").isNotNull();
+                    assertThat(dto.getUsername()).as("username must not be null").isNotNull();
+                });
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Expression alias (.as("alias"))
+    // ------------------------------------------------------------------ //
+
+    /**
+     * DTO that can receive an aliased function expression result.
+     * Uses JavaBean style for setter mapping.
+     */
+    static class EmailUpperDto {
+        private String emailUpper;
+        public String getEmailUpper() { return emailUpper; }
+        public void setEmailUpper(String emailUpper) { this.emailUpper = emailUpper; }
+    }
+
+    @Test
+    void selectWithAlias_functionExpression_mappedToDto() {
+        SelectSpec<TUser, EmailUpperDto> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .select(upper(TUser::getEmail).as("emailUpper"))
+                .mapTo(EmailUpperDto.class);
+
+        List<EmailUpperDto> result = executor.select(spec);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmailUpper()).isEqualTo("ALICE@EXAMPLE.COM");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Join: note on column conflicts
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void select_joinConflict_explicitSelectResolves() {
+        // Both TOrder and TUser have an "id" column. Explicitly selecting and aliasing avoids conflict.
+        // Here we only select order fields to avoid the ambiguity.
+        SelectSpec<TOrder, OrderDto> spec = SelectBuilder.from(TOrder.class, "o")
+                .select(TOrder::getId, TOrder::getOrderNo, TOrder::getAmount)
+                .join(TUser.class, "u", JoinType.INNER,
+                        ob -> ob.eq(TOrder::getUserId, "o", TUser::getId, "u"))
+                .where(w -> w.eq(TUser::getStatus, "u", "ACTIVE"))
+                .mapTo(OrderDto.class);
+
+        List<OrderDto> result = executor.select(spec);
+        assertThat(result).hasSize(2)
+                .extracting(OrderDto::getOrderNo)
+                .containsExactlyInAnyOrder("ORD-001", "ORD-002");
+        // id and amount should be populated via setter
+        assertThat(result).allSatisfy(dto -> {
+            assertThat(dto.getId()).isNotNull();
+            assertThat(dto.getAmount()).isNotNull();
+        });
     }
 }
