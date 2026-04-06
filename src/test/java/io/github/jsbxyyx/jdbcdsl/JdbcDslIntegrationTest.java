@@ -381,4 +381,118 @@ class JdbcDslIntegrationTest {
             assertThat(dto.getAmount()).isNotNull();
         });
     }
+
+    // ------------------------------------------------------------------ //
+    //  UpdateBuilder / executeUpdate
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void executeUpdate_singleField_updatesCorrectRow() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "DISABLED")
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        // Verify the change
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo("DISABLED");
+    }
+
+    @Test
+    void executeUpdate_multipleFields_updatesAllColumns() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "SUSPENDED")
+                .set(TUser::getAge, 99)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo("SUSPENDED");
+        assertThat(result.get(0).getAge()).isEqualTo(99);
+    }
+
+    @Test
+    void executeUpdate_noMatchingRows_returnsZero() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "GHOST")
+                .where(w -> w.eq(TUser::getUsername, "nonexistent"))
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(0);
+    }
+
+    @Test
+    void updateBuilder_noAssignments_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                UpdateBuilder.from(TUser.class)
+                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .build()
+        );
+    }
+
+    // ------------------------------------------------------------------ //
+    //  DeleteBuilder / executeDelete
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void executeDelete_singleCondition_deletesMatchingRow() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        int affected = executor.executeDelete(spec);
+        assertThat(affected).isEqualTo(1);
+
+        // Verify deletion
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void executeDelete_multipleConditions_deletesOnlyMatching() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").gt(TUser::getAge, 35))
+                .build();
+
+        int affected = executor.executeDelete(spec);
+        assertThat(affected).isEqualTo(1); // only charlie (age=40, ACTIVE) matches
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class).mapToEntity();
+        List<TUser> remaining = executor.select(verify);
+        assertThat(remaining).hasSize(2)
+                .extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("alice", "bob");
+    }
+
+    @Test
+    void deleteBuilder_noWhereCondition_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                DeleteBuilder.from(TUser.class).build()
+        );
+    }
+
+    @Test
+    void deleteBuilder_buildUnsafe_allowsNoWhere() {
+        // buildUnsafe() bypasses the WHERE guard; we verify it doesn't throw
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class).buildUnsafe();
+        assertThat(spec).isNotNull();
+    }
 }

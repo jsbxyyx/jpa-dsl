@@ -84,6 +84,28 @@ public final class JdbcDslExecutor {
         return new PageImpl<>(content, pageable.toSpringPageable(), totalCount);
     }
 
+    /**
+     * Executes an UPDATE described by the given {@link UpdateSpec}.
+     *
+     * @param spec the update specification (SET assignments and optional WHERE conditions)
+     * @return the number of rows affected
+     */
+    public <T> int executeUpdate(UpdateSpec<T> spec) {
+        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+        return jdbc.update(rendered.getSql(), rendered.getParams());
+    }
+
+    /**
+     * Executes a DELETE described by the given {@link DeleteSpec}.
+     *
+     * @param spec the delete specification (optional WHERE conditions)
+     * @return the number of rows affected
+     */
+    public <T> int executeDelete(DeleteSpec<T> spec) {
+        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+        return jdbc.update(rendered.getSql(), rendered.getParams());
+    }
+
     // ------------------------------------------------------------------ //
     //  RowMapper: JavaBean setter mapping with field fallback
     // ------------------------------------------------------------------ //

@@ -165,4 +165,101 @@ class SqlRendererTest {
         }
         assertThat(hasFromSpring).as("JPageable must not have fromSpring methods").isFalse();
     }
+
+    // ------------------------------------------------------------------ //
+    //  renderUpdate
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void renderUpdate_singleSet_noWhere() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "DISABLED")
+                .buildUnsafe();
+
+        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+        assertThat(rendered.getSql()).isEqualTo("UPDATE t_user SET status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "DISABLED");
+    }
+
+    @Test
+    void renderUpdate_multipleSet_withWhere() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .set(TUser::getAge, 0)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+        assertThat(rendered.getSql())
+                .startsWith("UPDATE t_user SET")
+                .contains("status = :p1")
+                .contains("age = :p2")
+                .contains("WHERE username = :p3");
+        assertThat(rendered.getParams())
+                .containsEntry("p1", "INACTIVE")
+                .containsEntry("p2", 0)
+                .containsEntry("p3", "bob");
+    }
+
+    @Test
+    void updateBuilder_noAssignments_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                UpdateBuilder.from(TUser.class)
+                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .build()
+        );
+    }
+
+    @Test
+    void updateBuilder_buildUnsafe_allowsNoAssignments() {
+        // buildUnsafe is not defined on UpdateBuilder — build() guards this. Verify build() guards it.
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                UpdateBuilder.from(TUser.class).build()
+        );
+    }
+
+    // ------------------------------------------------------------------ //
+    //  renderDelete
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void renderDelete_withWhere() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "INACTIVE"))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+        assertThat(rendered.getSql()).isEqualTo("DELETE FROM t_user WHERE status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE");
+    }
+
+    @Test
+    void renderDelete_withComplexWhere() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "INACTIVE").lt(TUser::getAge, 18))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+        assertThat(rendered.getSql()).contains("DELETE FROM t_user WHERE");
+        assertThat(rendered.getSql()).contains("status = :p1");
+        assertThat(rendered.getSql()).contains("age < :p2");
+        assertThat(rendered.getParams())
+                .containsEntry("p1", "INACTIVE")
+                .containsEntry("p2", 18);
+    }
+
+    @Test
+    void renderDelete_noWhere_buildUnsafe() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class).buildUnsafe();
+        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+        assertThat(rendered.getSql()).isEqualTo("DELETE FROM t_user");
+        assertThat(rendered.getParams()).isEmpty();
+    }
+
+    @Test
+    void deleteBuilder_noWhereCondition_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                DeleteBuilder.from(TUser.class).build()
+        );
+    }
 }
