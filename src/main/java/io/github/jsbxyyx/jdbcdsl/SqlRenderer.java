@@ -84,13 +84,21 @@ public final class SqlRenderer {
         if (!sort.isEmpty()) {
             sb.append(" ORDER BY ");
             StringJoiner orderJoiner = new StringJoiner(", ");
-            for (JOrder order : sort.getOrders()) {
+            for (JOrder<T> order : sort.getOrders()) {
                 PropertyRef pr = order.getPropertyRef();
                 EntityMeta meta = EntityMetaReader.read(pr.ownerClass());
                 String colName = meta.getColumnName(pr.propertyName());
                 if (colName == null) colName = pr.propertyName();
                 String tableAlias = resolveAliasForRef(spec, pr);
-                orderJoiner.add(tableAlias + "." + colName + " " + order.getDirection().name());
+                String colExpr = order.isIgnoreCase()
+                        ? "LOWER(" + tableAlias + "." + colName + ")"
+                        : tableAlias + "." + colName;
+                String nullHandling = switch (order.getNullHandling()) {
+                    case NULLS_FIRST -> " NULLS FIRST";
+                    case NULLS_LAST -> " NULLS LAST";
+                    case NATIVE -> "";
+                };
+                orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
             }
             sb.append(orderJoiner);
         }
