@@ -4,6 +4,7 @@ import io.github.jsbxyyx.jdbcdsl.dto.UserDto;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -21,8 +22,8 @@ class SqlRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql())
                 .contains("SELECT")
-                .contains("t.id AS c0")
-                .contains("t.username AS c1")
+                .contains("t.id AS id")
+                .contains("t.username AS username")
                 .contains("FROM t_user t")
                 .contains("WHERE")
                 .contains("t.status = :p1");
@@ -111,6 +112,34 @@ class SqlRendererTest {
                 .startsWith("SELECT COUNT(*)")
                 .contains("FROM t_user t");
         assertThat(rendered.getParams()).isEmpty();
+    }
+
+    @Test
+    void renderSelect_noExplicitSelect_expandsAllColumns() {
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .mapToEntity();
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        String sql = rendered.getSql();
+        // All columns should be expanded with property-name aliases
+        assertThat(sql).contains("t.id AS id");
+        assertThat(sql).contains("t.username AS username");
+        assertThat(sql).contains("t.email AS email");
+        assertThat(sql).contains("t.age AS age");
+        assertThat(sql).contains("t.status AS status");
+        // Must NOT use t.*
+        assertThat(sql).doesNotContain("t.*");
+        assertThat(sql).contains("FROM t_user t");
+    }
+
+    @Test
+    void renderSelect_aliasedExpression_usesExplicitAlias() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(SqlFunctions.upper(TUser::getEmail).as("emailUpper"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("UPPER(t.email) AS emailUpper");
     }
 
     @Test

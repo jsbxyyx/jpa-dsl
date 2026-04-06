@@ -2,24 +2,37 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect;
+import org.springframework.beans.BeanUtils;
+import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.JdbcUtils;
 
-import java.lang.reflect.Constructor;
-import java.sql.ResultSet;
+import java.beans.PropertyDescriptor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Executes jdbc-dsl select queries using {@link NamedParameterJdbcTemplate}.
  *
- * <p>DTO mapping uses constructor projection: columns are selected as {@code c0, c1, ...} and
- * injected into the matching constructor in declaration order.
+ * <p>Result mapping uses a JavaBean setter strategy: each column label from
+ * {@link ResultSetMetaData#getColumnLabel(int)} is matched <em>case-insensitively</em> to a bean
+ * property setter. If no setter is found for a column, the value is injected directly into the
+ * field with the same name (case-insensitive). This supports entities where the primary key field
+ * has no setter (e.g. JPA {@code @Id}).
+ *
+ * <p>DTOs and entities must provide a public (or package-private) no-arg constructor.
  *
  * <p>The default {@link Dialect} is {@link Sql2008Dialect}.
  * Pass a custom dialect (e.g., {@link io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect}) as needed.
@@ -39,11 +52,11 @@ public final class JdbcDslExecutor {
     }
 
     /**
-     * Executes a SELECT and maps results to {@code R}.
+     * Executes a SELECT and maps results to {@code R} via setter injection.
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec) {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        RowMapper<R> mapper = buildRowMapper(spec.getDtoClass(), spec.getSelectedExpressions().size());
+        RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
 
@@ -54,68 +67,149 @@ public final class JdbcDslExecutor {
      * count duplicate rows. See the README for details.
      */
     public <T, R> Page<R> selectPage(SelectSpec<T, R> spec, JPageable<T> pageable) {
-        // Merge sort from JPageable into the spec's sort (JPageable sort takes precedence if provided)
         SelectSpec<T, R> effectiveSpec = mergeSort(spec, pageable);
 
-        // Render and execute count query
         RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
         long totalCount = total != null ? total : 0L;
 
-        // Render SELECT with pagination
         RenderedSql selectSql = SqlRenderer.renderSelect(effectiveSpec);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(selectSql.getParams());
         String paginatedSql = dialect.applyPagination(
                 selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
 
-        RowMapper<R> mapper = buildRowMapper(effectiveSpec.getDtoClass(),
-                effectiveSpec.getSelectedExpressions().size());
+        RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         List<R> content = jdbc.query(paginatedSql, paginatedParams, mapper);
 
         return new PageImpl<>(content, pageable.toSpringPageable(), totalCount);
     }
 
     // ------------------------------------------------------------------ //
-    //  RowMapper: constructor projection
+    //  RowMapper: JavaBean setter mapping with field fallback
     // ------------------------------------------------------------------ //
 
-    private static <R> RowMapper<R> buildRowMapper(Class<R> dtoClass, int columnCount) {
-        Constructor<R> ctor = findConstructor(dtoClass, columnCount);
-        return (rs, rowNum) -> mapRow(rs, ctor);
+    /** Per-class cache: lowercase-label → writable PropertyDescriptor. */
+    private static final ConcurrentHashMap<Class<?>, Map<String, PropertyDescriptor>> PROP_CACHE =
+            new ConcurrentHashMap<>();
+
+    /** Per-class cache: lowercase-fieldName → accessible Field. */
+    private static final ConcurrentHashMap<Class<?>, Map<String, Field>> FIELD_CACHE =
+            new ConcurrentHashMap<>();
+
+    /**
+     * Builds a {@link RowMapper} that maps each result-set row to an instance of {@code beanClass}.
+     *
+     * <p>Mapping strategy for each column label:
+     * <ol>
+     *   <li>Normalize the label to lowercase (handles JDBC drivers that upper-case aliases).</li>
+     *   <li>Look up a writable property by the lowercase label and call its setter.</li>
+     *   <li>If no setter matches, look up a field by the lowercase label and inject directly.</li>
+     *   <li>Columns with no matching property or field are silently ignored.</li>
+     * </ol>
+     */
+    private static <R> RowMapper<R> buildBeanRowMapper(Class<R> beanClass) {
+        Map<String, PropertyDescriptor> propMap = buildPropertyMap(beanClass);
+        Map<String, Field> fieldMap = buildFieldMap(beanClass);
+        ConversionService conversionService = DefaultConversionService.getSharedInstance();
+
+        return (rs, rowNum) -> {
+            R instance = newInstance(beanClass);
+            ResultSetMetaData meta = rs.getMetaData();
+            int count = meta.getColumnCount();
+            for (int i = 1; i <= count; i++) {
+                String label = meta.getColumnLabel(i);
+                if (label == null || label.isBlank()) {
+                    label = meta.getColumnName(i);
+                }
+                if (label == null || label.isBlank()) continue;
+
+                String key = label.toLowerCase(Locale.ROOT);
+                Object value = JdbcUtils.getResultSetValue(rs, i);
+
+                PropertyDescriptor pd = propMap.get(key);
+                if (pd != null) {
+                    Method writeMethod = pd.getWriteMethod();
+                    Class<?> propType = pd.getPropertyType();
+                    Object converted = convertValue(value, propType, conversionService);
+                    try {
+                        writeMethod.invoke(instance, converted);
+                    } catch (ReflectiveOperationException e) {
+                        throw new RuntimeException(
+                                "Cannot invoke setter '" + writeMethod.getName() + "' on "
+                                + beanClass.getName(), e);
+                    }
+                } else {
+                    Field f = fieldMap.get(key);
+                    if (f != null) {
+                        Object converted = convertValue(value, f.getType(), conversionService);
+                        // Skip null injection into primitive fields to avoid NullPointerException
+                        if (converted == null && f.getType().isPrimitive()) continue;
+                        try {
+                            f.set(instance, converted);
+                        } catch (IllegalAccessException e) {
+                            throw new RuntimeException(
+                                    "Cannot set field '" + f.getName() + "' on "
+                                    + beanClass.getName(), e);
+                        }
+                    }
+                }
+            }
+            return instance;
+        };
+    }
+
+    private static Object convertValue(Object value, Class<?> targetType,
+                                       ConversionService cs) {
+        if (targetType == null) return value;
+        if (value == null) return null; // null is valid for reference types; callers guard primitives
+        if (targetType.isInstance(value)) return value;
+        if (cs.canConvert(value.getClass(), targetType)) {
+            return cs.convert(value, targetType);
+        }
+        return value;
+    }
+
+    private static Map<String, PropertyDescriptor> buildPropertyMap(Class<?> beanClass) {
+        return PROP_CACHE.computeIfAbsent(beanClass, cls -> {
+            Map<String, PropertyDescriptor> map = new HashMap<>();
+            for (PropertyDescriptor pd : BeanUtils.getPropertyDescriptors(cls)) {
+                if (pd.getWriteMethod() != null) {
+                    map.put(pd.getName().toLowerCase(Locale.ROOT), pd);
+                }
+            }
+            return map;
+        });
+    }
+
+    private static Map<String, Field> buildFieldMap(Class<?> beanClass) {
+        return FIELD_CACHE.computeIfAbsent(beanClass, cls -> {
+            Map<String, Field> map = new HashMap<>();
+            Class<?> c = cls;
+            while (c != null && c != Object.class) {
+                for (Field f : c.getDeclaredFields()) {
+                    String key = f.getName().toLowerCase(Locale.ROOT);
+                    if (!map.containsKey(key)) {
+                        f.setAccessible(true);
+                        map.put(key, f);
+                    }
+                }
+                c = c.getSuperclass();
+            }
+            return map;
+        });
     }
 
     @SuppressWarnings("unchecked")
-    private static <R> Constructor<R> findConstructor(Class<R> dtoClass, int paramCount) {
-        Constructor<?>[] ctors = dtoClass.getConstructors();
-        for (Constructor<?> c : ctors) {
-            if (c.getParameterCount() == paramCount) {
-                return (Constructor<R>) c;
-            }
-        }
-        // Fall back: try getDeclaredConstructors (e.g., for package-private DTOs)
-        Constructor<?>[] declared = dtoClass.getDeclaredConstructors();
-        for (Constructor<?> c : declared) {
-            if (c.getParameterCount() == paramCount) {
-                c.setAccessible(true);
-                return (Constructor<R>) c;
-            }
-        }
-        throw new IllegalArgumentException(
-                "No constructor with " + paramCount + " parameter(s) found on " + dtoClass.getName()
-                + ". Available constructors: " + Arrays.toString(dtoClass.getConstructors()));
-    }
-
-    private static <R> R mapRow(ResultSet rs, Constructor<R> ctor) throws SQLException {
-        int count = ctor.getParameterCount();
-        Class<?>[] paramTypes = ctor.getParameterTypes();
-        Object[] args = new Object[count];
-        for (int i = 0; i < count; i++) {
-            args[i] = rs.getObject("c" + i, paramTypes[i]);
-        }
+    private static <R> R newInstance(Class<R> beanClass) throws SQLException {
         try {
-            return ctor.newInstance(args);
+            java.lang.reflect.Constructor<R> ctor = beanClass.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            return ctor.newInstance();
         } catch (ReflectiveOperationException e) {
-            throw new SQLException("Failed to instantiate DTO " + ctor.getDeclaringClass().getName(), e);
+            throw new SQLException(
+                    "No no-arg constructor found on " + beanClass.getName()
+                    + ". Setter-based mapping requires a public (or accessible) no-arg constructor.",
+                    e);
         }
     }
 
