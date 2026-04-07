@@ -52,6 +52,22 @@ public final class UpdateBuilder<T> {
         return this;
     }
 
+    /**
+     * Conditional overload: adds the SET assignment only when {@code condition} is {@code true}.
+     * When {@code condition} is {@code false} the assignment is completely skipped.
+     *
+     * @param prop      a method reference identifying the property (and thus the column)
+     * @param value     the new value for that column
+     * @param condition when {@code false} this call is a no-op
+     */
+    public UpdateBuilder<T> set(SFunction<T, ?> prop, Object value, boolean condition) {
+        if (condition) {
+            PropertyRef ref = PropertyRefResolver.resolve(prop);
+            assignments.add(new AbstractMap.SimpleImmutableEntry<>(ref.propertyName(), value));
+        }
+        return this;
+    }
+
     /** Adds a WHERE predicate via a nested builder. */
     public UpdateBuilder<T> where(Consumer<WhereBuilder<T>> consumer) {
         WhereBuilder<T> wb = new WhereBuilder<>(entityClass, alias);
