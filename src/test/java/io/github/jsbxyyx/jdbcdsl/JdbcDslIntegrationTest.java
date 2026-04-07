@@ -209,6 +209,117 @@ class JdbcDslIntegrationTest {
     }
 
     // ------------------------------------------------------------------ //
+    //  findOne
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void findOne_matchingRow_returnsFirstResult() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+
+        UserDto result = executor.findOne(spec);
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice");
+    }
+
+    @Test
+    void findOne_noMatchingRow_returnsNull() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "nonexistent"))
+                .mapTo(UserDto.class);
+
+        UserDto result = executor.findOne(spec);
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void findOne_multipleMatchingRows_returnsFirstOnly() {
+        // ACTIVE users: alice and charlie — findOne should return exactly one
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .orderBy(JSort.byAsc(TUser::getUsername))
+                .mapTo(UserDto.class);
+
+        UserDto result = executor.findOne(spec);
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice"); // first alphabetically
+    }
+
+    @Test
+    void findOne_withPageable_appliesSortAndReturnsFirst() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapTo(UserDto.class);
+
+        // Sort descending: charlie comes first
+        JPageable<TUser> pageable = JPageable.of(0, 10, JSort.byDesc(TUser::getUsername));
+        UserDto result = executor.findOne(spec, pageable);
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("charlie");
+    }
+
+    @Test
+    void findOne_withPageable_noMatchReturnsNull() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "nonexistent"))
+                .mapTo(UserDto.class);
+
+        JPageable<TUser> pageable = JPageable.of(0, 10, JSort.byAsc(TUser::getUsername));
+        UserDto result = executor.findOne(spec, pageable);
+        assertThat(result).isNull();
+    }
+
+    // ------------------------------------------------------------------ //
+    //  select with JPageable (pagination without count)
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void select_withPageable_appliesPaginationWithoutCount() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
+
+        JPageable<TUser> pageable = JPageable.of(0, 2, JSort.byAsc(TUser::getUsername));
+        List<UserDto> result = executor.select(spec, pageable);
+
+        assertThat(result).hasSize(2)
+                .extracting(UserDto::getUsername)
+                .containsExactly("alice", "bob");
+    }
+
+    @Test
+    void select_withPageable_secondPage() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
+
+        JPageable<TUser> pageable = JPageable.of(1, 2, JSort.byAsc(TUser::getUsername));
+        List<UserDto> result = executor.select(spec, pageable);
+
+        assertThat(result).hasSize(1)
+                .extracting(UserDto::getUsername)
+                .containsExactly("charlie");
+    }
+
+    @Test
+    void select_withPageable_noMatchReturnsEmptyList() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "nonexistent"))
+                .mapTo(UserDto.class);
+
+        JPageable<TUser> pageable = JPageable.of(0, 10);
+        List<UserDto> result = executor.select(spec, pageable);
+        assertThat(result).isEmpty();
+    }
+
+    // ------------------------------------------------------------------ //
     //  JOIN
     // ------------------------------------------------------------------ //
 

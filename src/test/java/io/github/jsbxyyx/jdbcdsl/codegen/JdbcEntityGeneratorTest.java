@@ -68,8 +68,10 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("package com.example.entity;");
         assertThat(content).contains("import lombok.Data;");
         assertThat(content).contains("import lombok.NoArgsConstructor;");
+        assertThat(content).contains("import lombok.experimental.Accessors;");
         assertThat(content).contains("@Data");
         assertThat(content).contains("@NoArgsConstructor");
+        assertThat(content).contains("@Accessors(chain = true)");
         assertThat(content).contains("import jakarta.persistence.Table;");
         assertThat(content).contains("import jakarta.persistence.Column;");
         assertThat(content).contains("import jakarta.persistence.Id;");
@@ -110,9 +112,10 @@ class JdbcEntityGeneratorTest {
         // Standard bean structure
         assertThat(content).contains("public StockAll() {");
         assertThat(content).contains("public String getStockCode()");
-        assertThat(content).contains("public void setStockCode(String stockCode)");
+        assertThat(content).contains("public StockAll setStockCode(String stockCode)");
+        assertThat(content).contains("return this;");
         assertThat(content).contains("public Long getId()");
-        assertThat(content).contains("public void setId(Long id)");
+        assertThat(content).contains("public StockAll setId(Long id)");
         // JPA annotations still present
         assertThat(content).contains("@Table(name = \"stock_all\")");
         assertThat(content).contains("@Id");
@@ -196,11 +199,17 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("public int deleteById(Long id)");
         assertThat(content).contains("public int delete(DeleteSpec<StockAll> spec)");
         assertThat(content).contains("public <R> List<R> list(SelectSpec<StockAll, R> spec)");
+        assertThat(content).contains("public <R> List<R> list(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
+        assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec)");
+        assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
         assertThat(content).contains("public <R> Page<R> page(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
         // Delegates
         assertThat(content).contains("jdbcDslExecutor.executeUpdate(spec)");
         assertThat(content).contains("jdbcDslExecutor.executeDelete(spec)");
         assertThat(content).contains("jdbcDslExecutor.select(spec)");
+        assertThat(content).contains("jdbcDslExecutor.select(spec, pageable)");
+        assertThat(content).contains("jdbcDslExecutor.findOne(spec)");
+        assertThat(content).contains("jdbcDslExecutor.findOne(spec, pageable)");
         assertThat(content).contains("jdbcDslExecutor.selectPage(spec, pageable)");
     }
 

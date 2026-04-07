@@ -39,6 +39,7 @@ import java.util.logging.Logger;
  *   <li>{@code deleteById(id)} – DELETE by {@code @Id}</li>
  *   <li>{@code delete(DeleteSpec)} – DELETE by builder</li>
  *   <li>{@code list(SelectSpec)} – SELECT list</li>
+ *   <li>{@code findOne(SelectSpec)} – SELECT with LIMIT 1, returns first or null</li>
  *   <li>{@code page(SelectSpec, JPageable)} – paginated SELECT</li>
  * </ul>
  *
@@ -104,9 +105,10 @@ public final class JdbcEntityGenerator {
         /**
          * Controls Lombok annotation generation. Defaults to {@code true}.
          * <ul>
-         *   <li>{@code true}: adds {@code @Data} and {@code @NoArgsConstructor};
-         *       no getter/setter methods are generated.</li>
-         *   <li>{@code false}: generates standard getter and setter methods plus a no-arg constructor.</li>
+         *   <li>{@code true}: adds {@code @Data}, {@code @NoArgsConstructor}, and
+         *       {@code @Accessors(chain = true)}; no getter/setter methods are generated.</li>
+         *   <li>{@code false}: generates standard getter methods and chain setter
+         *       methods (setters return {@code this}) plus a no-arg constructor.</li>
          * </ul>
          */
         public Builder useLombok(boolean useLombok) {
@@ -297,6 +299,7 @@ public final class JdbcEntityGenerator {
         if (useLombok) {
             imports.add("lombok.Data");
             imports.add("lombok.NoArgsConstructor");
+            imports.add("lombok.experimental.Accessors");
         }
         imports.add("jakarta.persistence.Column");
         imports.add("jakarta.persistence.Table");
@@ -368,6 +371,7 @@ public final class JdbcEntityGenerator {
             if (useLombok) {
                 w.println("@Data");
                 w.println("@NoArgsConstructor");
+                w.println("@Accessors(chain = true)");
             }
             w.println("@Table(name = \"" + lowerTable + "\")");
             w.println("public class " + className + " {");
@@ -415,9 +419,10 @@ public final class JdbcEntityGenerator {
                     w.println("    }");
                     w.println();
 
-                    w.println("    public void set" + pascalField
+                    w.println("    public " + className + " set" + pascalField
                             + "(" + simpleType + " " + fieldName + ") {");
                     w.println("        this." + fieldName + " = " + fieldName + ";");
+                    w.println("        return this;");
                     w.println("    }");
                     w.println();
                 }
@@ -634,6 +639,51 @@ public final class JdbcEntityGenerator {
             w.println("     */");
             w.println("    public <R> List<R> list(SelectSpec<" + entityClassName + ", R> spec) {");
             w.println("        return jdbcDslExecutor.select(spec);");
+            w.println("    }");
+            w.println();
+
+            // list(SelectSpec, JPageable) - paginated SELECT without count
+            w.println("    /**");
+            w.println("     * Executes a paginated SELECT (applying sort, offset, and limit from");
+            w.println("     * {@code pageable}) and returns matching rows as a list. No COUNT is executed.");
+            w.println("     *");
+            w.println("     * @param spec     the select specification");
+            w.println("     * @param pageable the pagination parameters");
+            w.println("     * @return list of results for the requested page");
+            w.println("     */");
+            w.println("    public <R> List<R> list(SelectSpec<" + entityClassName + ", R> spec,"
+                    + " JPageable<" + entityClassName + "> pageable) {");
+            w.println("        return jdbcDslExecutor.select(spec, pageable);");
+            w.println("    }");
+            w.println();
+
+            // findOne(SelectSpec) - SELECT LIMIT 1
+            w.println("    /**");
+            w.println("     * Executes a SELECT with LIMIT 1 and returns the first matching result,");
+            w.println("     * or {@code null} if no rows match.");
+            w.println("     *");
+            w.println("     * @param spec the select specification");
+            w.println("     * @return the first matching result, or {@code null}");
+            w.println("     */");
+            w.println("    public <R> R findOne(SelectSpec<" + entityClassName + ", R> spec) {");
+            w.println("        return jdbcDslExecutor.findOne(spec);");
+            w.println("    }");
+            w.println();
+
+            // findOne(SelectSpec, JPageable) - SELECT LIMIT 1 with sort from pageable
+            w.println("    /**");
+            w.println("     * Executes a SELECT with LIMIT 1 (using the sort from {@code pageable}) and");
+            w.println("     * returns the first matching result, or {@code null} if no rows match.");
+            w.println("     * No COUNT is executed.");
+            w.println("     *");
+            w.println("     * @param spec     the select specification");
+            w.println("     * @param pageable the pagination parameters (only sort is applied;");
+            w.println("     *                 offset and size from pageable are ignored)");
+            w.println("     * @return the first matching result, or {@code null}");
+            w.println("     */");
+            w.println("    public <R> R findOne(SelectSpec<" + entityClassName + ", R> spec,"
+                    + " JPageable<" + entityClassName + "> pageable) {");
+            w.println("        return jdbcDslExecutor.findOne(spec, pageable);");
             w.println("    }");
             w.println();
 
