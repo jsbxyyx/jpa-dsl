@@ -209,6 +209,47 @@ class JdbcDslIntegrationTest {
     }
 
     // ------------------------------------------------------------------ //
+    //  findOne
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void findOne_matchingRow_returnsFirstResult() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+
+        UserDto result = executor.findOne(spec);
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice");
+    }
+
+    @Test
+    void findOne_noMatchingRow_returnsNull() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "nonexistent"))
+                .mapTo(UserDto.class);
+
+        UserDto result = executor.findOne(spec);
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void findOne_multipleMatchingRows_returnsFirstOnly() {
+        // ACTIVE users: alice and charlie — findOne should return exactly one
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .orderBy(JSort.byAsc(TUser::getUsername))
+                .mapTo(UserDto.class);
+
+        UserDto result = executor.findOne(spec);
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice"); // first alphabetically
+    }
+
+    // ------------------------------------------------------------------ //
     //  JOIN
     // ------------------------------------------------------------------ //
 

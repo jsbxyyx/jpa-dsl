@@ -61,6 +61,24 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Executes a SELECT with {@code LIMIT 1} and returns the first matching result, or
+     * {@code null} if no rows match.
+     *
+     * <p>The LIMIT clause is applied via the configured {@link Dialect} (same logic as
+     * pagination), so the generated SQL is compatible across databases.
+     *
+     * <p>Mapping strategy is identical to {@link #select(SelectSpec)}.
+     */
+    public <T, R> R findOne(SelectSpec<T, R> spec) {
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
+        String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
+        RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
+        List<R> results = jdbc.query(limitedSql, limitedParams, mapper);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
      * Executes a paginated SELECT and returns a Spring {@link Page}.
      *
      * <p>Note: when the spec contains JOINs, the COUNT query uses {@code COUNT(*)} which may
