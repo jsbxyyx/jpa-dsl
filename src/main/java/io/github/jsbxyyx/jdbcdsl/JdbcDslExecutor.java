@@ -2,13 +2,16 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect;
+import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
 
 import java.beans.PropertyDescriptor;
@@ -16,6 +19,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -166,6 +171,169 @@ public final class JdbcDslExecutor {
     }
 
     // ------------------------------------------------------------------ //
+    //  INSERT
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Inserts {@code entity} using all its columns (excluding IDENTITY-generated primary keys).
+     *
+     * <p>If the entity's primary key is annotated with
+     * {@code @GeneratedValue(strategy = GenerationType.IDENTITY)}, the generated key is read
+     * back and set on the entity.
+     *
+     * @param entity the entity to insert
+     */
+    public <T> void save(T entity) {
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
+        doInsert(InsertSpec.of(entityClass), meta, colValues, entity);
+    }
+
+    /**
+     * Inserts {@code entity} using the columns specified by {@code spec}.
+     *
+     * <p>If the spec has no explicit column names, all entity columns are inserted (excluding
+     * IDENTITY-generated primary keys). If the spec specifies column names, exactly those
+     * columns are used.
+     *
+     * <p>When the entity's primary key is {@code IDENTITY}-generated and the spec does not
+     * restrict columns, the generated key is read back and set on the entity.
+     *
+     * @param spec   the insert specification (entity class and optional column list)
+     * @param entity the entity to insert
+     */
+    public <T> void save(InsertSpec<T> spec, T entity) {
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
+        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, excludeIdentityPk);
+        doInsert(spec, meta, colValues, entity);
+    }
+
+    /**
+     * Inserts only the non-{@code null} columns of {@code entity} (excluding IDENTITY-generated
+     * primary keys regardless of their value).
+     *
+     * @param entity the entity to insert
+     */
+    public <T> void saveNonNull(T entity) {
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
+        // Remove null-valued columns
+        colValues.entrySet().removeIf(e -> e.getValue() == null);
+        InsertSpec<T> spec = InsertSpec.of(entityClass, new ArrayList<>(colValues.keySet()));
+        doInsert(spec, meta, colValues, entity);
+    }
+
+    private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta,
+                               LinkedHashMap<String, Object> colValues, T entity) {
+        RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, colValues);
+        if (meta.isIdGeneratedByIdentity()) {
+            MapSqlParameterSource paramSource = new MapSqlParameterSource(rendered.getParams());
+            GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbc.update(rendered.getSql(), paramSource, keyHolder);
+            Number key = keyHolder.getKey();
+            if (key != null && meta.getIdPropertyName() != null) {
+                setPropertyValue(entity, meta.getIdPropertyName(), key);
+            }
+        } else {
+            jdbc.update(rendered.getSql(), rendered.getParams());
+        }
+    }
+
+    /**
+     * Builds an ordered map of {@code columnName → value} for the given entity by reading
+     * property values via getter methods (falling back to field access).
+     *
+     * @param entity           the entity instance
+     * @param meta             entity metadata
+     * @param skipIdentityPk   when {@code true}, the IDENTITY-generated primary key column is excluded
+     */
+    private static <T> LinkedHashMap<String, Object> buildColumnValues(T entity, EntityMeta meta,
+                                                                        boolean skipIdentityPk) {
+        LinkedHashMap<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : meta.getPropertyToColumn().entrySet()) {
+            String propName = entry.getKey();
+            String colName = entry.getValue();
+            if (skipIdentityPk && meta.isIdGeneratedByIdentity()
+                    && propName.equals(meta.getIdPropertyName())) {
+                continue;
+            }
+            result.put(colName, getPropertyValue(entity, propName));
+        }
+        return result;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  UPDATE BY ID / DELETE BY ID
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Updates all non-primary-key columns of {@code entity} using a WHERE clause on the
+     * primary key.
+     *
+     * @param entity the entity to update (must have a non-null primary key)
+     * @return the number of rows affected
+     * @throws IllegalStateException if the entity class has no {@code @Id} field
+     */
+    public <T> int updateById(T entity) {
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+
+        String idPropName = meta.getIdPropertyName();
+        if (idPropName == null) {
+            throw new IllegalStateException("No @Id field found on " + entityClass.getName());
+        }
+
+        // Build assignments: all non-PK columns
+        List<Map.Entry<String, Object>> assignments = new ArrayList<>();
+        for (String propName : meta.getPropertyToColumn().keySet()) {
+            if (!propName.equals(idPropName)) {
+                assignments.add(new AbstractMap.SimpleImmutableEntry<>(
+                        propName, getPropertyValue(entity, propName)));
+            }
+        }
+
+        if (assignments.isEmpty()) {
+            return 0;
+        }
+
+        // WHERE clause: id = entity.id
+        Object idValue = getPropertyValue(entity, idPropName);
+        PropertyRef idRef = new PropertyRef(entityClass, idPropName);
+        LeafPredicate where = LeafPredicate.of(idRef, "t", LeafPredicate.Op.EQ, idValue);
+
+        UpdateSpec<T> spec = new UpdateSpec<>(entityClass, assignments, where);
+        return executeUpdate(spec);
+    }
+
+    /**
+     * Deletes the row identified by {@code id} from the table mapped to {@code entityClass}.
+     *
+     * @param entityClass the entity class whose table is targeted
+     * @param id          the primary key value
+     * @return the number of rows affected
+     * @throws IllegalStateException if the entity class has no {@code @Id} field
+     */
+    public <T> int deleteById(Class<T> entityClass, Object id) {
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+
+        String idPropName = meta.getIdPropertyName();
+        if (idPropName == null) {
+            throw new IllegalStateException("No @Id field found on " + entityClass.getName());
+        }
+
+        PropertyRef idRef = new PropertyRef(entityClass, idPropName);
+        LeafPredicate where = LeafPredicate.of(idRef, "t", LeafPredicate.Op.EQ, id);
+        DeleteSpec<T> spec = new DeleteSpec<>(entityClass, where);
+        return executeDelete(spec);
+    }
+
+    // ------------------------------------------------------------------ //
     //  RowMapper: JavaBean setter mapping with field fallback
     // ------------------------------------------------------------------ //
 
@@ -297,6 +465,85 @@ public final class JdbcDslExecutor {
     // ------------------------------------------------------------------ //
     //  Helpers
     // ------------------------------------------------------------------ //
+
+    /**
+     * Reads a property value from {@code entity} using a getter method (or direct field access as
+     * fallback).
+     */
+    private static Object getPropertyValue(Object entity, String propName) {
+        for (PropertyDescriptor pd : BeanUtils.getPropertyDescriptors(entity.getClass())) {
+            if (pd.getName().equals(propName)) {
+                Method readMethod = pd.getReadMethod();
+                if (readMethod != null) {
+                    try {
+                        return readMethod.invoke(entity);
+                    } catch (ReflectiveOperationException e) {
+                        throw new RuntimeException(
+                                "Cannot read property '" + propName + "' on "
+                                + entity.getClass().getName(), e);
+                    }
+                }
+            }
+        }
+        // Fallback: walk the class hierarchy looking for a field with that name
+        Class<?> cls = entity.getClass();
+        while (cls != null && cls != Object.class) {
+            try {
+                Field f = cls.getDeclaredField(propName);
+                f.setAccessible(true);
+                return f.get(entity);
+            } catch (NoSuchFieldException e) {
+                cls = cls.getSuperclass();
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(
+                        "Cannot access field '" + propName + "' on "
+                        + entity.getClass().getName(), e);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Sets a property value on {@code entity} using a setter method (or direct field access as
+     * fallback).
+     */
+    private static void setPropertyValue(Object entity, String propName, Object value) {
+        ConversionService cs = DefaultConversionService.getSharedInstance();
+        for (PropertyDescriptor pd : BeanUtils.getPropertyDescriptors(entity.getClass())) {
+            if (pd.getName().equals(propName)) {
+                Method writeMethod = pd.getWriteMethod();
+                if (writeMethod != null) {
+                    Class<?> paramType = writeMethod.getParameterTypes()[0];
+                    Object converted = convertValue(value, paramType, cs);
+                    try {
+                        writeMethod.invoke(entity, converted);
+                    } catch (ReflectiveOperationException e) {
+                        throw new RuntimeException(
+                                "Cannot set property '" + propName + "' on "
+                                + entity.getClass().getName(), e);
+                    }
+                    return;
+                }
+            }
+        }
+        // Fallback: walk the class hierarchy
+        Class<?> cls = entity.getClass();
+        while (cls != null && cls != Object.class) {
+            try {
+                Field f = cls.getDeclaredField(propName);
+                f.setAccessible(true);
+                Object converted = convertValue(value, f.getType(), cs);
+                f.set(entity, converted);
+                return;
+            } catch (NoSuchFieldException e) {
+                cls = cls.getSuperclass();
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(
+                        "Cannot set field '" + propName + "' on "
+                        + entity.getClass().getName(), e);
+            }
+        }
+    }
 
     private static <T, R> SelectSpec<T, R> mergeSort(SelectSpec<T, R> spec, JPageable<T> pageable) {
         JSort<T> pageableSort = pageable.getSort();

@@ -15,15 +15,18 @@ public final class EntityMeta {
     private final Map<String, String> propertyToColumn;
     private final String idPropertyName;
     private final String idColumnName;
+    private final boolean idGeneratedByIdentity;
 
     public EntityMeta(String tableName,
                       Map<String, String> propertyToColumn,
                       String idPropertyName,
-                      String idColumnName) {
+                      String idColumnName,
+                      boolean idGeneratedByIdentity) {
         this.tableName = tableName;
         this.propertyToColumn = Collections.unmodifiableMap(propertyToColumn);
         this.idPropertyName = idPropertyName;
         this.idColumnName = idColumnName;
+        this.idGeneratedByIdentity = idGeneratedByIdentity;
     }
 
     /** The database table name (from {@code @Table(name)} or entity class simple name). */
@@ -49,5 +52,14 @@ public final class EntityMeta {
     /** The ID column name. */
     public String getIdColumnName() {
         return idColumnName;
+    }
+
+    /**
+     * Returns {@code true} if the {@code @Id} field is annotated with
+     * {@code @GeneratedValue(strategy = GenerationType.IDENTITY)}, meaning the database
+     * auto-generates the primary key and it should be excluded from INSERT statements.
+     */
+    public boolean isIdGeneratedByIdentity() {
+        return idGeneratedByIdentity;
     }
 }

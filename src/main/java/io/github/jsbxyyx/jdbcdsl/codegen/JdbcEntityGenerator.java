@@ -447,18 +447,6 @@ public final class JdbcEntityGenerator {
             pkLower.add(pk.toLowerCase());
         }
         String pkJavaType = resolvePkJavaType(columns, pkLower);
-        String pkFieldName = resolvePkFieldName(columns, pkLower);
-        String pkGetterName = "get" + capitalize(pkFieldName);
-        String pkColumnName = resolvePkColumnName(columns, pkLower);
-
-        // Determine whether the PK is auto-increment (IDENTITY strategy)
-        boolean hasAutoIncrementPk = false;
-        for (ColumnInfo col : columns) {
-            if (pkLower.contains(col.name.toLowerCase()) && col.autoIncrement) {
-                hasAutoIncrementPk = true;
-                break;
-            }
-        }
 
         File dir = new File(outputDir, repositoryPackage.replace('.', File.separatorChar));
         if (!dir.exists() && !dir.mkdirs()) {
@@ -470,26 +458,6 @@ public final class JdbcEntityGenerator {
             return;
         }
 
-        // Collect column info for INSERT and UPDATE.
-        // INSERT includes all non-auto-increment PKs + non-PK columns (in column order).
-        // UPDATE SET includes non-PK columns only.
-        List<String[]> insertFields = new ArrayList<>(); // [fieldName, colName, simpleType]
-        List<String[]> updateFields = new ArrayList<>();  // [fieldName, colName, simpleType]
-        for (ColumnInfo col : columns) {
-            String lowerCol = col.name.toLowerCase();
-            boolean isPk = pkLower.contains(lowerCol);
-            String fieldName = toCamelCase(lowerCol);
-            String simpleType = simpleTypeName(toJavaType(col.typeName));
-            if (!isPk) {
-                insertFields.add(new String[]{fieldName, lowerCol, simpleType});
-                updateFields.add(new String[]{fieldName, lowerCol, simpleType});
-            } else if (!col.autoIncrement) {
-                // Non-auto-increment PK must be supplied by the caller → include in INSERT only
-                insertFields.add(new String[]{fieldName, lowerCol, simpleType});
-            }
-            // Auto-increment PK: skip from both INSERT and UPDATE
-        }
-
         try (PrintWriter w = new PrintWriter(
                 new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
 
@@ -497,18 +465,13 @@ public final class JdbcEntityGenerator {
             w.println();
             w.println("import " + entityPackage + "." + entityClassName + ";");
             w.println("import io.github.jsbxyyx.jdbcdsl.DeleteSpec;");
+            w.println("import io.github.jsbxyyx.jdbcdsl.InsertSpec;");
             w.println("import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;");
             w.println("import io.github.jsbxyyx.jdbcdsl.JPageable;");
             w.println("import io.github.jsbxyyx.jdbcdsl.SelectSpec;");
             w.println("import io.github.jsbxyyx.jdbcdsl.UpdateSpec;");
             w.println("import org.springframework.beans.factory.annotation.Autowired;");
             w.println("import org.springframework.data.domain.Page;");
-            w.println("import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;");
-            w.println("import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;");
-            if (hasAutoIncrementPk) {
-                w.println("import org.springframework.jdbc.support.GeneratedKeyHolder;");
-                w.println("import org.springframework.jdbc.support.KeyHolder;");
-            }
             w.println("import org.springframework.stereotype.Repository;");
             w.println();
             w.println("import java.util.List;");
@@ -520,75 +483,53 @@ public final class JdbcEntityGenerator {
             w.println("public class " + repositoryClassName + " {");
             w.println();
             w.println("    @Autowired");
-            w.println("    private NamedParameterJdbcTemplate jdbcTemplate;");
-            w.println();
-            w.println("    @Autowired");
             w.println("    private JdbcDslExecutor jdbcDslExecutor;");
             w.println();
 
-            // save(entity) - INSERT
+            // save(entity) - INSERT all columns
             w.println("    /**");
-            w.println("     * Inserts a new " + entityClassName + ".");
+            w.println("     * Inserts a new " + entityClassName + " (all columns, IDENTITY pk excluded).");
             w.println("     *");
             w.println("     * @param entity the entity to insert");
             w.println("     */");
             w.println("    public void save(" + entityClassName + " entity) {");
-            if (insertFields.isEmpty()) {
-                w.println("        // No columns to insert.");
-            } else {
-                StringBuilder cols = new StringBuilder();
-                StringBuilder vals = new StringBuilder();
-                for (int i = 0; i < insertFields.size(); i++) {
-                    String[] f = insertFields.get(i);
-                    if (i > 0) { cols.append(", "); vals.append(", "); }
-                    cols.append(f[1]);
-                    vals.append(":").append(f[0]);
-                }
-                w.println("        String sql = \"INSERT INTO " + lowerTable + " (" + cols + ") VALUES (" + vals + ")\";");
-                w.println("        MapSqlParameterSource params = new MapSqlParameterSource();");
-                for (String[] f : insertFields) {
-                    w.println("        params.addValue(\"" + f[0] + "\", entity.get" + capitalize(f[0]) + "());");
-                }
-                if (hasAutoIncrementPk) {
-                    w.println("        KeyHolder keyHolder = new GeneratedKeyHolder();");
-                    w.println("        jdbcTemplate.update(sql, params, keyHolder);");
-                    w.println("        if (keyHolder.getKey() != null) {");
-                    w.println("            entity.set" + capitalize(pkFieldName) + "(("
-                            + pkJavaType + ") keyHolder.getKey()." + pkNumberMethod(pkJavaType) + "());");
-                    w.println("        }");
-                } else {
-                    w.println("        jdbcTemplate.update(sql, params);");
-                }
-            }
+            w.println("        jdbcDslExecutor.save(entity);");
+            w.println("    }");
+            w.println();
+
+            // save(InsertSpec, entity) - INSERT with explicit spec
+            w.println("    /**");
+            w.println("     * Inserts a new " + entityClassName + " using the columns from the given spec.");
+            w.println("     * If the spec has no columns, all entity columns are inserted.");
+            w.println("     *");
+            w.println("     * @param spec   the insert specification");
+            w.println("     * @param entity the entity to insert");
+            w.println("     */");
+            w.println("    public void save(InsertSpec<" + entityClassName + "> spec, " + entityClassName + " entity) {");
+            w.println("        jdbcDslExecutor.save(spec, entity);");
+            w.println("    }");
+            w.println();
+
+            // saveNonNull(entity) - INSERT non-null columns only
+            w.println("    /**");
+            w.println("     * Inserts a new " + entityClassName + " using only non-null columns.");
+            w.println("     *");
+            w.println("     * @param entity the entity to insert");
+            w.println("     */");
+            w.println("    public void saveNonNull(" + entityClassName + " entity) {");
+            w.println("        jdbcDslExecutor.saveNonNull(entity);");
             w.println("    }");
             w.println();
 
             // updateById(entity) - UPDATE by @Id
             w.println("    /**");
-            w.println("     * Updates an existing " + entityClassName + " by its ID.");
+            w.println("     * Updates an existing " + entityClassName + " by its primary key.");
             w.println("     *");
-            w.println("     * @param entity the entity to update (must have a non-null ID)");
+            w.println("     * @param entity the entity to update (must have a non-null primary key)");
             w.println("     * @return the number of rows affected");
             w.println("     */");
             w.println("    public int updateById(" + entityClassName + " entity) {");
-            if (updateFields.isEmpty()) {
-                w.println("        return 0; // No non-PK columns to update.");
-            } else {
-                StringBuilder sets = new StringBuilder();
-                for (int i = 0; i < updateFields.size(); i++) {
-                    String[] f = updateFields.get(i);
-                    if (i > 0) sets.append(", ");
-                    sets.append(f[1]).append(" = :").append(f[0]);
-                }
-                w.println("        String sql = \"UPDATE " + lowerTable + " SET " + sets
-                        + " WHERE " + pkColumnName + " = :" + pkFieldName + "\";");
-                w.println("        MapSqlParameterSource params = new MapSqlParameterSource();");
-                for (String[] f : updateFields) {
-                    w.println("        params.addValue(\"" + f[0] + "\", entity.get" + capitalize(f[0]) + "());");
-                }
-                w.println("        params.addValue(\"" + pkFieldName + "\", entity." + pkGetterName + "());");
-                w.println("        return jdbcTemplate.update(sql, params);");
-            }
+            w.println("        return jdbcDslExecutor.updateById(entity);");
             w.println("    }");
             w.println();
 
@@ -606,15 +547,13 @@ public final class JdbcEntityGenerator {
 
             // deleteById(id) - DELETE by @Id
             w.println("    /**");
-            w.println("     * Deletes a " + entityClassName + " by its ID.");
+            w.println("     * Deletes a " + entityClassName + " by its primary key.");
             w.println("     *");
-            w.println("     * @param id the ID of the entity to delete");
+            w.println("     * @param id the primary key of the entity to delete");
             w.println("     * @return the number of rows affected");
             w.println("     */");
             w.println("    public int deleteById(" + pkJavaType + " id) {");
-            w.println("        String sql = \"DELETE FROM " + lowerTable + " WHERE " + pkColumnName + " = :id\";");
-            w.println("        MapSqlParameterSource params = new MapSqlParameterSource(\"id\", id);");
-            w.println("        return jdbcTemplate.update(sql, params);");
+            w.println("        return jdbcDslExecutor.deleteById(" + entityClassName + ".class, id);");
             w.println("    }");
             w.println();
 

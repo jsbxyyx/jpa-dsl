@@ -17,7 +17,7 @@ public final class LeafPredicate implements PredicateNode {
 
     public enum Op {
         EQ, NE, GT, GTE, LT, LTE,
-        LIKE,
+        LIKE, LIKE_IC,
         IN, NOT_IN,
         BETWEEN,
         IS_NULL, IS_NOT_NULL

@@ -172,6 +172,23 @@ public final class WhereBuilder<T> {
         return this;
     }
 
+    public WhereBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern) {
+        return likeIgnoreCase(prop, pattern, true);
+    }
+
+    public WhereBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern, boolean condition) {
+        if (condition) {
+            predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE_IC, "%" + pattern + "%"));
+        }
+        return this;
+    }
+
+    /** Case-insensitive LIKE predicate with an arbitrary SQL expression on the left. */
+    public WhereBuilder<T> likeIgnoreCase(SqlExpression<?> expression, String pattern) {
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE_IC, "%" + pattern + "%"));
+        return this;
+    }
+
     // ------------------------------------------------------------------ //
     //  IN / NOT IN
     // ------------------------------------------------------------------ //

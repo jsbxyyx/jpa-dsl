@@ -1,6 +1,8 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -54,6 +56,7 @@ public final class EntityMetaReader {
         Map<String, String> propertyToColumn = new LinkedHashMap<>();
         String idPropertyName = null;
         String idColumnName = null;
+        boolean idGeneratedByIdentity = false;
 
         // --- Scan fields (walking up the class hierarchy) ---
         Class<?> current = entityClass;
@@ -73,6 +76,8 @@ public final class EntityMetaReader {
                     if (isId) {
                         idPropertyName = propName;
                         idColumnName = colName;
+                        GeneratedValue gv = field.getAnnotation(GeneratedValue.class);
+                        idGeneratedByIdentity = gv != null && gv.strategy() == GenerationType.IDENTITY;
                     }
                 }
             }
@@ -98,6 +103,8 @@ public final class EntityMetaReader {
                 if (isId && idPropertyName == null) {
                     idPropertyName = propName;
                     idColumnName = colName;
+                    GeneratedValue gv = method.getAnnotation(GeneratedValue.class);
+                    idGeneratedByIdentity = gv != null && gv.strategy() == GenerationType.IDENTITY;
                 }
             }
         }
@@ -115,7 +122,7 @@ public final class EntityMetaReader {
             current = current.getSuperclass();
         }
 
-        return new EntityMeta(tableName, propertyToColumn, idPropertyName, idColumnName);
+        return new EntityMeta(tableName, propertyToColumn, idPropertyName, idColumnName, idGeneratedByIdentity);
     }
 
     private static String resolveColumnName(Column colAnn, String defaultName) {
