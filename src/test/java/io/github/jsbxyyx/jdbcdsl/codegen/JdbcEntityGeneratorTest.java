@@ -278,6 +278,158 @@ class JdbcEntityGeneratorTest {
     }
 
     // -------------------------------------------------------------------------
+    // Bug-fix tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * Bug 1: getter names must be derived from the Java field name (camelCase), not the SQL column
+     * name. For a column "stock_code" the Java field is "stockCode" and the getter must be
+     * "getStockCode()", not "getStockcode()".
+     *
+     * Bug 2: addValue key must match the SQL named parameter (i.e., the Java field name in
+     * camelCase: ":stockCode"), not the raw column name.
+     */
+    @Test
+    void repository_getterNamesUseCamelCaseFieldName() throws Exception {
+        // stock_all has stock_code, stock_name columns → fields stockCode, stockName
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .repositoryOverride(true)
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("stock_all");
+
+        File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
+        String content = readFile(repoFile);
+
+        // Correct getters (camelCase field name, first letter capitalised)
+        assertThat(content).contains("entity.getStockCode()");
+        assertThat(content).contains("entity.getStockName()");
+        // Correct addValue keys (camelCase field name, matching :stockCode / :stockName in SQL)
+        assertThat(content).contains("addValue(\"stockCode\"");
+        assertThat(content).contains("addValue(\"stockName\"");
+        // The broken forms must not appear
+        assertThat(content).doesNotContain("getStockcode()");
+        assertThat(content).doesNotContain("getStockname()");
+    }
+
+    /**
+     * Bug 3: a table whose primary key is NOT auto-increment (business key) must have the PK
+     * column included in the INSERT SQL and in the corresponding addValue call.
+     * Only an auto-increment (IDENTITY) PK should be omitted from INSERT.
+     */
+    @Test
+    void repository_nonAutoIncrementPk_isIncludedInInsert() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_user");
+            stmt.execute(
+                "CREATE TABLE t_user (" +
+                "  id         BIGINT       NOT NULL," +   // NOT auto-increment → business key
+                "  username   VARCHAR(50)  NOT NULL," +
+                "  created_at DATETIME     NOT NULL," +
+                "  PRIMARY KEY (id)" +
+                ")"
+            );
+        }
+
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .repositoryOverride(true)
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("t_user");
+
+        File repoFile = new File(outputDir, "com/example/repository/TUserRepository.java");
+        String content = readFile(repoFile);
+
+        // The INSERT SQL must contain the id column
+        assertThat(content).contains("INSERT INTO t_user (id,");
+        // The addValue for id must be present
+        assertThat(content).contains("addValue(\"id\"");
+        assertThat(content).contains("entity.getId()");
+        // The getter for created_at must be the camelCase form
+        assertThat(content).contains("entity.getCreatedAt()");
+        assertThat(content).doesNotContain("entity.getCreatedat()");
+        // addValue key for created_at must be camelCase
+        assertThat(content).contains("addValue(\"createdAt\"");
+        // No KeyHolder — PK is not auto-increment
+        assertThat(content).doesNotContain("GeneratedKeyHolder");
+        assertThat(content).contains("jdbcTemplate.update(sql, params);");
+    }
+
+    /**
+     * Auto-increment PK continues to be excluded from INSERT and uses KeyHolder (existing
+     * behaviour, kept as a regression guard for Bug 3).
+     */
+    @Test
+    void repository_autoIncrementPk_isExcludedFromInsertAndUsesKeyHolder() throws Exception {
+        // stock_all has AUTO_INCREMENT id
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .repositoryOverride(true)
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("stock_all");
+
+        File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
+        String content = readFile(repoFile);
+
+        // id must NOT appear in the INSERT column list
+        assertThat(content).doesNotContain("INSERT INTO stock_all (id,");
+        // KeyHolder must be used to capture the generated key
+        assertThat(content).contains("GeneratedKeyHolder");
+        assertThat(content).contains("jdbcTemplate.update(sql, params, keyHolder)");
+    }
+
+    /**
+     * Entity generation for an auto-increment PK column must emit
+     * {@code @GeneratedValue(strategy = GenerationType.IDENTITY)}.
+     */
+    @Test
+    void entity_autoIncrementPk_hasGeneratedValueAnnotation() throws Exception {
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("stock_all");
+
+        File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
+        String content = readFile(entityFile);
+
+        assertThat(content).contains("import jakarta.persistence.GeneratedValue;");
+        assertThat(content).contains("import jakarta.persistence.GenerationType;");
+        assertThat(content).contains("@GeneratedValue(strategy = GenerationType.IDENTITY)");
+    }
+
+    /**
+     * Entity generation for a non-auto-increment PK must NOT emit {@code @GeneratedValue}.
+     */
+    @Test
+    void entity_nonAutoIncrementPk_hasNoGeneratedValueAnnotation() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_biz");
+            stmt.execute("CREATE TABLE t_biz (id BIGINT NOT NULL, name VARCHAR(50), PRIMARY KEY (id))");
+        }
+
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("t_biz");
+
+        File entityFile = new File(outputDir, "com/example/entity/TBiz.java");
+        String content = readFile(entityFile);
+
+        assertThat(content).contains("@Id");
+        assertThat(content).doesNotContain("@GeneratedValue");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
