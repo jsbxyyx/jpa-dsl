@@ -1,7 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
-import io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect;
+import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
 import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.convert.ConversionService;
@@ -47,8 +47,19 @@ public final class JdbcDslExecutor {
     private final NamedParameterJdbcTemplate jdbc;
     private final Dialect dialect;
 
+    /**
+     * Creates a {@link JdbcDslExecutor} that auto-detects the {@link Dialect} from the
+     * DataSource associated with {@code jdbc}.
+     *
+     * <p>The detection probes {@link java.sql.DatabaseMetaData#getDatabaseProductName()} and
+     * selects the matching dialect (MySQL/MariaDB, PostgreSQL, SQL Server, H2). Falls back to
+     * {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect} when the DataSource is
+     * unavailable or the product name is not recognised.
+     *
+     * @param jdbc the template whose DataSource is used for dialect detection
+     */
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc) {
-        this(jdbc, new Sql2008Dialect());
+        this(jdbc, DialectDetector.detect(jdbc.getJdbcTemplate().getDataSource()));
     }
 
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect) {
