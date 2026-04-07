@@ -556,6 +556,62 @@ class JdbcDslIntegrationTest {
         );
     }
 
+    @Test
+    void executeUpdate_setWithConditionTrue_updatesColumn() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "CONDITION_TRUE", true)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo("CONDITION_TRUE");
+    }
+
+    @Test
+    void executeUpdate_setWithConditionFalse_skipsColumn() {
+        // First capture current status for bob
+        SelectSpec<TUser, TUser> before = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity();
+        String originalStatus = executor.select(before).get(0).getStatus();
+
+        // condition=false: the set should be a no-op, but we still need at least
+        // one unconditional set so build() doesn't throw
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getAge, 77)
+                .set(TUser::getStatus, "SKIPPED", false)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        executor.executeUpdate(spec);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        // age updated, status unchanged
+        assertThat(result.get(0).getAge()).isEqualTo(77);
+        assertThat(result.get(0).getStatus()).isEqualTo(originalStatus);
+    }
+
+    @Test
+    void updateBuilder_allConditionsFalse_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+                UpdateBuilder.from(TUser.class)
+                        .set(TUser::getStatus, "SKIPPED", false)
+                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .build()
+        );
+    }
+
     // ------------------------------------------------------------------ //
     //  DeleteBuilder / executeDelete
     // ------------------------------------------------------------------ //
