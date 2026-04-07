@@ -392,6 +392,152 @@ public final class SqlRenderer {
     }
 
     // ------------------------------------------------------------------ //
+    //  UPDATE / DELETE rendering
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Renders a parameterized UPDATE statement from a {@link UpdateSpec}.
+     *
+     * <p>Example output: {@code UPDATE t_user SET status = :p1, age = :p2 WHERE id = :p3}
+     */
+    public static <T> RenderedSql renderUpdate(UpdateSpec<T> spec) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        AtomicInteger paramIdx = new AtomicInteger(0);
+
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        StringBuilder sb = new StringBuilder("UPDATE ").append(meta.getTableName()).append(" SET ");
+
+        StringJoiner setJoiner = new StringJoiner(", ");
+        for (Map.Entry<String, Object> entry : spec.getAssignments()) {
+            String colName = meta.getColumnName(entry.getKey());
+            if (colName == null) colName = entry.getKey();
+            String param = nextParam(paramIdx, params, entry.getValue());
+            setJoiner.add(colName + " = :" + param);
+        }
+        sb.append(setJoiner);
+
+        if (spec.getWhere() != null) {
+            sb.append(" WHERE ");
+            sb.append(renderPredicateStandalone(spec.getWhere(), meta, params, paramIdx));
+        }
+
+        return new RenderedSql(sb.toString(), params);
+    }
+
+    /**
+     * Renders a parameterized DELETE statement from a {@link DeleteSpec}.
+     *
+     * <p>Example output: {@code DELETE FROM t_user WHERE status = :p1}
+     */
+    public static <T> RenderedSql renderDelete(DeleteSpec<T> spec) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        AtomicInteger paramIdx = new AtomicInteger(0);
+
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        StringBuilder sb = new StringBuilder("DELETE FROM ").append(meta.getTableName());
+
+        if (spec.getWhere() != null) {
+            sb.append(" WHERE ");
+            sb.append(renderPredicateStandalone(spec.getWhere(), meta, params, paramIdx));
+        }
+
+        return new RenderedSql(sb.toString(), params);
+    }
+
+    /**
+     * Renders a predicate in standalone (non-SELECT) context where column references are
+     * resolved directly from the entity metadata without a table alias.
+     */
+    private static String renderPredicateStandalone(PredicateNode node,
+                                                     EntityMeta meta,
+                                                     Map<String, Object> params,
+                                                     AtomicInteger paramIdx) {
+        if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf) {
+            return renderLeafStandalone(leaf, meta, params, paramIdx);
+        } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate and) {
+            StringJoiner joiner = new StringJoiner(" AND ", "(", ")");
+            for (PredicateNode child : and.getChildren()) {
+                joiner.add(renderPredicateStandalone(child, meta, params, paramIdx));
+            }
+            return joiner.toString();
+        } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate or) {
+            StringJoiner joiner = new StringJoiner(" OR ", "(", ")");
+            for (PredicateNode child : or.getChildren()) {
+                joiner.add(renderPredicateStandalone(child, meta, params, paramIdx));
+            }
+            return joiner.toString();
+        } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate not) {
+            return "NOT (" + renderPredicateStandalone(not.getChild(), meta, params, paramIdx) + ")";
+        } else {
+            throw new IllegalArgumentException("Unsupported predicate node type: " + node.getClass());
+        }
+    }
+
+    private static String renderLeafStandalone(io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf,
+                                                EntityMeta meta,
+                                                Map<String, Object> params,
+                                                AtomicInteger paramIdx) {
+        // Resolve LHS: if the expression is a ColumnExpression, resolve its column name from meta
+        String lhs;
+        io.github.jsbxyyx.jdbcdsl.expr.SqlExpression<?> expr = leaf.getExpression();
+        if (expr instanceof io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression<?> col) {
+            String propName = col.getPropertyRef().propertyName();
+            String colName = meta.getColumnName(propName);
+            if (colName == null) colName = propName;
+            lhs = colName;
+        } else {
+            // Fallback: render as-is without table alias (unusual for update/delete)
+            lhs = expr.toString();
+        }
+
+        return switch (leaf.getOp()) {
+            case EQ -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " = :" + p;
+            }
+            case NE -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " <> :" + p;
+            }
+            case GT -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " > :" + p;
+            }
+            case GTE -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " >= :" + p;
+            }
+            case LT -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " < :" + p;
+            }
+            case LTE -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " <= :" + p;
+            }
+            case LIKE -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " LIKE :" + p;
+            }
+            case IN -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " IN (:" + p + ")";
+            }
+            case NOT_IN -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield lhs + " NOT IN (:" + p + ")";
+            }
+            case BETWEEN -> {
+                String p1 = nextParam(paramIdx, params, leaf.getValue());
+                String p2 = nextParam(paramIdx, params, leaf.getValue2());
+                yield lhs + " BETWEEN :" + p1 + " AND :" + p2;
+            }
+            case IS_NULL -> lhs + " IS NULL";
+            case IS_NOT_NULL -> lhs + " IS NOT NULL";
+        };
+    }
+
+    // ------------------------------------------------------------------ //
     //  Helpers
     // ------------------------------------------------------------------ //
 

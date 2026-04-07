@@ -305,11 +305,13 @@ class EntityGeneratorTest {
         assertThat(content).contains("import org.springframework.data.jpa.repository.JpaRepository;");
         assertThat(content).contains("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;");
         assertThat(content).contains("import io.github.jsbxyyx.jpadsl.JpaUpdateExecutor;");
+        assertThat(content).contains("import io.github.jsbxyyx.jpadsl.JpaDeleteExecutor;");
         assertThat(content).contains("import org.springframework.stereotype.Repository;");
         assertThat(content).contains("@Repository");
         assertThat(content).contains("public interface UserOrderRepository extends JpaRepository<UserOrder, Long>");
         assertThat(content).contains("JpaSpecificationExecutor<UserOrder>");
         assertThat(content).contains("JpaUpdateExecutor<UserOrder>");
+        assertThat(content).contains("JpaDeleteExecutor<UserOrder>");
     }
 
     @Test
