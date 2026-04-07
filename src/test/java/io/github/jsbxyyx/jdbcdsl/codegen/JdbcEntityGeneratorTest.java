@@ -199,13 +199,17 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("public int deleteById(Long id)");
         assertThat(content).contains("public int delete(DeleteSpec<StockAll> spec)");
         assertThat(content).contains("public <R> List<R> list(SelectSpec<StockAll, R> spec)");
+        assertThat(content).contains("public <R> List<R> list(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
         assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec)");
+        assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
         assertThat(content).contains("public <R> Page<R> page(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
         // Delegates
         assertThat(content).contains("jdbcDslExecutor.executeUpdate(spec)");
         assertThat(content).contains("jdbcDslExecutor.executeDelete(spec)");
         assertThat(content).contains("jdbcDslExecutor.select(spec)");
+        assertThat(content).contains("jdbcDslExecutor.select(spec, pageable)");
         assertThat(content).contains("jdbcDslExecutor.findOne(spec)");
+        assertThat(content).contains("jdbcDslExecutor.findOne(spec, pageable)");
         assertThat(content).contains("jdbcDslExecutor.selectPage(spec, pageable)");
     }
 

@@ -642,6 +642,21 @@ public final class JdbcEntityGenerator {
             w.println("    }");
             w.println();
 
+            // list(SelectSpec, JPageable) - paginated SELECT without count
+            w.println("    /**");
+            w.println("     * Executes a paginated SELECT (applying sort, offset, and limit from");
+            w.println("     * {@code pageable}) and returns matching rows as a list. No COUNT is executed.");
+            w.println("     *");
+            w.println("     * @param spec     the select specification");
+            w.println("     * @param pageable the pagination parameters");
+            w.println("     * @return list of results for the requested page");
+            w.println("     */");
+            w.println("    public <R> List<R> list(SelectSpec<" + entityClassName + ", R> spec,"
+                    + " JPageable<" + entityClassName + "> pageable) {");
+            w.println("        return jdbcDslExecutor.select(spec, pageable);");
+            w.println("    }");
+            w.println();
+
             // findOne(SelectSpec) - SELECT LIMIT 1
             w.println("    /**");
             w.println("     * Executes a SELECT with LIMIT 1 and returns the first matching result,");
@@ -652,6 +667,23 @@ public final class JdbcEntityGenerator {
             w.println("     */");
             w.println("    public <R> R findOne(SelectSpec<" + entityClassName + ", R> spec) {");
             w.println("        return jdbcDslExecutor.findOne(spec);");
+            w.println("    }");
+            w.println();
+
+            // findOne(SelectSpec, JPageable) - SELECT LIMIT 1 with sort from pageable
+            w.println("    /**");
+            w.println("     * Executes a SELECT with LIMIT 1 (using the sort from {@code pageable}) and");
+            w.println("     * returns the first matching result, or {@code null} if no rows match.");
+            w.println("     * No COUNT is executed.");
+            w.println("     *");
+            w.println("     * @param spec     the select specification");
+            w.println("     * @param pageable the pagination parameters (only sort is applied;");
+            w.println("     *                 offset and size from pageable are ignored)");
+            w.println("     * @return the first matching result, or {@code null}");
+            w.println("     */");
+            w.println("    public <R> R findOne(SelectSpec<" + entityClassName + ", R> spec,"
+                    + " JPageable<" + entityClassName + "> pageable) {");
+            w.println("        return jdbcDslExecutor.findOne(spec, pageable);");
             w.println("    }");
             w.println();
 
