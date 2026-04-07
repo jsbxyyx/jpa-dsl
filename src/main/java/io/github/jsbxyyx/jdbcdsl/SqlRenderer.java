@@ -26,7 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>SELECT clause alias strategy:
  * <ul>
  *   <li>When no {@code select(...)} expressions are specified, all entity columns are expanded
- *       as {@code alias.column AS propertyName} (sorted by property name for stable ordering).</li>
+ *       as {@code alias.column AS propertyName} in entity declaration order (which mirrors
+ *       database column ordinal order for generated entities).</li>
  *   <li>{@link ColumnExpression}: rendered as {@code alias.column AS propertyName}.</li>
  *   <li>{@link AliasedExpression}: rendered as {@code <inner> AS <alias>} using the explicit alias.</li>
  *   <li>Function / aggregate / literal expressions: rendered without alias (follow JDBC column label).</li>
@@ -55,12 +56,11 @@ public final class SqlRenderer {
         sb.append("SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
         if (exprs.isEmpty()) {
-            // No explicit select(): expand all entity columns sorted by property name.
-            // This produces stable, property-name-aliased columns for setter-based mapping.
+            // No explicit select(): expand all entity columns in entity declaration order,
+            // which mirrors database column ordinal order for generated entities.
             EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
             StringJoiner cols = new StringJoiner(", ");
-            meta.getPropertyToColumn().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
+            meta.getPropertyToColumn().entrySet()
                     .forEach(e -> cols.add(alias + "." + e.getValue() + " AS " + e.getKey()));
             sb.append(cols);
         } else {
