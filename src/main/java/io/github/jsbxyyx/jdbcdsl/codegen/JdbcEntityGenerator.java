@@ -306,6 +306,19 @@ public final class JdbcEntityGenerator {
             imports.add("jakarta.persistence.Id");
         }
 
+        // Check whether any PK column is auto-increment (IDENTITY strategy)
+        boolean hasAutoIncrementPk = false;
+        for (ColumnInfo col : columns) {
+            if (pkLower.contains(col.name.toLowerCase()) && col.autoIncrement) {
+                hasAutoIncrementPk = true;
+                break;
+            }
+        }
+        if (hasAutoIncrementPk) {
+            imports.add("jakarta.persistence.GeneratedValue");
+            imports.add("jakarta.persistence.GenerationType");
+        }
+
         // Determine Java types and collect additional imports
         Map<ColumnInfo, String> javaTypes = new LinkedHashMap<>();
         for (ColumnInfo col : columns) {
@@ -369,6 +382,9 @@ public final class JdbcEntityGenerator {
 
                 if (isPk) {
                     w.println("    @Id");
+                    if (col.autoIncrement) {
+                        w.println("    @GeneratedValue(strategy = GenerationType.IDENTITY)");
+                    }
                 }
                 if (!col.nullable) {
                     w.println("    @Column(name = \"" + lowerCol + "\", nullable = false)");
@@ -427,8 +443,17 @@ public final class JdbcEntityGenerator {
         }
         String pkJavaType = resolvePkJavaType(columns, pkLower);
         String pkFieldName = resolvePkFieldName(columns, pkLower);
-        String pkGetterName = "get" + toPascalCase(pkFieldName);
+        String pkGetterName = "get" + capitalize(pkFieldName);
         String pkColumnName = resolvePkColumnName(columns, pkLower);
+
+        // Determine whether the PK is auto-increment (IDENTITY strategy)
+        boolean hasAutoIncrementPk = false;
+        for (ColumnInfo col : columns) {
+            if (pkLower.contains(col.name.toLowerCase()) && col.autoIncrement) {
+                hasAutoIncrementPk = true;
+                break;
+            }
+        }
 
         File dir = new File(outputDir, repositoryPackage.replace('.', File.separatorChar));
         if (!dir.exists() && !dir.mkdirs()) {
@@ -440,14 +465,24 @@ public final class JdbcEntityGenerator {
             return;
         }
 
-        // Collect non-PK column info for INSERT/UPDATE
-        List<String[]> nonPkFields = new ArrayList<>(); // [fieldName, colName, simpleType]
+        // Collect column info for INSERT and UPDATE.
+        // INSERT includes all non-auto-increment PKs + non-PK columns (in column order).
+        // UPDATE SET includes non-PK columns only.
+        List<String[]> insertFields = new ArrayList<>(); // [fieldName, colName, simpleType]
+        List<String[]> updateFields = new ArrayList<>();  // [fieldName, colName, simpleType]
         for (ColumnInfo col : columns) {
             String lowerCol = col.name.toLowerCase();
-            if (!pkLower.contains(lowerCol)) {
-                String simpleType = simpleTypeName(toJavaType(col.typeName));
-                nonPkFields.add(new String[]{toCamelCase(lowerCol), lowerCol, simpleType});
+            boolean isPk = pkLower.contains(lowerCol);
+            String fieldName = toCamelCase(lowerCol);
+            String simpleType = simpleTypeName(toJavaType(col.typeName));
+            if (!isPk) {
+                insertFields.add(new String[]{fieldName, lowerCol, simpleType});
+                updateFields.add(new String[]{fieldName, lowerCol, simpleType});
+            } else if (!col.autoIncrement) {
+                // Non-auto-increment PK must be supplied by the caller → include in INSERT only
+                insertFields.add(new String[]{fieldName, lowerCol, simpleType});
             }
+            // Auto-increment PK: skip from both INSERT and UPDATE
         }
 
         try (PrintWriter w = new PrintWriter(
@@ -465,8 +500,10 @@ public final class JdbcEntityGenerator {
             w.println("import org.springframework.data.domain.Page;");
             w.println("import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;");
             w.println("import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;");
-            w.println("import org.springframework.jdbc.support.GeneratedKeyHolder;");
-            w.println("import org.springframework.jdbc.support.KeyHolder;");
+            if (hasAutoIncrementPk) {
+                w.println("import org.springframework.jdbc.support.GeneratedKeyHolder;");
+                w.println("import org.springframework.jdbc.support.KeyHolder;");
+            }
             w.println("import org.springframework.stereotype.Repository;");
             w.println();
             w.println("import java.util.List;");
@@ -486,33 +523,37 @@ public final class JdbcEntityGenerator {
 
             // save(entity) - INSERT
             w.println("    /**");
-            w.println("     * Inserts a new " + entityClassName + " and sets the generated ID.");
+            w.println("     * Inserts a new " + entityClassName + ".");
             w.println("     *");
             w.println("     * @param entity the entity to insert");
             w.println("     */");
             w.println("    public void save(" + entityClassName + " entity) {");
-            if (nonPkFields.isEmpty()) {
-                w.println("        // No non-PK columns to insert.");
+            if (insertFields.isEmpty()) {
+                w.println("        // No columns to insert.");
             } else {
                 StringBuilder cols = new StringBuilder();
                 StringBuilder vals = new StringBuilder();
-                for (int i = 0; i < nonPkFields.size(); i++) {
-                    String[] f = nonPkFields.get(i);
+                for (int i = 0; i < insertFields.size(); i++) {
+                    String[] f = insertFields.get(i);
                     if (i > 0) { cols.append(", "); vals.append(", "); }
                     cols.append(f[1]);
                     vals.append(":").append(f[0]);
                 }
                 w.println("        String sql = \"INSERT INTO " + lowerTable + " (" + cols + ") VALUES (" + vals + ")\";");
                 w.println("        MapSqlParameterSource params = new MapSqlParameterSource();");
-                for (String[] f : nonPkFields) {
-                    w.println("        params.addValue(\"" + f[0] + "\", entity.get" + toPascalCase(f[0]) + "());");
+                for (String[] f : insertFields) {
+                    w.println("        params.addValue(\"" + f[0] + "\", entity.get" + capitalize(f[0]) + "());");
                 }
-                w.println("        KeyHolder keyHolder = new GeneratedKeyHolder();");
-                w.println("        jdbcTemplate.update(sql, params, keyHolder);");
-                w.println("        if (keyHolder.getKey() != null) {");
-                w.println("            entity.set" + toPascalCase(pkFieldName) + "(("
-                        + pkJavaType + ") keyHolder.getKey()." + pkNumberMethod(pkJavaType) + "());");
-                w.println("        }");
+                if (hasAutoIncrementPk) {
+                    w.println("        KeyHolder keyHolder = new GeneratedKeyHolder();");
+                    w.println("        jdbcTemplate.update(sql, params, keyHolder);");
+                    w.println("        if (keyHolder.getKey() != null) {");
+                    w.println("            entity.set" + capitalize(pkFieldName) + "(("
+                            + pkJavaType + ") keyHolder.getKey()." + pkNumberMethod(pkJavaType) + "());");
+                    w.println("        }");
+                } else {
+                    w.println("        jdbcTemplate.update(sql, params);");
+                }
             }
             w.println("    }");
             w.println();
@@ -525,20 +566,20 @@ public final class JdbcEntityGenerator {
             w.println("     * @return the number of rows affected");
             w.println("     */");
             w.println("    public int updateById(" + entityClassName + " entity) {");
-            if (nonPkFields.isEmpty()) {
+            if (updateFields.isEmpty()) {
                 w.println("        return 0; // No non-PK columns to update.");
             } else {
                 StringBuilder sets = new StringBuilder();
-                for (int i = 0; i < nonPkFields.size(); i++) {
-                    String[] f = nonPkFields.get(i);
+                for (int i = 0; i < updateFields.size(); i++) {
+                    String[] f = updateFields.get(i);
                     if (i > 0) sets.append(", ");
                     sets.append(f[1]).append(" = :").append(f[0]);
                 }
                 w.println("        String sql = \"UPDATE " + lowerTable + " SET " + sets
                         + " WHERE " + pkColumnName + " = :" + pkFieldName + "\";");
                 w.println("        MapSqlParameterSource params = new MapSqlParameterSource();");
-                for (String[] f : nonPkFields) {
-                    w.println("        params.addValue(\"" + f[0] + "\", entity.get" + toPascalCase(f[0]) + "());");
+                for (String[] f : updateFields) {
+                    w.println("        params.addValue(\"" + f[0] + "\", entity.get" + capitalize(f[0]) + "());");
                 }
                 w.println("        params.addValue(\"" + pkFieldName + "\", entity." + pkGetterName + "());");
                 w.println("        return jdbcTemplate.update(sql, params);");
@@ -678,6 +719,18 @@ public final class JdbcEntityGenerator {
         String pascal = toPascalCase(name);
         if (pascal.isEmpty()) return pascal;
         return Character.toLowerCase(pascal.charAt(0)) + pascal.substring(1);
+    }
+
+    /**
+     * Capitalises the first character of an already-camelCase string, leaving the rest unchanged.
+     * e.g. {@code "createdAt"} → {@code "CreatedAt"}.
+     * This must be used instead of {@link #toPascalCase} when the input is already camelCase
+     * (toPascalCase lowercases every character that does not follow an underscore, which would
+     * destroy the existing capitalisation).
+     */
+    static String capitalize(String name) {
+        if (name == null || name.isEmpty()) return name;
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 
     static String applyTrimPrefix(String tableName, String[] prefixes) {
