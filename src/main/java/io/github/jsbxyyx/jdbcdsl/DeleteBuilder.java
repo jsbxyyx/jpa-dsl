@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
+import java.util.Collection;
 import java.util.function.Consumer;
 
 /**
@@ -21,7 +22,7 @@ public final class DeleteBuilder<T> {
 
     private final Class<T> entityClass;
     private final String alias;
-    private PredicateNode where;
+    private WhereBuilder<T> whBuilder;
 
     private DeleteBuilder(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
@@ -33,19 +34,159 @@ public final class DeleteBuilder<T> {
         return new DeleteBuilder<>(entityClass, "t");
     }
 
-    /** Adds a WHERE predicate via a nested builder. */
+    // ------------------------------------------------------------------ //
+    //  WHERE – lambda / AST overloads
+    // ------------------------------------------------------------------ //
+
+    /** Adds WHERE predicates via a nested builder (accumulated with AND). */
     public DeleteBuilder<T> where(Consumer<WhereBuilder<T>> consumer) {
-        WhereBuilder<T> wb = new WhereBuilder<>(entityClass, alias);
-        consumer.accept(wb);
-        this.where = wb.buildNode();
+        consumer.accept(wb());
         return this;
     }
 
-    /** Sets the WHERE predicate directly using a pre-built AST node. */
+    /** Adds a pre-built predicate AST node to the WHERE clause. */
     public DeleteBuilder<T> where(PredicateNode node) {
-        this.where = node;
+        wb().predicate(node);
         return this;
     }
+
+    // ------------------------------------------------------------------ //
+    //  WHERE – direct shortcut methods (aligned with JPA DeleteBuilder)
+    // ------------------------------------------------------------------ //
+
+    public DeleteBuilder<T> eq(SFunction<T, ?> prop, Object value) {
+        wb().eq(prop, value);
+        return this;
+    }
+
+    public DeleteBuilder<T> eq(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().eq(prop, value, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> ne(SFunction<T, ?> prop, Object value) {
+        wb().ne(prop, value);
+        return this;
+    }
+
+    public DeleteBuilder<T> ne(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().ne(prop, value, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> isNull(SFunction<T, ?> prop) {
+        wb().isNull(prop);
+        return this;
+    }
+
+    public DeleteBuilder<T> isNull(SFunction<T, ?> prop, boolean condition) {
+        wb().isNull(prop, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> isNotNull(SFunction<T, ?> prop) {
+        wb().isNotNull(prop);
+        return this;
+    }
+
+    public DeleteBuilder<T> isNotNull(SFunction<T, ?> prop, boolean condition) {
+        wb().isNotNull(prop, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> like(SFunction<T, ?> prop, String pattern) {
+        wb().like(prop, pattern);
+        return this;
+    }
+
+    public DeleteBuilder<T> like(SFunction<T, ?> prop, String pattern, boolean condition) {
+        wb().like(prop, pattern, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern) {
+        wb().likeIgnoreCase(prop, pattern);
+        return this;
+    }
+
+    public DeleteBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern, boolean condition) {
+        wb().likeIgnoreCase(prop, pattern, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> gt(SFunction<T, ?> prop, Object value) {
+        wb().gt(prop, value);
+        return this;
+    }
+
+    public DeleteBuilder<T> gt(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().gt(prop, value, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> gte(SFunction<T, ?> prop, Object value) {
+        wb().gte(prop, value);
+        return this;
+    }
+
+    public DeleteBuilder<T> gte(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().gte(prop, value, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> lt(SFunction<T, ?> prop, Object value) {
+        wb().lt(prop, value);
+        return this;
+    }
+
+    public DeleteBuilder<T> lt(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().lt(prop, value, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> lte(SFunction<T, ?> prop, Object value) {
+        wb().lte(prop, value);
+        return this;
+    }
+
+    public DeleteBuilder<T> lte(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().lte(prop, value, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi) {
+        wb().between(prop, lo, hi);
+        return this;
+    }
+
+    public DeleteBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi, boolean condition) {
+        wb().between(prop, lo, hi, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> in(SFunction<T, ?> prop, Collection<?> values) {
+        wb().in(prop, values);
+        return this;
+    }
+
+    public DeleteBuilder<T> in(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+        wb().in(prop, values, condition);
+        return this;
+    }
+
+    public DeleteBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values) {
+        wb().notIn(prop, values);
+        return this;
+    }
+
+    public DeleteBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+        wb().notIn(prop, values, condition);
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Build
+    // ------------------------------------------------------------------ //
 
     /**
      * Builds the {@link DeleteSpec}.
@@ -55,6 +196,7 @@ public final class DeleteBuilder<T> {
      *         is configured globally
      */
     public DeleteSpec<T> build() {
+        PredicateNode where = whereNode();
         if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
             throw new IllegalStateException(
                     "DeleteBuilder requires at least one where(...) condition to prevent accidental full-table deletes. " +
@@ -68,6 +210,21 @@ public final class DeleteBuilder<T> {
      * <strong>Use with caution</strong>: this allows DELETE without a WHERE clause (deletes all rows).
      */
     public DeleteSpec<T> buildUnsafe() {
-        return new DeleteSpec<>(entityClass, where);
+        return new DeleteSpec<>(entityClass, whereNode());
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Private helpers
+    // ------------------------------------------------------------------ //
+
+    private WhereBuilder<T> wb() {
+        if (whBuilder == null) {
+            whBuilder = new WhereBuilder<>(entityClass, alias);
+        }
+        return whBuilder;
+    }
+
+    private PredicateNode whereNode() {
+        return whBuilder != null ? whBuilder.buildNode() : null;
     }
 }

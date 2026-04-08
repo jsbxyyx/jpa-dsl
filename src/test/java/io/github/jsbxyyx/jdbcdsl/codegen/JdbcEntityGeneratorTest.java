@@ -452,6 +452,106 @@ class JdbcEntityGeneratorTest {
     }
 
     // -------------------------------------------------------------------------
+    // Column REMARKS as Javadoc and column order
+    // -------------------------------------------------------------------------
+
+    @Test
+    void entity_columnWithComment_emitsJavadocBeforeField() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_comment_test");
+            stmt.execute(
+                "CREATE TABLE t_comment_test (" +
+                "  id    BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'primary key'," +
+                "  name  VARCHAR(100) COMMENT 'user name'," +
+                "  score INT" +
+                ")"
+            );
+        }
+
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("t_comment_test");
+
+        File entityFile = new File(outputDir, "com/example/entity/TCommentTest.java");
+        assertThat(entityFile).exists();
+
+        String content = readFile(entityFile);
+        // Comments on columns with REMARKS should appear as Javadoc
+        assertThat(content).contains("/**");
+        assertThat(content).contains("* primary key");
+        assertThat(content).contains("* user name");
+    }
+
+    @Test
+    void entity_columnWithoutComment_doesNotEmitEmptyJavadoc() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_comment_test");
+            stmt.execute(
+                "CREATE TABLE t_comment_test (" +
+                "  id    BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'primary key'," +
+                "  name  VARCHAR(100) COMMENT 'user name'," +
+                "  score INT" +
+                ")"
+            );
+        }
+
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("t_comment_test");
+
+        File entityFile = new File(outputDir, "com/example/entity/TCommentTest.java");
+        String content = readFile(entityFile);
+
+        // The score column has no comment — no Javadoc block should appear immediately before it
+        int scorePos = content.indexOf("private Integer score;");
+        assertThat(scorePos).isGreaterThan(-1);
+        String beforeScore = content.substring(Math.max(0, scorePos - 30), scorePos);
+        assertThat(beforeScore).doesNotContain("*/");
+    }
+
+    @Test
+    void entity_fieldOrderMatchesDatabaseColumnOrder() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_order_test");
+            stmt.execute(
+                "CREATE TABLE t_order_test (" +
+                "  id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY," +
+                "  first_col  VARCHAR(50)," +
+                "  second_col VARCHAR(50)," +
+                "  third_col  INT" +
+                ")"
+            );
+        }
+
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("t_order_test");
+
+        File entityFile = new File(outputDir, "com/example/entity/TOrderTest.java");
+        String content = readFile(entityFile);
+
+        // Fields must appear in CREATE TABLE column order: id, firstCol, secondCol, thirdCol
+        int idPos = content.indexOf("private Long id;");
+        int firstPos = content.indexOf("private String firstCol;");
+        int secondPos = content.indexOf("private String secondCol;");
+        int thirdPos = content.indexOf("private Integer thirdCol;");
+
+        assertThat(idPos).isGreaterThan(-1);
+        assertThat(firstPos).isGreaterThan(idPos);
+        assertThat(secondPos).isGreaterThan(firstPos);
+        assertThat(thirdPos).isGreaterThan(secondPos);
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
