@@ -85,18 +85,22 @@ public final class UpdateBuilder<T> {
     /**
      * Builds the {@link UpdateSpec}.
      *
-     * @throws IllegalStateException if no SET assignments were added
+     * @throws IllegalStateException if no WHERE condition was specified (safety guard against
+     *         accidental full-table updates), unless {@code jdbcdsl.allow-empty-where=true}
+     *         is configured globally
      */
     public UpdateSpec<T> build() {
-        if (assignments.isEmpty()) {
-            throw new IllegalStateException("UpdateBuilder requires at least one set(...) assignment.");
+        if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
+            throw new IllegalStateException(
+                    "UpdateBuilder requires at least one where(...) condition to prevent accidental full-table updates. " +
+                    "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");
         }
         return new UpdateSpec<>(entityClass, assignments, where);
     }
 
     /**
-     * Builds the {@link UpdateSpec} without requiring any SET assignments.
-     * <strong>Use with caution</strong>.
+     * Builds the {@link UpdateSpec} without requiring a WHERE condition.
+     * <strong>Use with caution</strong>: this allows UPDATE without a WHERE clause (updates all rows).
      */
     public UpdateSpec<T> buildUnsafe() {
         return new UpdateSpec<>(entityClass, assignments, where);

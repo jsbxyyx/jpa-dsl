@@ -229,20 +229,31 @@ class SqlRendererTest {
     }
 
     @Test
-    void updateBuilder_noAssignments_throwsIllegalState() {
+    void updateBuilder_noAssignments_build_withWhere_doesNotThrow() {
+        // set-empty check has been removed; the database will report an error for empty SET
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        assertThat(spec).isNotNull();
+    }
+
+    @Test
+    void updateBuilder_noWhere_throwsIllegalState() {
+        // build() without WHERE throws by default to prevent accidental full-table updates
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
                 UpdateBuilder.from(TUser.class)
-                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .set(TUser::getStatus, "INACTIVE")
                         .build()
         );
     }
 
     @Test
-    void updateBuilder_buildUnsafe_allowsNoAssignments() {
-        // buildUnsafe is not defined on UpdateBuilder — build() guards this. Verify build() guards it.
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                UpdateBuilder.from(TUser.class).build()
-        );
+    void updateBuilder_buildUnsafe_allowsNoWhere() {
+        // buildUnsafe() bypasses the WHERE guard; verify it does not throw
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .buildUnsafe();
+        assertThat(spec).isNotNull();
     }
 
     // ------------------------------------------------------------------ //
