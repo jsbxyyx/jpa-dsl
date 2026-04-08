@@ -258,7 +258,8 @@ public final class JdbcEntityGenerator {
         String isAutoincrement = rs.getString("IS_AUTOINCREMENT");
         boolean autoIncrement = "YES".equalsIgnoreCase(isAutoincrement);
         int ordinalPosition = rs.getInt("ORDINAL_POSITION");
-        return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition);
+        String comment = rs.getString("REMARKS");
+        return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition, comment);
     }
 
     private static Set<String> readPrimaryKeys(DatabaseMetaData meta, String tableName) throws SQLException {
@@ -384,6 +385,12 @@ public final class JdbcEntityGenerator {
                 String fieldName = toCamelCase(lowerCol);
                 boolean isPk = pkLower.contains(lowerCol);
 
+                if (col.comment != null && !col.comment.isBlank()) {
+                    String sanitizedComment = col.comment.replace("*/", "* /");
+                    w.println("    /**");
+                    w.println("     * " + sanitizedComment);
+                    w.println("     */");
+                }
                 if (isPk) {
                     w.println("    @Id");
                     if (col.autoIncrement) {
@@ -781,13 +788,16 @@ public final class JdbcEntityGenerator {
         final boolean nullable;
         final boolean autoIncrement;
         final int ordinalPosition;
+        final String comment;
 
-        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition) {
+        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition,
+                   String comment) {
             this.name = name;
             this.typeName = typeName;
             this.nullable = nullable;
             this.autoIncrement = autoIncrement;
             this.ordinalPosition = ordinalPosition;
+            this.comment = comment;
         }
     }
 }
