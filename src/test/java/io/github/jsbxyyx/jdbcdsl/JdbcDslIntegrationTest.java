@@ -662,4 +662,196 @@ class JdbcDslIntegrationTest {
         DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class).buildUnsafe();
         assertThat(spec).isNotNull();
     }
+
+    // ------------------------------------------------------------------ //
+    //  WhereBuilder condition overloads (comprehensive)
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void whereCondition_allFalse_selectReturnsAllRows() {
+        // When all conditions are false the WHERE clause is empty → all rows returned
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w
+                        .eq(TUser::getStatus, "ACTIVE", false)
+                        .like(TUser::getUsername, "ali", false)
+                        .gt(TUser::getAge, 50, false))
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(3); // no WHERE → all rows
+    }
+
+    @Test
+    void whereCondition_trueWithNullValue_addsPredicate() {
+        // condition=true and value=null → predicate IS added (even though value is null)
+        // This should produce "username = :p1" with p1=null
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, null, true))
+                .mapTo(UserDto.class);
+
+        // No user has username=null → 0 results, but the query must execute without error
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void whereCondition_likeIgnoreCase_matchesCaseInsensitively() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.likeIgnoreCase(TUser::getUsername, "ALI"))
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(1)
+                .extracting(UserDto::getUsername)
+                .containsExactly("alice");
+    }
+
+    @Test
+    void whereCondition_likeIgnoreCaseFalse_skips() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w
+                        .likeIgnoreCase(TUser::getUsername, "ALI", false)  // skipped
+                        .eq(TUser::getStatus, "INACTIVE", true))           // applied
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(1)
+                .extracting(UserDto::getUsername)
+                .containsExactly("bob");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  JdbcDslExecutor: save / saveNonNull / updateById / deleteById
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void save_insertsAllColumns() {
+        TUser newUser = new TUser("dave", "dave@example.com", 28, "ACTIVE");
+        executor.save(newUser);
+        // Generated IDENTITY pk must be set back
+        assertThat(newUser.getId()).isNotNull();
+
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "dave"))
+                .mapToEntity();
+        List<TUser> result = executor.select(spec);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmail()).isEqualTo("dave@example.com");
+        assertThat(result.get(0).getAge()).isEqualTo(28);
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void save_withInsertSpec_insertsSpecifiedColumns() {
+        // Only insert username and status; email and age are omitted from the spec
+        InsertSpec<TUser> spec = InsertBuilder.into(TUser.class)
+                .columns("username", "status")
+                .build();
+        TUser newUser = new TUser("eve", "eve@example.com", 33, "ACTIVE");
+        executor.save(spec, newUser);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "eve"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("eve");
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
+        // email and age were not in spec → should be null / default
+        assertThat(result.get(0).getEmail()).isNull();
+        assertThat(result.get(0).getAge()).isNull();
+    }
+
+    @Test
+    void save_withInsertSpec_typeSafeColumns_insertsSpecifiedColumns() {
+        // Same as save_withInsertSpec_insertsSpecifiedColumns but uses type-safe method references
+        InsertSpec<TUser> spec = InsertBuilder.into(TUser.class)
+                .columns(TUser::getUsername, TUser::getStatus)
+                .build();
+        TUser newUser = new TUser("eve2", "eve2@example.com", 34, "ACTIVE");
+        executor.save(spec, newUser);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "eve2"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("eve2");
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
+        // email and age were not in spec → should be null / default
+        assertThat(result.get(0).getEmail()).isNull();
+        assertThat(result.get(0).getAge()).isNull();
+    }
+
+    @Test
+    void save_withEmptyInsertSpec_insertsAllColumns() {
+        InsertSpec<TUser> spec = InsertSpec.of(TUser.class); // no explicit columns
+        TUser newUser = new TUser("frank", "frank@example.com", 45, "ACTIVE");
+        executor.save(spec, newUser);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "frank"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmail()).isEqualTo("frank@example.com");
+        assertThat(result.get(0).getAge()).isEqualTo(45);
+    }
+
+    @Test
+    void saveNonNull_insertsOnlyNonNullColumns() {
+        // email is null → should not be inserted (column will have DB default / null)
+        TUser newUser = new TUser("grace", null, 22, "ACTIVE");
+        executor.saveNonNull(newUser);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "grace"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("grace");
+        assertThat(result.get(0).getAge()).isEqualTo(22);
+        assertThat(result.get(0).getEmail()).isNull(); // omitted from insert
+    }
+
+    @Test
+    void updateById_updatesAllNonPkColumns() {
+        // Fetch alice's id first
+        TUser alice = executor.select(
+                SelectBuilder.from(TUser.class)
+                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .mapToEntity()).get(0);
+
+        alice.setEmail("alice_new@example.com");
+        alice.setAge(99);
+        int affected = executor.updateById(alice);
+        assertThat(affected).isEqualTo(1);
+
+        TUser updated = executor.select(
+                SelectBuilder.from(TUser.class)
+                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .mapToEntity()).get(0);
+        assertThat(updated.getEmail()).isEqualTo("alice_new@example.com");
+        assertThat(updated.getAge()).isEqualTo(99);
+    }
+
+    @Test
+    void deleteById_deletesMatchingRow() {
+        TUser bob = executor.select(
+                SelectBuilder.from(TUser.class)
+                        .where(w -> w.eq(TUser::getUsername, "bob"))
+                        .mapToEntity()).get(0);
+
+        int affected = executor.deleteById(TUser.class, bob.getId());
+        assertThat(affected).isEqualTo(1);
+
+        List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
+        assertThat(remaining).hasSize(2)
+                .extracting(TUser::getUsername)
+                .doesNotContain("bob");
+    }
 }

@@ -93,6 +93,35 @@ class JdbcDslAutoConfigurationTest {
     }
 
     // ------------------------------------------------------------------ //
+    //  JdbcDslExecutor single-arg constructor dialect detection
+    // ------------------------------------------------------------------ //
+
+    /**
+     * {@code new JdbcDslExecutor(jdbc)} must auto-detect the dialect from the DataSource instead
+     * of hard-coding {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect}. When the
+     * DataSource is H2, the constructor should pick {@link H2Dialect}.
+     */
+    @Test
+    void singleArgConstructor_withH2DataSource_usesH2Dialect() {
+        contextRunner.run(context -> {
+            org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc =
+                    context.getBean(org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate.class);
+
+            // Build executor using the single-arg constructor — dialect should be auto-detected
+            JdbcDslExecutor executorUnderTest = new JdbcDslExecutor(jdbc);
+
+            // Verify via the publicly observable behaviour: H2Dialect uses LIMIT/OFFSET syntax,
+            // Sql2008Dialect uses "OFFSET … ROWS FETCH NEXT … ROWS ONLY".
+            // We inspect the Dialect directly through reflection to keep the test simple.
+            java.lang.reflect.Field dialectField =
+                    JdbcDslExecutor.class.getDeclaredField("dialect");
+            dialectField.setAccessible(true);
+            Dialect detected = (Dialect) dialectField.get(executorUnderTest);
+            assertThat(detected).isInstanceOf(H2Dialect.class);
+        });
+    }
+
+    // ------------------------------------------------------------------ //
     //  Helper configurations
     // ------------------------------------------------------------------ //
 

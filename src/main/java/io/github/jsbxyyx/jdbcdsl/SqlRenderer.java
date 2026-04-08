@@ -13,6 +13,7 @@ import io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>SELECT clause alias strategy:
  * <ul>
  *   <li>When no {@code select(...)} expressions are specified, all entity columns are expanded
- *       as {@code alias.column AS propertyName} (sorted by property name for stable ordering).</li>
+ *       as {@code alias.column AS propertyName} in entity declaration order (which mirrors
+ *       database column ordinal order for generated entities).</li>
  *   <li>{@link ColumnExpression}: rendered as {@code alias.column AS propertyName}.</li>
  *   <li>{@link AliasedExpression}: rendered as {@code <inner> AS <alias>} using the explicit alias.</li>
  *   <li>Function / aggregate / literal expressions: rendered without alias (follow JDBC column label).</li>
@@ -54,12 +56,11 @@ public final class SqlRenderer {
         sb.append("SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
         if (exprs.isEmpty()) {
-            // No explicit select(): expand all entity columns sorted by property name.
-            // This produces stable, property-name-aliased columns for setter-based mapping.
+            // No explicit select(): expand all entity columns in entity declaration order,
+            // which mirrors database column ordinal order for generated entities.
             EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
             StringJoiner cols = new StringJoiner(", ");
-            meta.getPropertyToColumn().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
+            meta.getPropertyToColumn().entrySet()
                     .forEach(e -> cols.add(alias + "." + e.getValue() + " AS " + e.getKey()));
             sb.append(cols);
         } else {
@@ -325,6 +326,10 @@ public final class SqlRenderer {
                 String p = nextParam(paramIdx, params, leaf.getValue());
                 yield lhs + " LIKE :" + p;
             }
+            case LIKE_IC -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield "LOWER(" + lhs + ") LIKE LOWER(:" + p + ")";
+            }
             case IN -> {
                 String p = nextParam(paramIdx, params, leaf.getValue());
                 yield lhs + " IN (:" + p + ")";
@@ -389,6 +394,44 @@ public final class SqlRenderer {
 
     private static <T, R> String renderOnEqAsWhere(OnEqPredicate onEq, SelectSpec<T, R> spec) {
         return renderOnEq(onEq, spec);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  INSERT rendering
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Renders a parameterized INSERT statement from an {@link InsertSpec} and a
+     * column-name-to-value map.
+     *
+     * <p>Parameter names equal the column names (e.g. column {@code created_at} →
+     * parameter {@code :created_at}).
+     *
+     * <p>Example output:
+     * {@code INSERT INTO t_user (username, email) VALUES (:username, :email)}
+     *
+     * @param spec      the insert specification (entity class and optional explicit column list)
+     * @param meta      entity metadata (table name, column mappings)
+     * @param colValues ordered map of {@code columnName → value} to insert
+     */
+    public static <T> RenderedSql renderInsert(InsertSpec<T> spec, EntityMeta meta,
+                                               java.util.LinkedHashMap<String, Object> colValues) {
+        List<String> cols = spec.getColumnNames().isEmpty()
+                ? new ArrayList<>(colValues.keySet())
+                : spec.getColumnNames();
+
+        StringJoiner colJoiner = new StringJoiner(", ");
+        StringJoiner valJoiner = new StringJoiner(", ");
+        Map<String, Object> params = new LinkedHashMap<>();
+        for (String col : cols) {
+            colJoiner.add(col);
+            valJoiner.add(":" + col);
+            params.put(col, colValues.get(col));
+        }
+
+        String sql = "INSERT INTO " + meta.getTableName()
+                + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
+        return new RenderedSql(sql, params);
     }
 
     // ------------------------------------------------------------------ //
@@ -518,6 +561,10 @@ public final class SqlRenderer {
             case LIKE -> {
                 String p = nextParam(paramIdx, params, leaf.getValue());
                 yield lhs + " LIKE :" + p;
+            }
+            case LIKE_IC -> {
+                String p = nextParam(paramIdx, params, leaf.getValue());
+                yield "LOWER(" + lhs + ") LIKE LOWER(:" + p + ")";
             }
             case IN -> {
                 String p = nextParam(paramIdx, params, leaf.getValue());

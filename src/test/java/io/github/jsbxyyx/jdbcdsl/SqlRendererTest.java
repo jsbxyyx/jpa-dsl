@@ -133,6 +133,33 @@ class SqlRendererTest {
     }
 
     @Test
+    void renderSelect_noExplicitSelect_columnsInEntityDeclarationOrder() {
+        // TUser declares fields in order: id, username, email, age, status.
+        // The expanded SELECT must reflect that order, NOT alphabetical order.
+        // Alphabetical order would be: age, email, id, status, username.
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .mapToEntity();
+
+        String sql = SqlRenderer.renderSelect(spec).getSql();
+        // Extract the SELECT clause (everything between "SELECT " and " FROM")
+        int selectStart = sql.indexOf("SELECT ") + "SELECT ".length();
+        int fromStart = sql.indexOf(" FROM ");
+        String selectClause = sql.substring(selectStart, fromStart);
+
+        // Verify that the columns appear in entity declaration order, not alphabetical
+        int posId       = selectClause.indexOf("t.id AS id");
+        int posUsername = selectClause.indexOf("t.username AS username");
+        int posEmail    = selectClause.indexOf("t.email AS email");
+        int posAge      = selectClause.indexOf("t.age AS age");
+        int posStatus   = selectClause.indexOf("t.status AS status");
+
+        assertThat(posId).isLessThan(posUsername);
+        assertThat(posUsername).isLessThan(posEmail);
+        assertThat(posEmail).isLessThan(posAge);
+        assertThat(posAge).isLessThan(posStatus);
+    }
+
+    @Test
     void renderSelect_aliasedExpression_usesExplicitAlias() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(SqlFunctions.upper(TUser::getEmail).as("emailUpper"))

@@ -185,6 +185,7 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("package com.example.repository;");
         assertThat(content).contains("import com.example.entity.StockAll;");
         assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.DeleteSpec;");
+        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.InsertSpec;");
         assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;");
         assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JPageable;");
         assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.SelectSpec;");
@@ -194,6 +195,8 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("public class StockAllRepository {");
         // Methods
         assertThat(content).contains("public void save(StockAll entity)");
+        assertThat(content).contains("public void save(InsertSpec<StockAll> spec, StockAll entity)");
+        assertThat(content).contains("public void saveNonNull(StockAll entity)");
         assertThat(content).contains("public int updateById(StockAll entity)");
         assertThat(content).contains("public int update(UpdateSpec<StockAll> spec)");
         assertThat(content).contains("public int deleteById(Long id)");
@@ -203,7 +206,12 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec)");
         assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
         assertThat(content).contains("public <R> Page<R> page(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
-        // Delegates
+        // Delegates to executor (no hard-coded SQL)
+        assertThat(content).contains("jdbcDslExecutor.save(entity)");
+        assertThat(content).contains("jdbcDslExecutor.save(spec, entity)");
+        assertThat(content).contains("jdbcDslExecutor.saveNonNull(entity)");
+        assertThat(content).contains("jdbcDslExecutor.updateById(entity)");
+        assertThat(content).contains("jdbcDslExecutor.deleteById(StockAll.class, id)");
         assertThat(content).contains("jdbcDslExecutor.executeUpdate(spec)");
         assertThat(content).contains("jdbcDslExecutor.executeDelete(spec)");
         assertThat(content).contains("jdbcDslExecutor.select(spec)");
@@ -211,6 +219,10 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("jdbcDslExecutor.findOne(spec)");
         assertThat(content).contains("jdbcDslExecutor.findOne(spec, pageable)");
         assertThat(content).contains("jdbcDslExecutor.selectPage(spec, pageable)");
+        // No hard-coded table/column names in SQL strings
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("UPDATE stock_all");
+        assertThat(content).doesNotContain("DELETE FROM");
     }
 
     @Test
@@ -291,12 +303,10 @@ class JdbcEntityGeneratorTest {
     // -------------------------------------------------------------------------
 
     /**
-     * Bug 1: getter names must be derived from the Java field name (camelCase), not the SQL column
-     * name. For a column "stock_code" the Java field is "stockCode" and the getter must be
-     * "getStockCode()", not "getStockcode()".
-     *
-     * Bug 2: addValue key must match the SQL named parameter (i.e., the Java field name in
-     * camelCase: ":stockCode"), not the raw column name.
+     * The generated repository must delegate save/updateById/deleteById to
+     * {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor}. No SQL strings, getter calls, or
+     * addValue calls should appear in the generated source — those details are handled by the
+     * executor using entity metadata at runtime.
      */
     @Test
     void repository_getterNamesUseCamelCaseFieldName() throws Exception {
@@ -312,21 +322,25 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
 
-        // Correct getters (camelCase field name, first letter capitalised)
-        assertThat(content).contains("entity.getStockCode()");
-        assertThat(content).contains("entity.getStockName()");
-        // Correct addValue keys (camelCase field name, matching :stockCode / :stockName in SQL)
-        assertThat(content).contains("addValue(\"stockCode\"");
-        assertThat(content).contains("addValue(\"stockName\"");
-        // The broken forms must not appear
-        assertThat(content).doesNotContain("getStockcode()");
-        assertThat(content).doesNotContain("getStockname()");
+        // Repository delegates to executor — no hard-coded getter calls or addValue calls
+        assertThat(content).contains("jdbcDslExecutor.save(entity)");
+        assertThat(content).contains("jdbcDslExecutor.updateById(entity)");
+        assertThat(content).contains("jdbcDslExecutor.deleteById(StockAll.class, id)");
+        // No hardcoded SQL or column strings
+        assertThat(content).doesNotContain("getStockCode()");
+        assertThat(content).doesNotContain("getStockName()");
+        assertThat(content).doesNotContain("addValue(\"stockCode\"");
+        assertThat(content).doesNotContain("addValue(\"stockName\"");
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("UPDATE stock_all");
+        assertThat(content).doesNotContain("DELETE FROM");
     }
 
     /**
-     * Bug 3: a table whose primary key is NOT auto-increment (business key) must have the PK
-     * column included in the INSERT SQL and in the corresponding addValue call.
-     * Only an auto-increment (IDENTITY) PK should be omitted from INSERT.
+     * The generated repository delegates to {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor},
+     * which uses entity annotations at runtime to decide whether to include the PK in INSERT.
+     * For a non-auto-increment PK the executor will include it; the generated source only needs
+     * to contain the correct executor delegation calls.
      */
     @Test
     void repository_nonAutoIncrementPk_isIncludedInInsert() throws Exception {
@@ -354,24 +368,22 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/TUserRepository.java");
         String content = readFile(repoFile);
 
-        // The INSERT SQL must contain the id column
-        assertThat(content).contains("INSERT INTO t_user (id,");
-        // The addValue for id must be present
-        assertThat(content).contains("addValue(\"id\"");
-        assertThat(content).contains("entity.getId()");
-        // The getter for created_at must be the camelCase form
-        assertThat(content).contains("entity.getCreatedAt()");
-        assertThat(content).doesNotContain("entity.getCreatedat()");
-        // addValue key for created_at must be camelCase
-        assertThat(content).contains("addValue(\"createdAt\"");
-        // No KeyHolder — PK is not auto-increment
+        // Repository delegates to executor — no hard-coded SQL
+        assertThat(content).contains("jdbcDslExecutor.save(entity)");
+        assertThat(content).contains("jdbcDslExecutor.updateById(entity)");
+        assertThat(content).contains("jdbcDslExecutor.deleteById(TUser.class, id)");
+        // No hard-coded SQL strings
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("UPDATE t_user");
+        assertThat(content).doesNotContain("DELETE FROM");
+        // No KeyHolder — executor handles identity pk only
         assertThat(content).doesNotContain("GeneratedKeyHolder");
-        assertThat(content).contains("jdbcTemplate.update(sql, params);");
     }
 
     /**
-     * Auto-increment PK continues to be excluded from INSERT and uses KeyHolder (existing
-     * behaviour, kept as a regression guard for Bug 3).
+     * The generated repository delegates to {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor},
+     * which uses entity annotations at runtime. For an IDENTITY pk the executor handles the
+     * KeyHolder internally; the generated source must not contain any KeyHolder or hardcoded SQL.
      */
     @Test
     void repository_autoIncrementPk_isExcludedFromInsertAndUsesKeyHolder() throws Exception {
@@ -387,11 +399,12 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
 
-        // id must NOT appear in the INSERT column list
-        assertThat(content).doesNotContain("INSERT INTO stock_all (id,");
-        // KeyHolder must be used to capture the generated key
-        assertThat(content).contains("GeneratedKeyHolder");
-        assertThat(content).contains("jdbcTemplate.update(sql, params, keyHolder)");
+        // Repository delegates to executor — executor handles IDENTITY pk and KeyHolder
+        assertThat(content).contains("jdbcDslExecutor.save(entity)");
+        // No hardcoded INSERT, no KeyHolder in generated source
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("GeneratedKeyHolder");
+        assertThat(content).doesNotContain("jdbcTemplate.update(sql, params, keyHolder)");
     }
 
     /**
