@@ -620,6 +620,7 @@ io.github.jsbxyyx.jdbcdsl/
 |------|--------|------|
 | `jpadsl.enabled` | `true` | 控制 jpa-dsl 相关 Bean 的注册（三个 FragmentsContributor） |
 | `jdbcdsl.enabled` | `true` | 控制 jdbc-dsl 相关 Bean 的注册（Dialect + JdbcDslExecutor） |
+| `jdbcdsl.allow-empty-where` | `false` | 是否允许 UPDATE/DELETE 不带 WHERE 条件（默认 `false` 即开启保护，抛异常）；设为 `true` 关闭全局保护 |
 
 ```properties
 # 同时启用（默认，无需显式配置）

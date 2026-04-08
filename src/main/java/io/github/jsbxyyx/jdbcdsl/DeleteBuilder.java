@@ -50,12 +50,15 @@ public final class DeleteBuilder<T> {
     /**
      * Builds the {@link DeleteSpec}.
      *
-     * @throws IllegalStateException if no WHERE condition was specified (safety guard)
+     * @throws IllegalStateException if no WHERE condition was specified (safety guard against
+     *         accidental full-table deletes), unless {@code jdbcdsl.allow-empty-where=true}
+     *         is configured globally
      */
     public DeleteSpec<T> build() {
-        if (where == null) {
+        if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
             throw new IllegalStateException(
-                    "DeleteBuilder requires at least one where(...) condition to prevent accidental full-table deletes.");
+                    "DeleteBuilder requires at least one where(...) condition to prevent accidental full-table deletes. " +
+                    "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");
         }
         return new DeleteSpec<>(entityClass, where);
     }

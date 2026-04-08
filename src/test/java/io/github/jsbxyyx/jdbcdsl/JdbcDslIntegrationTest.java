@@ -548,12 +548,12 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
-    void updateBuilder_noAssignments_throwsIllegalState() {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                UpdateBuilder.from(TUser.class)
-                        .where(w -> w.eq(TUser::getUsername, "alice"))
-                        .build()
-        );
+    void updateBuilder_noAssignments_withWhere_doesNotThrow() {
+        // set-empty check has been removed; the database will report an error for empty SET
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        assertThat(spec).isNotNull();
     }
 
     @Test
@@ -582,8 +582,7 @@ class JdbcDslIntegrationTest {
                 .mapToEntity();
         String originalStatus = executor.select(before).get(0).getStatus();
 
-        // condition=false: the set should be a no-op, but we still need at least
-        // one unconditional set so build() doesn't throw
+        // condition=false: the set should be a no-op
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
                 .set(TUser::getAge, 77)
                 .set(TUser::getStatus, "SKIPPED", false)
@@ -603,13 +602,32 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
-    void updateBuilder_allConditionsFalse_throwsIllegalState() {
+    void updateBuilder_allConditionsFalse_withWhere_doesNotThrow() {
+        // set-empty check has been removed; empty assignments are passed through to the database
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "SKIPPED", false)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        assertThat(spec).isNotNull();
+    }
+
+    @Test
+    void updateBuilder_noWhere_throwsIllegalStateByDefault() {
+        // build() without WHERE throws by default to prevent accidental full-table updates
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
                 UpdateBuilder.from(TUser.class)
-                        .set(TUser::getStatus, "SKIPPED", false)
-                        .where(w -> w.eq(TUser::getUsername, "alice"))
+                        .set(TUser::getStatus, "INACTIVE")
                         .build()
         );
+    }
+
+    @Test
+    void updateBuilder_noWhere_buildUnsafe_doesNotThrow() {
+        // buildUnsafe() bypasses the WHERE guard; verify it does not throw
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .buildUnsafe();
+        assertThat(spec).isNotNull();
     }
 
     // ------------------------------------------------------------------ //

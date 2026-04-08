@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -37,7 +38,19 @@ import javax.sql.DataSource;
 @AutoConfiguration(after = {DataSourceAutoConfiguration.class, JdbcTemplateAutoConfiguration.class})
 @ConditionalOnClass({NamedParameterJdbcTemplate.class, JdbcDslExecutor.class})
 @ConditionalOnProperty(prefix = "jdbcdsl", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(JdbcDslProperties.class)
 public class JdbcDslAutoConfiguration {
+
+    /**
+     * Applies {@link JdbcDslProperties} values to the static {@link JdbcDslConfig} holder so
+     * that {@link UpdateBuilder} and {@link DeleteBuilder} can read them without requiring
+     * Spring injection.
+     */
+    @Bean
+    public JdbcDslProperties jdbcDslProperties(JdbcDslProperties properties) {
+        JdbcDslConfig.setAllowEmptyWhere(properties.isAllowEmptyWhere());
+        return properties;
+    }
 
     /**
      * Creates a {@link Dialect} bean by auto-detecting the database product from the DataSource's
