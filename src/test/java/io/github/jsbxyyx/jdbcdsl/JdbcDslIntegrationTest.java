@@ -767,6 +767,27 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
+    void save_withInsertSpec_typeSafeColumns_insertsSpecifiedColumns() {
+        // Same as save_withInsertSpec_insertsSpecifiedColumns but uses type-safe method references
+        InsertSpec<TUser> spec = InsertBuilder.into(TUser.class)
+                .columns(TUser::getUsername, TUser::getStatus)
+                .build();
+        TUser newUser = new TUser("eve2", "eve2@example.com", 34, "ACTIVE");
+        executor.save(spec, newUser);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "eve2"))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("eve2");
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
+        // email and age were not in spec → should be null / default
+        assertThat(result.get(0).getEmail()).isNull();
+        assertThat(result.get(0).getAge()).isNull();
+    }
+
+    @Test
     void save_withEmptyInsertSpec_insertsAllColumns() {
         InsertSpec<TUser> spec = InsertSpec.of(TUser.class); // no explicit columns
         TUser newUser = new TUser("frank", "frank@example.com", 45, "ACTIVE");
