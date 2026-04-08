@@ -4,6 +4,7 @@ import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -28,7 +29,7 @@ public final class UpdateBuilder<T> {
     private final Class<T> entityClass;
     private final String alias;
     private final List<Map.Entry<String, Object>> assignments = new ArrayList<>();
-    private PredicateNode where;
+    private WhereBuilder<T> whBuilder;
 
     private UpdateBuilder(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
@@ -68,19 +69,159 @@ public final class UpdateBuilder<T> {
         return this;
     }
 
-    /** Adds a WHERE predicate via a nested builder. */
+    // ------------------------------------------------------------------ //
+    //  WHERE – lambda / AST overloads
+    // ------------------------------------------------------------------ //
+
+    /** Adds WHERE predicates via a nested builder (accumulated with AND). */
     public UpdateBuilder<T> where(Consumer<WhereBuilder<T>> consumer) {
-        WhereBuilder<T> wb = new WhereBuilder<>(entityClass, alias);
-        consumer.accept(wb);
-        this.where = wb.buildNode();
+        consumer.accept(wb());
         return this;
     }
 
-    /** Sets the WHERE predicate directly using a pre-built AST node. */
+    /** Adds a pre-built predicate AST node to the WHERE clause. */
     public UpdateBuilder<T> where(PredicateNode node) {
-        this.where = node;
+        wb().predicate(node);
         return this;
     }
+
+    // ------------------------------------------------------------------ //
+    //  WHERE – direct shortcut methods (aligned with JPA UpdateBuilder)
+    // ------------------------------------------------------------------ //
+
+    public UpdateBuilder<T> eq(SFunction<T, ?> prop, Object value) {
+        wb().eq(prop, value);
+        return this;
+    }
+
+    public UpdateBuilder<T> eq(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().eq(prop, value, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> ne(SFunction<T, ?> prop, Object value) {
+        wb().ne(prop, value);
+        return this;
+    }
+
+    public UpdateBuilder<T> ne(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().ne(prop, value, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> isNull(SFunction<T, ?> prop) {
+        wb().isNull(prop);
+        return this;
+    }
+
+    public UpdateBuilder<T> isNull(SFunction<T, ?> prop, boolean condition) {
+        wb().isNull(prop, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> isNotNull(SFunction<T, ?> prop) {
+        wb().isNotNull(prop);
+        return this;
+    }
+
+    public UpdateBuilder<T> isNotNull(SFunction<T, ?> prop, boolean condition) {
+        wb().isNotNull(prop, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> like(SFunction<T, ?> prop, String pattern) {
+        wb().like(prop, pattern);
+        return this;
+    }
+
+    public UpdateBuilder<T> like(SFunction<T, ?> prop, String pattern, boolean condition) {
+        wb().like(prop, pattern, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern) {
+        wb().likeIgnoreCase(prop, pattern);
+        return this;
+    }
+
+    public UpdateBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern, boolean condition) {
+        wb().likeIgnoreCase(prop, pattern, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> gt(SFunction<T, ?> prop, Object value) {
+        wb().gt(prop, value);
+        return this;
+    }
+
+    public UpdateBuilder<T> gt(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().gt(prop, value, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> gte(SFunction<T, ?> prop, Object value) {
+        wb().gte(prop, value);
+        return this;
+    }
+
+    public UpdateBuilder<T> gte(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().gte(prop, value, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> lt(SFunction<T, ?> prop, Object value) {
+        wb().lt(prop, value);
+        return this;
+    }
+
+    public UpdateBuilder<T> lt(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().lt(prop, value, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> lte(SFunction<T, ?> prop, Object value) {
+        wb().lte(prop, value);
+        return this;
+    }
+
+    public UpdateBuilder<T> lte(SFunction<T, ?> prop, Object value, boolean condition) {
+        wb().lte(prop, value, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi) {
+        wb().between(prop, lo, hi);
+        return this;
+    }
+
+    public UpdateBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi, boolean condition) {
+        wb().between(prop, lo, hi, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> in(SFunction<T, ?> prop, Collection<?> values) {
+        wb().in(prop, values);
+        return this;
+    }
+
+    public UpdateBuilder<T> in(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+        wb().in(prop, values, condition);
+        return this;
+    }
+
+    public UpdateBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values) {
+        wb().notIn(prop, values);
+        return this;
+    }
+
+    public UpdateBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+        wb().notIn(prop, values, condition);
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Build
+    // ------------------------------------------------------------------ //
 
     /**
      * Builds the {@link UpdateSpec}.
@@ -90,6 +231,7 @@ public final class UpdateBuilder<T> {
      *         is configured globally
      */
     public UpdateSpec<T> build() {
+        PredicateNode where = whereNode();
         if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
             throw new IllegalStateException(
                     "UpdateBuilder requires at least one where(...) condition to prevent accidental full-table updates. " +
@@ -103,6 +245,21 @@ public final class UpdateBuilder<T> {
      * <strong>Use with caution</strong>: this allows UPDATE without a WHERE clause (updates all rows).
      */
     public UpdateSpec<T> buildUnsafe() {
-        return new UpdateSpec<>(entityClass, assignments, where);
+        return new UpdateSpec<>(entityClass, assignments, whereNode());
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Private helpers
+    // ------------------------------------------------------------------ //
+
+    private WhereBuilder<T> wb() {
+        if (whBuilder == null) {
+            whBuilder = new WhereBuilder<>(entityClass, alias);
+        }
+        return whBuilder;
+    }
+
+    private PredicateNode whereNode() {
+        return whBuilder != null ? whBuilder.buildNode() : null;
     }
 }

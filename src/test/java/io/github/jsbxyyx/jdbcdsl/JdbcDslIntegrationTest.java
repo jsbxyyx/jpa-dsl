@@ -872,4 +872,177 @@ class JdbcDslIntegrationTest {
                 .extracting(TUser::getUsername)
                 .doesNotContain("bob");
     }
+
+    // ------------------------------------------------------------------ //
+    //  UpdateBuilder – direct WHERE shortcut methods
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void updateBuilder_directEq_updatesMatchingRow() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "DISABLED")
+                .eq(TUser::getUsername, "bob")
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        TUser bob = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob")).mapToEntity());
+        assertThat(bob.getStatus()).isEqualTo("DISABLED");
+    }
+
+    @Test
+    void updateBuilder_directGt_updatesOnlyOlderRows() {
+        // Only charlie (age=40) satisfies age > 35
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "SENIOR")
+                .gt(TUser::getAge, 35)
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "charlie")).mapToEntity());
+        assertThat(charlie.getStatus()).isEqualTo("SENIOR");
+    }
+
+    @Test
+    void updateBuilder_directMultipleConditions_accumulated() {
+        // eq + gt combined with AND: status=ACTIVE AND age > 35 → only charlie
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "VETERAN")
+                .eq(TUser::getStatus, "ACTIVE")
+                .gt(TUser::getAge, 35)
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "charlie")).mapToEntity());
+        assertThat(charlie.getStatus()).isEqualTo("VETERAN");
+
+        // alice (ACTIVE, age=25) should be unchanged
+        TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice")).mapToEntity());
+        assertThat(alice.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void updateBuilder_directEqConditionFalse_skips() {
+        // condition=false on the first predicate; condition=true on the second
+        // Only eq(username, "alice", true) should be in the WHERE clause
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getAge, 55)
+                .eq(TUser::getStatus, "INACTIVE", false)   // skipped
+                .eq(TUser::getUsername, "alice", true)      // applied
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice")).mapToEntity());
+        assertThat(alice.getAge()).isEqualTo(55);
+
+        // bob's age must not be changed
+        TUser bob = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob")).mapToEntity());
+        assertThat(bob.getAge()).isNotEqualTo(55);
+    }
+
+    @Test
+    void updateBuilder_directAndLambdaWhereAccumulated() {
+        // Direct method + lambda where are accumulated with AND
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getAge, 77)
+                .eq(TUser::getStatus, "ACTIVE")
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+
+        int affected = executor.executeUpdate(spec);
+        assertThat(affected).isEqualTo(1);
+
+        TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice")).mapToEntity());
+        assertThat(alice.getAge()).isEqualTo(77);
+
+        // charlie is also ACTIVE but username != alice → must not be updated
+        TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "charlie")).mapToEntity());
+        assertThat(charlie.getAge()).isNotEqualTo(77);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  DeleteBuilder – direct WHERE shortcut methods
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void deleteBuilder_directEq_deletesMatchingRow() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .eq(TUser::getUsername, "bob")
+                .build();
+
+        int affected = executor.executeDelete(spec);
+        assertThat(affected).isEqualTo(1);
+
+        List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
+        assertThat(remaining).hasSize(2)
+                .extracting(TUser::getUsername)
+                .doesNotContain("bob");
+    }
+
+    @Test
+    void deleteBuilder_directMultipleConditions_accumulated() {
+        // eq(status=ACTIVE) AND gt(age > 35) → only charlie
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .eq(TUser::getStatus, "ACTIVE")
+                .gt(TUser::getAge, 35)
+                .build();
+
+        int affected = executor.executeDelete(spec);
+        assertThat(affected).isEqualTo(1);
+
+        List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
+        assertThat(remaining).hasSize(2)
+                .extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("alice", "bob");
+    }
+
+    @Test
+    void deleteBuilder_directEqConditionFalse_skips() {
+        // condition=false means the predicate is not added
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .eq(TUser::getStatus, "INACTIVE", false)  // skipped
+                .eq(TUser::getUsername, "bob", true)       // applied
+                .build();
+
+        int affected = executor.executeDelete(spec);
+        assertThat(affected).isEqualTo(1);
+
+        List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
+        assertThat(remaining).hasSize(2)
+                .extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("alice", "charlie");
+    }
+
+    @Test
+    void deleteBuilder_directAndLambdaWhereAccumulated() {
+        // Direct method + lambda where are both AND-ed together
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .eq(TUser::getStatus, "ACTIVE")
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+
+        int affected = executor.executeDelete(spec);
+        assertThat(affected).isEqualTo(1);
+
+        List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
+        // charlie is also ACTIVE but was not deleted (username != alice)
+        assertThat(remaining).hasSize(2)
+                .extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("bob", "charlie");
+    }
 }
