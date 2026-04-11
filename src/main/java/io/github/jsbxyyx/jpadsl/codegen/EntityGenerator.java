@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -395,9 +396,7 @@ public final class EntityGenerator {
             w.println("package " + pkg + ";");
             w.println();
 
-            for (String imp : imports) {
-                w.println("import " + imp + ";");
-            }
+            writeImports(w, imports);
             w.println();
 
             w.println("/**");
@@ -498,12 +497,14 @@ public final class EntityGenerator {
                 new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
             w.println("package " + repositoryPackage + ";");
             w.println();
-            w.println("import " + entityPackage + "." + entityClassName + ";");
-            w.println("import io.github.jsbxyyx.jpadsl.JpaDeleteExecutor;");
-            w.println("import io.github.jsbxyyx.jpadsl.JpaUpdateExecutor;");
-            w.println("import org.springframework.data.jpa.repository.JpaRepository;");
-            w.println("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;");
-            w.println("import org.springframework.stereotype.Repository;");
+            Set<String> repoImports = new LinkedHashSet<>();
+            repoImports.add(entityPackage + "." + entityClassName);
+            repoImports.add("io.github.jsbxyyx.jpadsl.JpaDeleteExecutor");
+            repoImports.add("io.github.jsbxyyx.jpadsl.JpaUpdateExecutor");
+            repoImports.add("org.springframework.data.jpa.repository.JpaRepository");
+            repoImports.add("org.springframework.data.jpa.repository.JpaSpecificationExecutor");
+            repoImports.add("org.springframework.stereotype.Repository");
+            writeImports(w, repoImports);
             w.println();
             w.println("@Repository");
             w.println("public interface " + repositoryClassName + " extends JpaRepository<"
@@ -513,6 +514,57 @@ public final class EntityGenerator {
             w.println("}");
         }
         LOG.log(Level.INFO, "Repository file written: {0}", file.getAbsolutePath());
+    }
+
+    // -------------------------------------------------------------------------
+    // Import ordering helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Writes the collected imports to {@code w} using IntelliJ IDEA's default import order:
+     * <ol>
+     *   <li>Non-java/javax imports (module + other) – in insertion order, no separator within</li>
+     *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
+     *   <li>javax.* and java.* imports – in insertion order, no separator within</li>
+     *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
+     *   <li>static imports – in insertion order</li>
+     * </ol>
+     */
+    private static void writeImports(PrintWriter w, Collection<String> imports) {
+        List<String> nonJavaImports = new ArrayList<>();
+        List<String> javaImports = new ArrayList<>();
+        List<String> staticImports = new ArrayList<>();
+
+        for (String imp : imports) {
+            if (imp.startsWith("static ")) {
+                staticImports.add(imp);
+            } else if (imp.startsWith("java.") || imp.startsWith("javax.")) {
+                javaImports.add(imp);
+            } else {
+                nonJavaImports.add(imp);
+            }
+        }
+
+        for (String imp : nonJavaImports) {
+            w.println("import " + imp + ";");
+        }
+
+        if (!nonJavaImports.isEmpty() && !javaImports.isEmpty()) {
+            w.println();
+        }
+
+        for (String imp : javaImports) {
+            w.println("import " + imp + ";");
+        }
+
+        boolean afterJavaBlock = !nonJavaImports.isEmpty() || !javaImports.isEmpty();
+        if (afterJavaBlock && !staticImports.isEmpty()) {
+            w.println();
+        }
+
+        for (String imp : staticImports) {
+            w.println("import " + imp + ";");
+        }
     }
 
     /**
