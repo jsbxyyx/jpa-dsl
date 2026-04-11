@@ -591,8 +591,9 @@ class JdbcEntityGeneratorTest {
     }
 
     /**
-     * In the repository, java.util.List must appear after a blank line that follows
-     * the org.springframework.* / io.github.jsbxyyx.* import block.
+     * In the repository, module imports (io.github.jsbxyyx.*) must appear before
+     * other imports (org.springframework.*) with a blank line between them, and
+     * java.util.List must appear after a blank line that follows the other-imports block.
      */
     @Test
     void repository_importOrdering_javaListAfterBlankLine() throws Exception {
@@ -605,6 +606,14 @@ class JdbcEntityGeneratorTest {
 
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
+
+        // Module imports must appear before org.springframework imports
+        int modulePos = content.indexOf("import io.github.jsbxyyx.");
+        int springPos = content.indexOf("import org.springframework.");
+        assertThat(modulePos).isGreaterThan(-1);
+        assertThat(springPos).isGreaterThan(modulePos);
+        // There must be a blank line between the last module import and the first org.springframework import
+        assertThat(content.substring(modulePos, springPos)).contains("\n\n");
 
         int listPos = content.indexOf("import java.util.List;");
         assertThat(listPos).isGreaterThan(-1);

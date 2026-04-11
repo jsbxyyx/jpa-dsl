@@ -521,17 +521,20 @@ public final class EntityGenerator {
     // -------------------------------------------------------------------------
 
     /**
-     * Writes the collected imports to {@code w} using IntelliJ IDEA's default import order:
+     * Writes the collected imports to {@code w} using the following import order:
      * <ol>
-     *   <li>Non-java/javax imports (module + other) – in insertion order, no separator within</li>
+     *   <li>Module imports (io.github.jsbxyyx.*) – in insertion order</li>
      *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
-     *   <li>javax.* and java.* imports – in insertion order, no separator within</li>
+     *   <li>All other non-java/javax imports (org.*, lombok.*, jakarta.*, com.*, etc.) – in insertion order</li>
+     *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
+     *   <li>javax.* and java.* imports – in insertion order</li>
      *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
      *   <li>static imports – in insertion order</li>
      * </ol>
      */
     private static void writeImports(PrintWriter w, Collection<String> imports) {
-        List<String> nonJavaImports = new ArrayList<>();
+        List<String> moduleImports = new ArrayList<>();
+        List<String> otherImports = new ArrayList<>();
         List<String> javaImports = new ArrayList<>();
         List<String> staticImports = new ArrayList<>();
 
@@ -540,16 +543,27 @@ public final class EntityGenerator {
                 staticImports.add(imp);
             } else if (imp.startsWith("java.") || imp.startsWith("javax.")) {
                 javaImports.add(imp);
+            } else if (imp.startsWith("io.github.jsbxyyx.")) {
+                moduleImports.add(imp);
             } else {
-                nonJavaImports.add(imp);
+                otherImports.add(imp);
             }
         }
 
-        for (String imp : nonJavaImports) {
+        for (String imp : moduleImports) {
             w.println("import " + imp + ";");
         }
 
-        if (!nonJavaImports.isEmpty() && !javaImports.isEmpty()) {
+        if (!moduleImports.isEmpty() && !otherImports.isEmpty()) {
+            w.println();
+        }
+
+        for (String imp : otherImports) {
+            w.println("import " + imp + ";");
+        }
+
+        boolean afterOtherBlock = !moduleImports.isEmpty() || !otherImports.isEmpty();
+        if (afterOtherBlock && !javaImports.isEmpty()) {
             w.println();
         }
 
@@ -557,7 +571,7 @@ public final class EntityGenerator {
             w.println("import " + imp + ";");
         }
 
-        boolean afterJavaBlock = !nonJavaImports.isEmpty() || !javaImports.isEmpty();
+        boolean afterJavaBlock = afterOtherBlock || !javaImports.isEmpty();
         if (afterJavaBlock && !staticImports.isEmpty()) {
             w.println();
         }
