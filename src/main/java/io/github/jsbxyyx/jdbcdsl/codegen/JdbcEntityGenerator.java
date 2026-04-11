@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -361,9 +362,7 @@ public final class JdbcEntityGenerator {
             w.println("package " + pkg + ";");
             w.println();
 
-            for (String imp : imports) {
-                w.println("import " + imp + ";");
-            }
+            writeImports(w, imports);
             w.println();
 
             w.println("/**");
@@ -470,18 +469,19 @@ public final class JdbcEntityGenerator {
 
             w.println("package " + repositoryPackage + ";");
             w.println();
-            w.println("import " + entityPackage + "." + entityClassName + ";");
-            w.println("import io.github.jsbxyyx.jdbcdsl.DeleteSpec;");
-            w.println("import io.github.jsbxyyx.jdbcdsl.InsertSpec;");
-            w.println("import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;");
-            w.println("import io.github.jsbxyyx.jdbcdsl.JPageable;");
-            w.println("import io.github.jsbxyyx.jdbcdsl.SelectSpec;");
-            w.println("import io.github.jsbxyyx.jdbcdsl.UpdateSpec;");
-            w.println("import org.springframework.beans.factory.annotation.Autowired;");
-            w.println("import org.springframework.data.domain.Page;");
-            w.println("import org.springframework.stereotype.Repository;");
-            w.println();
-            w.println("import java.util.List;");
+            Set<String> repoImports = new LinkedHashSet<>();
+            repoImports.add(entityPackage + "." + entityClassName);
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.DeleteSpec");
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.InsertSpec");
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor");
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.JPageable");
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.SelectSpec");
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.UpdateSpec");
+            repoImports.add("org.springframework.beans.factory.annotation.Autowired");
+            repoImports.add("org.springframework.data.domain.Page");
+            repoImports.add("org.springframework.stereotype.Repository");
+            repoImports.add("java.util.List");
+            writeImports(w, repoImports);
             w.println();
             w.println("/**");
             w.println(" * Auto-generated JDBC repository for table: " + lowerTable);
@@ -650,6 +650,71 @@ public final class JdbcEntityGenerator {
             w.println("}");
         }
         LOG.log(Level.INFO, "JDBC repository file written: {0}", file.getAbsolutePath());
+    }
+
+    // -------------------------------------------------------------------------
+    // Import ordering helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Writes the collected imports to {@code w} using the following import order:
+     * <ol>
+     *   <li>Module imports (io.github.jsbxyyx.*) – in insertion order</li>
+     *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
+     *   <li>All other non-java/javax imports (org.*, lombok.*, jakarta.*, com.*, etc.) – in insertion order</li>
+     *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
+     *   <li>javax.* and java.* imports – in insertion order</li>
+     *   <li>Blank line (only if both the previous group and the next group are non-empty)</li>
+     *   <li>static imports – in insertion order</li>
+     * </ol>
+     */
+    private static void writeImports(PrintWriter w, Collection<String> imports) {
+        List<String> moduleImports = new ArrayList<>();
+        List<String> otherImports = new ArrayList<>();
+        List<String> javaImports = new ArrayList<>();
+        List<String> staticImports = new ArrayList<>();
+
+        for (String imp : imports) {
+            if (imp.startsWith("static ")) {
+                staticImports.add(imp);
+            } else if (imp.startsWith("java.") || imp.startsWith("javax.")) {
+                javaImports.add(imp);
+            } else if (imp.startsWith("io.github.jsbxyyx.")) {
+                moduleImports.add(imp);
+            } else {
+                otherImports.add(imp);
+            }
+        }
+
+        for (String imp : moduleImports) {
+            w.println("import " + imp + ";");
+        }
+
+        if (!moduleImports.isEmpty() && !otherImports.isEmpty()) {
+            w.println();
+        }
+
+        for (String imp : otherImports) {
+            w.println("import " + imp + ";");
+        }
+
+        boolean afterOtherBlock = !moduleImports.isEmpty() || !otherImports.isEmpty();
+        if (afterOtherBlock && !javaImports.isEmpty()) {
+            w.println();
+        }
+
+        for (String imp : javaImports) {
+            w.println("import " + imp + ";");
+        }
+
+        boolean afterJavaBlock = afterOtherBlock || !javaImports.isEmpty();
+        if (afterJavaBlock && !staticImports.isEmpty()) {
+            w.println();
+        }
+
+        for (String imp : staticImports) {
+            w.println("import " + imp + ";");
+        }
     }
 
     // -------------------------------------------------------------------------

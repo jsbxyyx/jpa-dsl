@@ -552,6 +552,76 @@ class JdbcEntityGeneratorTest {
     }
 
     // -------------------------------------------------------------------------
+    // Import ordering
+    // -------------------------------------------------------------------------
+
+    /**
+     * java.* imports must be separated from the jakarta and lombok imports by a blank line.
+     * No blank line should appear between imports within the same group.
+     */
+    @Test
+    void entity_importOrdering_javaImportsAfterBlankLine() throws Exception {
+        // stock_all has a DECIMAL column → java.math.BigDecimal import
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .useLombok(true)
+                .generate("stock_all");
+
+        File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
+        String content = readFile(entityFile);
+
+        // jakarta.persistence.Column and jakarta.persistence.Table are in the same group —
+        // they must NOT be separated by a blank line.
+        int columnPos = content.indexOf("import jakarta.persistence.Column;");
+        int tablePos  = content.indexOf("import jakarta.persistence.Table;");
+        assertThat(columnPos).isGreaterThan(-1);
+        assertThat(tablePos).isGreaterThan(-1);
+        // Extract the text between those two import lines and verify no blank line
+        int afterColumn = columnPos + "import jakarta.persistence.Column;".length();
+        String between = content.substring(afterColumn, tablePos);
+        assertThat(between).doesNotContain("\n\n");
+
+        // java.math.BigDecimal must appear after a blank line that follows the jakarta/lombok block
+        int bigDecimalPos = content.indexOf("import java.math.BigDecimal;");
+        assertThat(bigDecimalPos).isGreaterThan(-1);
+        // There must be an empty line immediately before the java.math.BigDecimal import
+        assertThat(content.substring(0, bigDecimalPos)).endsWith("\n\n");
+    }
+
+    /**
+     * In the repository, module imports (io.github.jsbxyyx.*) must appear before
+     * other imports (org.springframework.*) with a blank line between them, and
+     * java.util.List must appear after a blank line that follows the other-imports block.
+     */
+    @Test
+    void repository_importOrdering_javaListAfterBlankLine() throws Exception {
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .repositoryPackage("com.example.repository")
+                .outputDir(outputDir.getAbsolutePath())
+                .generate("stock_all");
+
+        File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
+        String content = readFile(repoFile);
+
+        // Module imports must appear before org.springframework imports
+        int modulePos = content.indexOf("import io.github.jsbxyyx.");
+        int springPos = content.indexOf("import org.springframework.");
+        assertThat(modulePos).isGreaterThan(-1);
+        assertThat(springPos).isGreaterThan(modulePos);
+        // There must be a blank line between the last module import and the first org.springframework import
+        assertThat(content.substring(modulePos, springPos)).contains("\n\n");
+
+        int listPos = content.indexOf("import java.util.List;");
+        assertThat(listPos).isGreaterThan(-1);
+        // There must be an empty line immediately before import java.util.List
+        assertThat(content.substring(0, listPos)).endsWith("\n\n");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
