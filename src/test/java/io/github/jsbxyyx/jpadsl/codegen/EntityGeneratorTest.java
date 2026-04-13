@@ -251,7 +251,7 @@ class EntityGeneratorTest {
         assertThat(content).contains("import jakarta.persistence.Id;");
         assertThat(content).contains("import jakarta.persistence.Table;");
         assertThat(content).contains("import java.math.BigDecimal;");
-        assertThat(content).contains("import java.util.Date;");
+        assertThat(content).contains("import java.time.LocalDateTime;");
 
         // Lombok annotations (default useLombok=true via static generate())
         assertThat(content).contains("import lombok.Data;");
@@ -280,7 +280,7 @@ class EntityGeneratorTest {
 
         // created_at — nullable
         assertThat(content).contains("@Column(name = \"created_at\")");
-        assertThat(content).contains("private Date createdAt;");
+        assertThat(content).contains("private LocalDateTime createdAt;");
     }
 
     // -------------------------------------------------------------------------
@@ -452,9 +452,9 @@ class EntityGeneratorTest {
         assertThat(EntityGenerator.toJavaType("INTEGER")).isEqualTo("Integer");
         assertThat(EntityGenerator.toJavaType("SMALLINT")).isEqualTo("Short");
         assertThat(EntityGenerator.toJavaType("DECIMAL")).isEqualTo("java.math.BigDecimal");
-        assertThat(EntityGenerator.toJavaType("TIMESTAMP")).isEqualTo("java.util.Date");
-        assertThat(EntityGenerator.toJavaType("DATE")).isEqualTo("java.util.Date");
-        assertThat(EntityGenerator.toJavaType("TIME")).isEqualTo("java.util.Date");
+        assertThat(EntityGenerator.toJavaType("TIMESTAMP")).isEqualTo("java.time.LocalDateTime");
+        assertThat(EntityGenerator.toJavaType("DATE")).isEqualTo("java.time.LocalDate");
+        assertThat(EntityGenerator.toJavaType("TIME")).isEqualTo("java.time.LocalTime");
         assertThat(EntityGenerator.toJavaType("BOOLEAN")).isEqualTo("Boolean");
         assertThat(EntityGenerator.toJavaType("BLOB")).isEqualTo("byte[]");
         assertThat(EntityGenerator.toJavaType("UNKNOWN_TYPE")).isEqualTo("Object");
