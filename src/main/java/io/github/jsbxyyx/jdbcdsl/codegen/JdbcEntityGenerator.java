@@ -333,17 +333,8 @@ public final class JdbcEntityGenerator {
                 case "java.math.BigDecimal":
                     imports.add("java.math.BigDecimal");
                     break;
-                case "java.time.LocalDate":
-                    imports.add("java.time.LocalDate");
-                    break;
-                case "java.time.LocalTime":
-                    imports.add("java.time.LocalTime");
-                    break;
-                case "java.time.LocalDateTime":
-                    imports.add("java.time.LocalDateTime");
-                    break;
-                case "java.time.OffsetDateTime":
-                    imports.add("java.time.OffsetDateTime");
+                case "java.util.Date":
+                    imports.add("java.util.Date");
                     break;
                 default:
                     break;
@@ -829,11 +820,8 @@ public final class JdbcEntityGenerator {
             case "DOUBLE", "FLOAT8", "DOUBLE PRECISION" -> "Double";
             case "DECIMAL", "NUMERIC" -> "java.math.BigDecimal";
             case "BOOLEAN", "BOOL", "BIT" -> "Boolean";
-            case "DATE" -> "java.time.LocalDate";
-            case "TIME" -> "java.time.LocalTime";
-            case "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE",
-                    "DATETIME", "TIMESTAMP(6)" -> "java.time.LocalDateTime";
-            case "TIMESTAMP WITH TIME ZONE" -> "java.time.OffsetDateTime";
+            case "DATE", "TIME", "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE",
+                    "DATETIME", "TIMESTAMP(6)", "TIMESTAMP WITH TIME ZONE" -> "java.util.Date";
             default -> "Object";
         };
     }

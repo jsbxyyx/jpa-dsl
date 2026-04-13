@@ -366,17 +366,8 @@ public final class EntityGenerator {
                 case "java.math.BigDecimal":
                     imports.add("java.math.BigDecimal");
                     break;
-                case "java.time.LocalDate":
-                    imports.add("java.time.LocalDate");
-                    break;
-                case "java.time.LocalTime":
-                    imports.add("java.time.LocalTime");
-                    break;
-                case "java.time.LocalDateTime":
-                    imports.add("java.time.LocalDateTime");
-                    break;
-                case "java.time.OffsetDateTime":
-                    imports.add("java.time.OffsetDateTime");
+                case "java.util.Date":
+                    imports.add("java.util.Date");
                     break;
                 default:
                     break;
@@ -680,16 +671,13 @@ public final class EntityGenerator {
             case "BIT":
                 return "Boolean";
             case "DATE":
-                return "java.time.LocalDate";
             case "TIME":
-                return "java.time.LocalTime";
             case "TIMESTAMP":
             case "DATETIME":
             case "TIMESTAMP WITHOUT TIME ZONE":
-                return "java.time.LocalDateTime";
             case "TIMESTAMP WITH TIME ZONE":
             case "TIMESTAMPTZ":
-                return "java.time.OffsetDateTime";
+                return "java.util.Date";
             case "BLOB":
             case "BINARY":
             case "VARBINARY":
