@@ -1,9 +1,89 @@
-# JPA DSL — Spring Data JPA Specification DSL SDK
+# jpa-dsl & jdbc-dsl — Spring Data DSL SDK
 
 [![Java](https://img.shields.io/badge/Java-17+-blue)](https://www.java.com)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-green)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.0-green)](https://spring.io/projects/spring-boot)
+
+## 模块说明
+
+本仓库是一个**多模块 Maven 项目**，包含两个独立的 DSL 模块：
+
+| 模块 | artifactId | 包名 | 说明 |
+|------|-----------|------|------|
+| `jdbc-dsl` | `io.github.jsbxyyx:jdbc-dsl` | `io.github.jsbxyyx.jdbcdsl` | 基于 Spring `NamedParameterJdbcTemplate` 的类型安全 JDBC DSL |
+| `jpa-dsl` | `io.github.jsbxyyx:jpa-dsl` | `io.github.jsbxyyx.jpadsl` | 基于 Spring Data JPA Specification 的流式查询 DSL |
+
+两个模块**完全独立**，可以单独引入，也可以同时使用。
+
+---
+
+## 依赖引入
+
+### Maven
+
+**仅使用 jdbc-dsl：**
+
+```xml
+<dependency>
+    <groupId>io.github.jsbxyyx</groupId>
+    <artifactId>jdbc-dsl</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+**仅使用 jpa-dsl：**
+
+```xml
+<dependency>
+    <groupId>io.github.jsbxyyx</groupId>
+    <artifactId>jpa-dsl</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+**同时使用两个模块：**
+
+```xml
+<dependency>
+    <groupId>io.github.jsbxyyx</groupId>
+    <artifactId>jdbc-dsl</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+<dependency>
+    <groupId>io.github.jsbxyyx</groupId>
+    <artifactId>jpa-dsl</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+### Gradle
+
+```groovy
+// jdbc-dsl only
+implementation 'io.github.jsbxyyx:jdbc-dsl:1.0.0-SNAPSHOT'
+
+// jpa-dsl only
+implementation 'io.github.jsbxyyx:jpa-dsl:1.0.0-SNAPSHOT'
+```
+
+---
+
+## 迁移说明（Migration Notes）
+
+以前的版本以单一 artifact `io.github.jsbxyyx:jpa-dsl` 发布，其中同时包含 `io.github.jsbxyyx.jpadsl` 和 `io.github.jsbxyyx.jdbcdsl` 两部分代码。
+
+**升级后：**
+
+- 若你只用了 **JPA DSL** 相关 API（`SpecificationBuilder`、`JpaUpdateExecutor` 等），只需将依赖改为 `io.github.jsbxyyx:jpa-dsl`，包名 `io.github.jsbxyyx.jpadsl` 不变。
+- 若你只用了 **JDBC DSL** 相关 API（`JdbcDslExecutor`、`SelectBuilder` 等），只需将依赖改为 `io.github.jsbxyyx:jdbc-dsl`，包名 `io.github.jsbxyyx.jdbcdsl` 不变。
+- 若你同时使用了两者，请同时引入两个模块。
+
+**Java 代码无需任何修改**，包名保持不变。
+
+---
 
 ## 项目介绍
+
+### jpa-dsl
 
 JPA DSL 是一个基于 **Spring Data JPA Specification** 的流式查询 DSL SDK，提供**编译期类型安全**的 API 来构建复杂的 JPA 查询条件。
 
@@ -13,9 +93,17 @@ JPA DSL 是一个基于 **Spring Data JPA Specification** 的流式查询 DSL SD
 - **类型安全 Join**：支持 `SingularAttribute`（ManyToOne/OneToOne）和 `ListAttribute`/`SetAttribute`（OneToMany/ManyToMany）的类型安全 JOIN 操作。
 - **分页排序**：`PageRequestBuilder` 支持通过 metamodel 属性排序。
 
+### jdbc-dsl
+
+JDBC DSL 是一套完全独立的 **JdbcTemplate DSL**，位于 `io.github.jsbxyyx.jdbcdsl` 包，不依赖、不引用 `jpa-dsl` 代码。
+
+- **仅使用 `SFunction` 方法引用**（`User::getName`），禁止字符串字段名，保证静态编译安全。
+- 通过读取 `jakarta.persistence` 注解（`@Entity/@Table/@Column/@Id`）建立表/列元信息。
+- 使用 `NamedParameterJdbcTemplate` 执行参数化 SQL（`:p1, :p2, ...`）。
+
 ---
 
-## 快速开始
+## jpa-dsl 快速开始
 
 ### 1. 配置 hibernate-jpamodelgen（必须）
 
@@ -398,49 +486,46 @@ Specification<Order> spec = SpecificationBuilder.<Order>builder()
 ## 项目结构
 
 ```
-src/
-├── main/java/io/github/jsbxyyx/jpadsl/
-│   ├── SpecificationBuilder.java       # 主要链式构建器（推荐使用）
-│   ├── SpecificationDsl.java           # 静态工厂方法
-│   ├── PageRequestBuilder.java         # 分页排序构建器
-│   ├── UpdateBuilder.java              # 批量 UPDATE 构建器
-│   ├── UpdateSpec.java                 # UpdateBuilder#build() 的不可变产品对象
-│   ├── JpaUpdateExecutor.java          # Repository 混入接口（UPDATE）
-│   ├── JpaUpdateExecutorImpl.java      # 默认实现（内部注入 EntityManager）
-│   ├── DeleteBuilder.java              # 批量 DELETE 构建器
-│   ├── DeleteSpec.java                 # DeleteBuilder#build() 的不可变产品对象
-│   ├── JpaDeleteExecutor.java          # Repository 混入接口（DELETE）
-│   ├── JpaDeleteExecutorImpl.java      # 默认实现（内部注入 EntityManager）
-│   ├── SelectBuilder.java              # DTO 投影查询构建器
-│   ├── SelectSpec.java                 # SelectBuilder#mapTo() 的不可变产品对象
-│   ├── JpaSelectExecutor.java          # Repository 混入接口（SELECT 投影）
-│   ├── JpaSelectExecutorImpl.java      # 默认实现（Criteria API，内部注入 EntityManager）
-│   ├── core/
-│   │   ├── SpecificationBuilder.java   # core 包链式构建器
-│   │   ├── SpecificationDsl.java       # core 包静态工厂
-│   │   ├── PageRequestBuilder.java     # core 包分页构建器
-│   │   ├── Criteria.java               # 查询条件封装（辅助 DTO）
-│   │   ├── CriteriaType.java           # 查询条件类型枚举
-│   │   └── JoinType.java               # JoinType 包装枚举
-│   ├── spec/
-│   │   ├── AbstractSpecification.java
-│   │   ├── EqualSpecification.java
-│   │   ├── LikeSpecification.java
-│   │   └── ...（其他 Specification 实现类）
-│   └── example/
-│       ├── entity/                     # 示例实体（User / Order / OrderItem）
-│       ├── repository/                 # 示例 Repository
-│       └── service/                    # 示例 Service（演示 DSL 用法）
-└── test/java/io/github/jsbxyyx/jpadsl/
-    ├── SpecificationBuilderTest.java   # Builder API 集成测试
-    ├── SpecificationDslTest.java       # DSL 静态方法集成测试
-    ├── PageRequestBuilderTest.java     # 分页排序单元测试
-    ├── UpdateBuilderTest.java          # 批量 UPDATE 集成测试
-    ├── DeleteBuilderTest.java          # 批量 DELETE 集成测试
-    ├── SelectBuilderTest.java          # DTO 投影查询集成测试
-    ├── core/                           # core 包测试
-    ├── example/                        # UserService 集成测试
-    └── spec/                           # Specification 实现类测试
+jpa-dsl/                          ← 根目录（多模块 Maven 聚合项目）
+├── pom.xml                       ← 根 pom（aggregator, packaging=pom）
+├── jdbc-dsl/                     ← jdbc-dsl 子模块（artifactId: jdbc-dsl）
+│   ├── pom.xml
+│   └── src/
+│       ├── main/java/io/github/jsbxyyx/jdbcdsl/
+│       │   ├── JdbcDslExecutor.java
+│       │   ├── SelectBuilder.java / SelectSpec.java
+│       │   ├── UpdateBuilder.java / UpdateSpec.java
+│       │   ├── DeleteBuilder.java / DeleteSpec.java
+│       │   ├── WhereBuilder.java
+│       │   ├── JSort.java / JPageable.java / JOrder.java
+│       │   ├── SFunction.java / PropertyRef.java / PropertyRefResolver.java
+│       │   ├── EntityMeta.java / EntityMetaReader.java
+│       │   ├── JoinSpec.java / JoinType.java / OnBuilder.java
+│       │   ├── SqlRenderer.java / RenderedSql.java / SqlFunctions.java
+│       │   ├── JdbcDslAutoConfiguration.java / JdbcDslConfig.java / JdbcDslProperties.java
+│       │   ├── dialect/            # 分页方言（MySQL / H2 / Postgres / SqlServer）
+│       │   ├── expr/               # SQL 表达式节点
+│       │   ├── predicate/          # 谓词树节点
+│       │   └── codegen/            # JdbcEntityGenerator
+│       └── test/
+│           └── java/io/github/jsbxyyx/jdbcdsl/   # JDBC DSL 单元/集成测试
+└── jpa-dsl/                      ← jpa-dsl 子模块（artifactId: jpa-dsl）
+    ├── pom.xml
+    └── src/
+        ├── main/java/io/github/jsbxyyx/jpadsl/
+        │   ├── SpecificationBuilder.java       # 主要链式构建器（推荐使用）
+        │   ├── SpecificationDsl.java           # 静态工厂方法
+        │   ├── PageRequestBuilder.java         # 分页排序构建器
+        │   ├── UpdateBuilder.java / UpdateSpec.java / JpaUpdateExecutor.java / JpaUpdateExecutorImpl.java
+        │   ├── DeleteBuilder.java / DeleteSpec.java / JpaDeleteExecutor.java / JpaDeleteExecutorImpl.java
+        │   ├── SelectBuilder.java / SelectSpec.java / JpaSelectExecutor.java / JpaSelectExecutorImpl.java
+        │   ├── core/               # core 包（SpecificationBuilder / SpecificationDsl / Criteria...）
+        │   ├── join/               # HibernateJoinStrategy / StandardJoinStrategy
+        │   ├── spec/               # Specification 实现类
+        │   ├── example/            # 示例实体、Repository、Service
+        │   └── codegen/            # EntityGenerator
+        └── test/
+            └── java/io/github/jsbxyyx/jpadsl/   # JPA DSL 单元/集成测试
 ```
 
 ---
@@ -466,8 +551,6 @@ src/
 ---
 
 ## jdbc-dsl — JdbcTemplate 自研 DSL
-
-`jdbc-dsl` 是一套完全独立的 **JdbcTemplate DSL**，位于 `io.github.jsbxyyx.jdbcdsl` 包，不依赖、不引用 `jpa-dsl` 代码。
 
 ### 设计原则
 
@@ -612,7 +695,7 @@ io.github.jsbxyyx.jdbcdsl/
 
 ## Spring Boot 集成：jpa-dsl 与 jdbc-dsl 并存
 
-`main` 分支同时包含 **jpa-dsl** 与 **jdbc-dsl** 两套实现，通过 Spring Boot Auto-configuration 各自独立注册，互不干扰。
+当同时引入 **jpa-dsl** 与 **jdbc-dsl** 两个模块时，通过 Spring Boot Auto-configuration 各自独立注册，互不干扰。
 
 ### 开关配置（`application.properties`）
 
