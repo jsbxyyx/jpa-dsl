@@ -837,6 +837,59 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
+    void saveAll_insertsAllEntities_andSetsGeneratedKeys() {
+        List<TUser> newUsers = List.of(
+                new TUser("henry", "henry@example.com", 31, "ACTIVE"),
+                new TUser("iris", "iris@example.com", 27, "INACTIVE")
+        );
+        executor.saveAll(newUsers);
+
+        // Generated IDENTITY pk must be set back on each entity
+        assertThat(newUsers.get(0).getId()).isNotNull();
+        assertThat(newUsers.get(1).getId()).isNotNull();
+        assertThat(newUsers.get(0).getId()).isNotEqualTo(newUsers.get(1).getId());
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.in(TUser::getUsername, List.of("henry", "iris")))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(2)
+                .extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("henry", "iris");
+    }
+
+    @Test
+    void saveAll_emptyList_isNoOp() {
+        executor.saveAll(List.<TUser>of()); // must not throw
+        assertThat(executor.select(SelectBuilder.from(TUser.class).mapToEntity())).hasSize(3);
+    }
+
+    @Test
+    void saveAll_withInsertSpec_insertsSpecifiedColumnsForAllEntities() {
+        InsertSpec<TUser> spec = InsertBuilder.into(TUser.class)
+                .columns("username", "status")
+                .build();
+        List<TUser> newUsers = List.of(
+                new TUser("jack", "jack@example.com", 44, "ACTIVE"),
+                new TUser("karen", "karen@example.com", 38, "INACTIVE")
+        );
+        executor.saveAll(spec, newUsers);
+
+        SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
+                .where(w -> w.in(TUser::getUsername, List.of("jack", "karen")))
+                .mapToEntity();
+        List<TUser> result = executor.select(verify);
+        assertThat(result).hasSize(2);
+        // email and age must be null because they were not in the spec
+        assertThat(result).allSatisfy(u -> {
+            assertThat(u.getEmail()).isNull();
+            assertThat(u.getAge()).isNull();
+        });
+        assertThat(result).extracting(TUser::getUsername)
+                .containsExactlyInAnyOrder("jack", "karen");
+    }
+
+    @Test
     void updateById_updatesAllNonPkColumns() {
         // Fetch alice's id first
         TUser alice = executor.select(

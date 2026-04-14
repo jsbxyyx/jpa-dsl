@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
 
@@ -237,6 +238,100 @@ public final class JdbcDslExecutor {
         colValues.entrySet().removeIf(e -> e.getValue() == null);
         InsertSpec<T> spec = InsertSpec.of(entityClass, new ArrayList<>(colValues.keySet()));
         doInsert(spec, meta, colValues, entity);
+    }
+
+    /**
+     * Batch-inserts all entities in {@code entities} using all their columns (excluding
+     * IDENTITY-generated primary keys).
+     *
+     * <p>A single SQL statement is prepared once and executed once per batch via
+     * {@link NamedParameterJdbcTemplate#batchUpdate}. When the entity's primary key is
+     * annotated with {@code @GeneratedValue(strategy = GenerationType.IDENTITY)}, the
+     * generated keys are read back and set on each entity in order.
+     *
+     * <p>If {@code entities} is {@code null} or empty this method is a no-op.
+     *
+     * @param entities the entities to insert (must all be instances of the same class)
+     */
+    public <T> void saveAll(List<T> entities) {
+        if (entities == null || entities.isEmpty()) return;
+
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entities.get(0).getClass();
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+        InsertSpec<T> spec = InsertSpec.of(entityClass);
+
+        // Derive the column set and SQL from the first entity
+        LinkedHashMap<String, Object> firstColValues = buildColumnValues(entities.get(0), meta, true);
+        RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, firstColValues);
+        List<String> cols = new ArrayList<>(firstColValues.keySet());
+
+        doBatchInsert(rendered.getSql(), cols, meta, entities, meta.isIdGeneratedByIdentity());
+    }
+
+    /**
+     * Batch-inserts all entities in {@code entities} using the columns specified by {@code spec}.
+     *
+     * <p>If the spec has no explicit column names, all entity columns are inserted (excluding
+     * IDENTITY-generated primary keys) and generated keys are read back. If the spec specifies
+     * column names, exactly those columns are used and the caller is responsible for deciding
+     * whether to include the primary key.
+     *
+     * <p>If {@code entities} is {@code null} or empty this method is a no-op.
+     *
+     * @param spec     the insert specification (entity class and optional column list)
+     * @param entities the entities to insert
+     */
+    public <T> void saveAll(InsertSpec<T> spec, List<T> entities) {
+        if (entities == null || entities.isEmpty()) return;
+
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
+
+        LinkedHashMap<String, Object> firstColValues = buildColumnValues(entities.get(0), meta, excludeIdentityPk);
+        RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, firstColValues);
+        List<String> cols = spec.getColumnNames().isEmpty()
+                ? new ArrayList<>(firstColValues.keySet())
+                : spec.getColumnNames();
+
+        boolean returnGeneratedKeys = excludeIdentityPk && meta.isIdGeneratedByIdentity();
+        doBatchInsert(rendered.getSql(), cols, meta, entities, returnGeneratedKeys);
+    }
+
+    private <T> void doBatchInsert(String sql, List<String> cols, EntityMeta meta,
+                                    List<T> entities, boolean returnGeneratedKeys) {
+        // Build reverse mapping colName → propName for value extraction
+        Map<String, String> colToProp = new HashMap<>();
+        for (Map.Entry<String, String> entry : meta.getPropertyToColumn().entrySet()) {
+            colToProp.put(entry.getValue(), entry.getKey());
+        }
+
+        SqlParameterSource[] batchArgs = new SqlParameterSource[entities.size()];
+        for (int i = 0; i < entities.size(); i++) {
+            MapSqlParameterSource params = new MapSqlParameterSource();
+            for (String col : cols) {
+                String propName = colToProp.getOrDefault(col, col);
+                params.addValue(col, getPropertyValue(entities.get(i), propName));
+            }
+            batchArgs[i] = params;
+        }
+
+        if (returnGeneratedKeys) {
+            GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
+            jdbc.batchUpdate(sql, batchArgs, keyHolder);
+            List<Map<String, Object>> keyList = keyHolder.getKeyList();
+            for (int i = 0; i < entities.size(); i++) {
+                if (i < keyList.size() && meta.getIdPropertyName() != null) {
+                    Map<String, Object> keyMap = keyList.get(i);
+                    if (!keyMap.isEmpty()) {
+                        Object key = keyMap.values().iterator().next();
+                        setPropertyValue(entities.get(i), meta.getIdPropertyName(), key);
+                    }
+                }
+            }
+        } else {
+            jdbc.batchUpdate(sql, batchArgs);
+        }
     }
 
     private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta,
