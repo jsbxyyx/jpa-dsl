@@ -376,8 +376,7 @@ public final class JdbcEntityGenerator {
         }
         File file = new File(dir, className + ".java");
 
-        try (PrintWriter w = new PrintWriter(
-                new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
+        try (PrintWriter w = newLinePrinter(file)) {
 
             w.println("package " + pkg + ";");
             w.println();
@@ -493,8 +492,7 @@ public final class JdbcEntityGenerator {
             return;
         }
 
-        try (PrintWriter w = new PrintWriter(
-                new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
+        try (PrintWriter w = newLinePrinter(file)) {
 
             w.println("package " + repositoryPackage + ";");
             w.println();
@@ -679,6 +677,24 @@ public final class JdbcEntityGenerator {
             w.println("}");
         }
         LOG.log(Level.INFO, "JDBC repository file written: {0}", file.getAbsolutePath());
+    }
+
+    // -------------------------------------------------------------------------
+    // PrintWriter factory — always uses LF (\n) regardless of platform
+    // -------------------------------------------------------------------------
+
+    private static PrintWriter newLinePrinter(File file) throws IOException {
+        return new PrintWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8)) {
+            @Override
+            public void println() {
+                print('\n');
+            }
+            @Override
+            public void println(String x) {
+                print(x);
+                print('\n');
+            }
+        };
     }
 
     // -------------------------------------------------------------------------
