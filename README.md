@@ -804,9 +804,9 @@ int[] affected2 = executor.executeBatchInsert(
 #### 实体定义
 
 ```java
-@Column(name = "is_deleted")
+@Column(name = "deleted")
 @LogicalDelete(deletedValue = "1", normalValue = "0")
-private Integer isDeleted = 0;
+private Integer deleted = 0;
 ```
 
 #### 执行逻辑删除
@@ -816,12 +816,12 @@ DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
     .eq(TUser::getId, userId)
     .build();
 int affected = executor.executeLogicalDelete(spec);
-// 执行：UPDATE t_user SET is_deleted = 1 WHERE id = :p1
+// 执行：UPDATE t_user SET deleted = 1 WHERE id = :p1
 ```
 
 #### SELECT 自动过滤
 
-默认情况下（`jdbcdsl.logical-delete-auto-filter=true`），所有 SELECT 查询会自动追加 `AND t.is_deleted = 0` 条件，过滤已逻辑删除的行。
+默认情况下（`jdbcdsl.logical-delete-auto-filter=true`），所有 SELECT 查询会自动追加 `AND t.deleted = 0` 条件，过滤已逻辑删除的行。
 
 ```yaml
 # application.yml

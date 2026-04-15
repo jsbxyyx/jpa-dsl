@@ -18,9 +18,9 @@ import java.lang.annotation.Target;
  *
  * <p>示例用法：
  * <pre>{@code
- * @Column(name = "is_deleted")
+ * @Column(name = "deleted")
  * @LogicalDelete(deletedValue = "1", normalValue = "0")
- * private Integer isDeleted;
+ * private Integer deleted;
  * }</pre>
  */
 @Retention(RetentionPolicy.RUNTIME)
