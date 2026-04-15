@@ -12,6 +12,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * # Automatically filter logically-deleted rows in SELECT (default: true)
  * jdbcdsl.logical-delete-auto-filter=false
+ *
+ * # Column/table naming strategy when no explicit @Column/@Table annotation is present
+ * # Values: default (identity, legacy behaviour) | snake_case (camelCase → snake_case)
+ * jdbcdsl.naming-strategy=snake_case
  * </pre>
  */
 @ConfigurationProperties(prefix = "jdbcdsl")
@@ -32,6 +36,20 @@ public class JdbcDslProperties {
      */
     private boolean logicalDeleteAutoFilter = true;
 
+    /**
+     * Naming strategy used to derive column and table names when no explicit JPA annotation
+     * ({@code @Column}/{@code @Table}) is present.
+     *
+     * <ul>
+     *   <li>{@code default} — returns Java names unchanged (legacy behaviour).</li>
+     *   <li>{@code snake_case} — converts {@code camelCase} to {@code snake_case}.</li>
+     * </ul>
+     *
+     * A user-provided {@link io.github.jsbxyyx.jdbcdsl.NamingStrategy} Spring bean always
+     * takes priority over this property.
+     */
+    private String namingStrategy = "default";
+
     public boolean isAllowEmptyWhere() {
         return allowEmptyWhere;
     }
@@ -46,5 +64,13 @@ public class JdbcDslProperties {
 
     public void setLogicalDeleteAutoFilter(boolean logicalDeleteAutoFilter) {
         this.logicalDeleteAutoFilter = logicalDeleteAutoFilter;
+    }
+
+    public String getNamingStrategy() {
+        return namingStrategy;
+    }
+
+    public void setNamingStrategy(String namingStrategy) {
+        this.namingStrategy = namingStrategy;
     }
 }
