@@ -14,6 +14,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import org.springframework.beans.factory.ObjectProvider;
+
 import javax.sql.DataSource;
 
 /**
@@ -43,14 +45,32 @@ public class JdbcDslAutoConfiguration {
 
     /**
      * Applies {@link JdbcDslProperties} values to the static {@link JdbcDslConfig} holder so
-     * that {@link UpdateBuilder} and {@link DeleteBuilder} can read them without requiring
-     * Spring injection.
+     * that {@link UpdateBuilder}, {@link DeleteBuilder}, and {@link EntityMetaReader} can read
+     * them without requiring Spring injection.
+     *
+     * <p>Naming strategy resolution order:
+     * <ol>
+     *   <li>User-provided {@link NamingStrategy} bean (highest priority).</li>
+     *   <li>{@code jdbcdsl.naming-strategy} property ({@code default} or {@code snake_case}).</li>
+     *   <li>Falls back to {@link DefaultNamingStrategy} (identity).</li>
+     * </ol>
      */
     @Bean
-    public JdbcDslProperties jdbcDslProperties(JdbcDslProperties properties) {
+    public JdbcDslProperties jdbcDslProperties(JdbcDslProperties properties,
+                                                ObjectProvider<NamingStrategy> namingStrategyProvider) {
         JdbcDslConfig.setAllowEmptyWhere(properties.isAllowEmptyWhere());
         JdbcDslConfig.setLogicalDeleteAutoFilter(properties.isLogicalDeleteAutoFilter());
+        NamingStrategy strategy = namingStrategyProvider.getIfAvailable(
+                () -> buildNamingStrategy(properties.getNamingStrategy()));
+        JdbcDslConfig.setNamingStrategy(strategy);
         return properties;
+    }
+
+    private static NamingStrategy buildNamingStrategy(String value) {
+        if ("snake_case".equalsIgnoreCase(value)) {
+            return SnakeCaseNamingStrategy.INSTANCE;
+        }
+        return DefaultNamingStrategy.INSTANCE;
     }
 
     /**

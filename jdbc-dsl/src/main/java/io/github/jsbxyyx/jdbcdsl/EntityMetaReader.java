@@ -26,10 +26,12 @@ import java.util.concurrent.ConcurrentMap;
  * <ol>
  *   <li>Scan all declared fields (including superclass fields) for {@code @Column} and {@code @Id}.</li>
  *   <li>For fields without {@code @Column}, fall back to scanning getter methods.</li>
- *   <li>Column name defaults to the property name when {@code @Column(name)} is blank.</li>
+ *   <li>When no explicit name is provided by an annotation, the active {@link NamingStrategy}
+ *       (from {@link JdbcDslConfig#getNamingStrategy()}) is applied to derive the column/table name.</li>
  * </ol>
  *
- * <p>Results are cached per class.
+ * <p>Results are cached per class. The cache is automatically cleared when the naming strategy
+ * is changed via {@link JdbcDslConfig#setNamingStrategy(NamingStrategy)}.
  */
 public final class EntityMetaReader {
 
@@ -48,14 +50,24 @@ public final class EntityMetaReader {
         return CACHE.computeIfAbsent(entityClass, EntityMetaReader::doRead);
     }
 
+    /**
+     * Clears the metadata cache. Called automatically when the naming strategy changes;
+     * can also be used in tests to reset state between test cases.
+     */
+    static void clearCache() {
+        CACHE.clear();
+    }
+
     private static EntityMeta doRead(Class<?> entityClass) {
+        NamingStrategy naming = JdbcDslConfig.getNamingStrategy();
+
         // --- Table name ---
         String tableName;
         Table tableAnn = entityClass.getAnnotation(Table.class);
         if (tableAnn != null && !tableAnn.name().isBlank()) {
             tableName = tableAnn.name();
         } else {
-            tableName = entityClass.getSimpleName();
+            tableName = naming.classToTable(entityClass.getSimpleName());
         }
 
         Map<String, String> propertyToColumn = new LinkedHashMap<>();
@@ -86,7 +98,7 @@ public final class EntityMetaReader {
                 Column colAnn = field.getAnnotation(Column.class);
 
                 if (colAnn != null || isId) {
-                    String colName = resolveColumnName(colAnn, propName);
+                    String colName = resolveColumnName(colAnn, propName, naming);
                     propertyToColumn.put(propName, colName);
                     if (isId) {
                         idPropertyName = propName;
@@ -99,8 +111,7 @@ public final class EntityMetaReader {
                 // @LogicalDelete
                 LogicalDelete ld = field.getAnnotation(LogicalDelete.class);
                 if (ld != null && logicalDeletePropertyName == null) {
-                    // Resolve column name (field must have @Column or default to field name)
-                    String ldColName = resolveColumnName(colAnn, propName);
+                    String ldColName = resolveColumnName(colAnn, propName, naming);
                     logicalDeletePropertyName = propName;
                     logicalDeleteColumnName = ldColName;
                     logicalDeletedValue = ld.deletedValue();
@@ -134,7 +145,7 @@ public final class EntityMetaReader {
             Column colAnn = method.getAnnotation(Column.class);
 
             if (colAnn != null || isId) {
-                String colName = resolveColumnName(colAnn, propName);
+                String colName = resolveColumnName(colAnn, propName, naming);
                 propertyToColumn.put(propName, colName);
                 if (isId && idPropertyName == null) {
                     idPropertyName = propName;
@@ -146,13 +157,13 @@ public final class EntityMetaReader {
         }
 
         // Register all remaining fields (without @Column) so that every property has a mapping.
-        // Default column name = property name.
+        // Apply naming strategy to derive the default column name.
         current = entityClass;
         while (current != null && current != Object.class) {
             for (Field field : current.getDeclaredFields()) {
                 String propName = field.getName();
                 if (!propertyToColumn.containsKey(propName)) {
-                    propertyToColumn.put(propName, propName);
+                    propertyToColumn.put(propName, naming.propertyToColumn(propName));
                 }
             }
             current = current.getSuperclass();
@@ -165,11 +176,11 @@ public final class EntityMetaReader {
                 createdDateProps, lastModifiedDateProps);
     }
 
-    private static String resolveColumnName(Column colAnn, String defaultName) {
+    private static String resolveColumnName(Column colAnn, String propName, NamingStrategy naming) {
         if (colAnn != null && !colAnn.name().isBlank()) {
-            return colAnn.name();
+            return colAnn.name(); // explicit annotation always wins
         }
-        return defaultName;
+        return naming.propertyToColumn(propName);
     }
 
     private static String getterToPropertyName(String methodName) {

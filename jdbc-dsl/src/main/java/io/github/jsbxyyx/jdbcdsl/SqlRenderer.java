@@ -75,44 +75,16 @@ public final class SqlRenderer {
         sb.append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
 
         // JOIN clauses
-        for (JoinSpec join : spec.getJoins()) {
-            EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
-            sb.append(" ").append(joinTypeStr(join.getJoinType()))
-              .append(" ").append(joinMeta.getTableName()).append(" ").append(join.getAlias());
-            if (!join.getOnConditions().isEmpty()) {
-                sb.append(" ON ");
-                StringJoiner onJoiner = new StringJoiner(" AND ");
-                for (PredicateNode cond : join.getOnConditions()) {
-                    onJoiner.add(renderOnCondition(cond, spec, params, paramIdx));
-                }
-                sb.append(onJoiner);
-            }
-        }
+        appendJoinClauses(sb, spec, params, paramIdx);
 
         // WHERE clause
-        PredicateNode where = spec.getWhere();
-        if (where != null) {
-            sb.append(" WHERE ");
-            sb.append(renderPredicate(where, spec, params, paramIdx));
-        }
+        appendWhereClause(sb, spec, params, paramIdx);
 
         // GROUP BY clause
-        List<SqlExpression<?>> groupBy = spec.getGroupByExpressions();
-        if (!groupBy.isEmpty()) {
-            sb.append(" GROUP BY ");
-            StringJoiner groupJoiner = new StringJoiner(", ");
-            for (SqlExpression<?> expr : groupBy) {
-                groupJoiner.add(renderExpression(expr, spec, params, paramIdx));
-            }
-            sb.append(groupJoiner);
-        }
+        appendGroupByClause(sb, spec, params, paramIdx);
 
         // HAVING clause
-        PredicateNode having = spec.getHaving();
-        if (having != null) {
-            sb.append(" HAVING ");
-            sb.append(renderPredicate(having, spec, params, paramIdx));
-        }
+        appendHavingClause(sb, spec, params, paramIdx);
 
         // ORDER BY clause
         JSort<T> sort = spec.getSort();
@@ -142,7 +114,15 @@ public final class SqlRenderer {
     }
 
     /**
-     * Renders a COUNT(*) query for the given spec (no ORDER BY, no pagination).
+     * Renders a COUNT query for the given spec (no ORDER BY, no pagination).
+     *
+     * <ul>
+     *   <li>No JOINs, no GROUP BY → {@code SELECT COUNT(*) FROM table WHERE ...}</li>
+     *   <li>JOINs present (no GROUP BY) → {@code SELECT COUNT(DISTINCT alias.pk) FROM ... JOIN ... WHERE ...}
+     *       to avoid counting duplicate rows produced by one-to-many joins.</li>
+     *   <li>GROUP BY present → {@code SELECT COUNT(*) FROM (SELECT 1 FROM ... GROUP BY ... HAVING ...) _count_t}
+     *       to count the number of groups rather than raw rows.</li>
+     * </ul>
      */
     public static <T, R> RenderedSql renderCount(SelectSpec<T, R> spec) {
         Map<String, Object> params = new LinkedHashMap<>();
@@ -151,30 +131,44 @@ public final class SqlRenderer {
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("SELECT COUNT(*) FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+        boolean hasJoins = !spec.getJoins().isEmpty();
+        boolean hasGroupBy = !spec.getGroupByExpressions().isEmpty();
 
-        // JOIN clauses
-        for (JoinSpec join : spec.getJoins()) {
-            EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
-            sb.append(" ").append(joinTypeStr(join.getJoinType()))
-              .append(" ").append(joinMeta.getTableName()).append(" ").append(join.getAlias());
-            if (!join.getOnConditions().isEmpty()) {
-                sb.append(" ON ");
-                StringJoiner onJoiner = new StringJoiner(" AND ");
-                for (PredicateNode cond : join.getOnConditions()) {
-                    onJoiner.add(renderOnCondition(cond, spec, params, paramIdx));
-                }
-                sb.append(onJoiner);
+        if (hasGroupBy) {
+            // Wrap the grouped query as a derived table and count its rows.
+            StringBuilder inner = new StringBuilder("SELECT 1")
+                    .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+            appendJoinClauses(inner, spec, params, paramIdx);
+            appendWhereClause(inner, spec, params, paramIdx);
+            appendGroupByClause(inner, spec, params, paramIdx);
+            appendHavingClause(inner, spec, params, paramIdx);
+            return new RenderedSql("SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
+        }
+
+        if (hasJoins) {
+            // JOINs can multiply rows for one-to-many relationships.
+            // COUNT(DISTINCT pk) de-duplicates without a subquery.
+            String pkCol = rootMeta.getIdColumnName();
+            if (pkCol != null) {
+                StringBuilder sb = new StringBuilder("SELECT COUNT(DISTINCT ")
+                        .append(alias).append(".").append(pkCol).append(")")
+                        .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+                appendJoinClauses(sb, spec, params, paramIdx);
+                appendWhereClause(sb, spec, params, paramIdx);
+                return new RenderedSql(sb.toString(), params);
             }
+            // No PK available: fall back to subquery.
+            StringBuilder inner = new StringBuilder("SELECT 1")
+                    .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+            appendJoinClauses(inner, spec, params, paramIdx);
+            appendWhereClause(inner, spec, params, paramIdx);
+            return new RenderedSql("SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
         }
 
-        PredicateNode where = spec.getWhere();
-        if (where != null) {
-            sb.append(" WHERE ");
-            sb.append(renderPredicate(where, spec, params, paramIdx));
-        }
-
+        // Simple case: no JOINs, no GROUP BY.
+        StringBuilder sb = new StringBuilder("SELECT COUNT(*)")
+                .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+        appendWhereClause(sb, spec, params, paramIdx);
         return new RenderedSql(sb.toString(), params);
     }
 
@@ -587,6 +581,64 @@ public final class SqlRenderer {
     // ------------------------------------------------------------------ //
     //  Helpers
     // ------------------------------------------------------------------ //
+
+    // ------------------------------------------------------------------ //
+    //  Clause-appending helpers (shared by renderSelect and renderCount)
+    // ------------------------------------------------------------------ //
+
+    private static <T, R> void appendJoinClauses(StringBuilder sb,
+                                                   SelectSpec<T, R> spec,
+                                                   Map<String, Object> params,
+                                                   AtomicInteger paramIdx) {
+        for (JoinSpec join : spec.getJoins()) {
+            EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
+            sb.append(" ").append(joinTypeStr(join.getJoinType()))
+              .append(" ").append(joinMeta.getTableName()).append(" ").append(join.getAlias());
+            if (!join.getOnConditions().isEmpty()) {
+                sb.append(" ON ");
+                StringJoiner onJoiner = new StringJoiner(" AND ");
+                for (PredicateNode cond : join.getOnConditions()) {
+                    onJoiner.add(renderOnCondition(cond, spec, params, paramIdx));
+                }
+                sb.append(onJoiner);
+            }
+        }
+    }
+
+    private static <T, R> void appendWhereClause(StringBuilder sb,
+                                                   SelectSpec<T, R> spec,
+                                                   Map<String, Object> params,
+                                                   AtomicInteger paramIdx) {
+        PredicateNode where = spec.getWhere();
+        if (where != null) {
+            sb.append(" WHERE ").append(renderPredicate(where, spec, params, paramIdx));
+        }
+    }
+
+    private static <T, R> void appendGroupByClause(StringBuilder sb,
+                                                     SelectSpec<T, R> spec,
+                                                     Map<String, Object> params,
+                                                     AtomicInteger paramIdx) {
+        List<SqlExpression<?>> groupBy = spec.getGroupByExpressions();
+        if (!groupBy.isEmpty()) {
+            sb.append(" GROUP BY ");
+            StringJoiner joiner = new StringJoiner(", ");
+            for (SqlExpression<?> expr : groupBy) {
+                joiner.add(renderExpression(expr, spec, params, paramIdx));
+            }
+            sb.append(joiner);
+        }
+    }
+
+    private static <T, R> void appendHavingClause(StringBuilder sb,
+                                                    SelectSpec<T, R> spec,
+                                                    Map<String, Object> params,
+                                                    AtomicInteger paramIdx) {
+        PredicateNode having = spec.getHaving();
+        if (having != null) {
+            sb.append(" HAVING ").append(renderPredicate(having, spec, params, paramIdx));
+        }
+    }
 
     private static String nextParam(AtomicInteger idx, Map<String, Object> params, Object value) {
         String name = "p" + idx.incrementAndGet();
