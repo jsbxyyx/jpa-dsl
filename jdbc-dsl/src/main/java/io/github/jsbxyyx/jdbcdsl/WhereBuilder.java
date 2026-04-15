@@ -1,11 +1,15 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
+import io.github.jsbxyyx.jdbcdsl.predicate.ExistsPredicate;
+import io.github.jsbxyyx.jdbcdsl.predicate.InSubqueryPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
+import io.github.jsbxyyx.jdbcdsl.predicate.ScalarSubqueryPredicate;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -224,6 +228,119 @@ public final class WhereBuilder<T> {
     /** NOT IN predicate with an arbitrary SQL expression on the left. */
     public WhereBuilder<T> notIn(SqlExpression<?> expression, Collection<?> values) {
         predicates.add(LeafPredicate.ofExprIn(expression, values, true));
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  IN / NOT IN  — subquery overloads
+    // ------------------------------------------------------------------ //
+
+    /**
+     * {@code col IN (SELECT ...)} predicate.
+     *
+     * @param prop     property on the root entity to test
+     * @param subquery inner SELECT that returns the candidate values
+     */
+    public WhereBuilder<T> in(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        return in(prop, subquery, true);
+    }
+
+    public WhereBuilder<T> in(SFunction<T, ?> prop, SelectSpec<?, ?> subquery, boolean condition) {
+        if (condition) {
+            predicates.add(new InSubqueryPredicate(
+                    ColumnExpression.of(resolve(prop), alias), subquery, false));
+        }
+        return this;
+    }
+
+    /** {@code col NOT IN (SELECT ...)} predicate. */
+    public WhereBuilder<T> notIn(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        return notIn(prop, subquery, true);
+    }
+
+    public WhereBuilder<T> notIn(SFunction<T, ?> prop, SelectSpec<?, ?> subquery, boolean condition) {
+        if (condition) {
+            predicates.add(new InSubqueryPredicate(
+                    ColumnExpression.of(resolve(prop), alias), subquery, true));
+        }
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  EXISTS / NOT EXISTS
+    // ------------------------------------------------------------------ //
+
+    /**
+     * {@code EXISTS (SELECT ...)} predicate.
+     *
+     * @param subquery inner SELECT; only its existence is tested, not its values
+     */
+    public WhereBuilder<T> exists(SelectSpec<?, ?> subquery) {
+        return exists(subquery, true);
+    }
+
+    public WhereBuilder<T> exists(SelectSpec<?, ?> subquery, boolean condition) {
+        if (condition) {
+            predicates.add(new ExistsPredicate(subquery, false));
+        }
+        return this;
+    }
+
+    /** {@code NOT EXISTS (SELECT ...)} predicate. */
+    public WhereBuilder<T> notExists(SelectSpec<?, ?> subquery) {
+        return notExists(subquery, true);
+    }
+
+    public WhereBuilder<T> notExists(SelectSpec<?, ?> subquery, boolean condition) {
+        if (condition) {
+            predicates.add(new ExistsPredicate(subquery, true));
+        }
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Scalar subquery comparisons  (col OP (SELECT single-value))
+    // ------------------------------------------------------------------ //
+
+    /** {@code col = (SELECT single-value)} */
+    public WhereBuilder<T> eq(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(
+                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.EQ, subquery));
+        return this;
+    }
+
+    /** {@code col <> (SELECT single-value)} */
+    public WhereBuilder<T> ne(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(
+                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.NE, subquery));
+        return this;
+    }
+
+    /** {@code col > (SELECT single-value)} */
+    public WhereBuilder<T> gt(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(
+                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.GT, subquery));
+        return this;
+    }
+
+    /** {@code col >= (SELECT single-value)} */
+    public WhereBuilder<T> gte(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(
+                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.GTE, subquery));
+        return this;
+    }
+
+    /** {@code col < (SELECT single-value)} */
+    public WhereBuilder<T> lt(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(
+                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.LT, subquery));
+        return this;
+    }
+
+    /** {@code col <= (SELECT single-value)} */
+    public WhereBuilder<T> lte(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(
+                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.LTE, subquery));
         return this;
     }
 
