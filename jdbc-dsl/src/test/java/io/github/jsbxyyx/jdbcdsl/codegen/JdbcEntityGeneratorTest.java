@@ -626,7 +626,7 @@ class JdbcEntityGeneratorTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void entity_isDeletedColumn_emitsLogicalDeleteAnnotation() throws Exception {
+    void entity_deletedColumn_emitsLogicalDeleteAnnotation_withTimestamps() throws Exception {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_soft");
@@ -634,7 +634,7 @@ class JdbcEntityGeneratorTest {
                 "CREATE TABLE t_soft (" +
                 "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
                 "  name       VARCHAR(100)," +
-                "  is_deleted INT DEFAULT 0," +
+                "  deleted    INT DEFAULT 0," +
                 "  created_at TIMESTAMP," +
                 "  updated_at TIMESTAMP" +
                 ")"
@@ -686,15 +686,15 @@ class JdbcEntityGeneratorTest {
     }
 
     @Test
-    void entity_createTimeColumn_emitsCreatedDateAnnotation() throws Exception {
+    void entity_createdAtUpdatedAtColumns_emitDateAnnotations() throws Exception {
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_time");
             stmt.execute(
                 "CREATE TABLE t_time (" +
-                "  id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  create_time TIMESTAMP," +
-                "  update_time TIMESTAMP" +
+                "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
+                "  created_at TIMESTAMP," +
+                "  updated_at TIMESTAMP" +
                 ")"
             );
         }

@@ -829,7 +829,7 @@ jdbcdsl:
   logical-delete-auto-filter: true   # 默认值，可设为 false 关闭
 ```
 
-支持的列名模式（代码生成时自动识别）：`is_deleted`、`deleted`、`del_flag`。
+支持的列名模式（代码生成时自动识别）：`deleted`。
 
 ---
 
@@ -878,6 +878,6 @@ executor.setTimeProvider(() -> fixedTime);
 
 支持的列名模式（代码生成时自动识别）：
 
-- `@CreatedDate`：`created_at`、`create_time`、`gmt_create`
-- `@LastModifiedDate`：`updated_at`、`update_time`、`gmt_modified`
+- `@CreatedDate`：`created_at`
+- `@LastModifiedDate`：`updated_at`
 

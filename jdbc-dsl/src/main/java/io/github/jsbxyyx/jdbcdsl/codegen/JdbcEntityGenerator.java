@@ -843,32 +843,26 @@ public final class JdbcEntityGenerator {
 
     /**
      * Returns {@code true} when a column name (lower-case) maps to a logical-delete flag.
-     * Patterns: {@code is_deleted}, {@code deleted}, {@code del_flag}.
+     * Pattern: {@code deleted}.
      */
     static boolean isLogicalDeleteColumn(String lowerColName) {
-        return "is_deleted".equals(lowerColName)
-                || "deleted".equals(lowerColName)
-                || "del_flag".equals(lowerColName);
+        return "deleted".equals(lowerColName);
     }
 
     /**
      * Returns {@code true} when a column name (lower-case) maps to a creation-time field.
-     * Patterns: {@code created_at}, {@code create_time}, {@code gmt_create}.
+     * Pattern: {@code created_at}.
      */
     static boolean isCreatedDateColumn(String lowerColName) {
-        return "created_at".equals(lowerColName)
-                || "create_time".equals(lowerColName)
-                || "gmt_create".equals(lowerColName);
+        return "created_at".equals(lowerColName);
     }
 
     /**
      * Returns {@code true} when a column name (lower-case) maps to an update-time field.
-     * Patterns: {@code updated_at}, {@code update_time}, {@code gmt_modified}.
+     * Pattern: {@code updated_at}.
      */
     static boolean isLastModifiedDateColumn(String lowerColName) {
-        return "updated_at".equals(lowerColName)
-                || "update_time".equals(lowerColName)
-                || "gmt_modified".equals(lowerColName);
+        return "updated_at".equals(lowerColName);
     }
 
     static String toJavaType(String sqlType) {
