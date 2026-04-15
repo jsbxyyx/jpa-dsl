@@ -13,3 +13,12 @@ CREATE TABLE IF NOT EXISTS t_order (
     status   VARCHAR(50),
     user_id  BIGINT
 );
+
+CREATE TABLE IF NOT EXISTS t_audit_user (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username   VARCHAR(100) NOT NULL,
+    status     VARCHAR(50),
+    deleted    INT DEFAULT 0,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);

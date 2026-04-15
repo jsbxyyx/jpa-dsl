@@ -765,7 +765,119 @@ JPageable<User> jpageable = JPageable.of(0, 10, JSort.byAsc(User::getUsername));
 Pageable springPageable = jpageable.toSpringPageable();
 ```
 
-> **设计约束**：不提供 `fromSpringSort` / `fromSpringPageable` 等输入方向的适配，以强制调用方使用
-> 类型安全的 `SFunction` 方法引用，避免运行时字段名拼写错误。
+---
 
+## jdbc-dsl 高级特性
+
+### 批量 INSERT
+
+通过 `BatchInsertBuilder` 和 `JdbcDslExecutor.executeBatchInsert()` 实现单条 SQL + 多行参数的批量插入，底层使用 `NamedParameterJdbcTemplate.batchUpdate()`。
+
+```java
+List<TUser> users = List.of(
+    new TUser("alice", "alice@example.com", 30, "ACTIVE"),
+    new TUser("bob",   "bob@example.com",   25, "INACTIVE")
+);
+
+// 插入全部列（自动排除 IDENTITY 主键）
+int[] affected = executor.executeBatchInsert(
+    BatchInsertBuilder.of(TUser.class, users).build()
+);
+
+// 只插入指定列
+int[] affected2 = executor.executeBatchInsert(
+    BatchInsertBuilder.of(TUser.class, users)
+        .columns(TUser::getUsername, TUser::getStatus)
+        .build()
+);
+```
+
+- 若 `rows` 为空，立即返回 `int[0]`，不执行任何 SQL。
+- 批量插入也会触发 `@CreatedDate` / `@LastModifiedDate` 自动填充（见下节）。
+
+---
+
+### 逻辑删除（软删除）
+
+在实体字段上标注 `@LogicalDelete`，调用 `executeLogicalDelete()` 时会将该字段更新为 `deletedValue` 而非真正删除行。
+
+#### 实体定义
+
+```java
+@Column(name = "deleted")
+@LogicalDelete(deletedValue = "1", normalValue = "0")
+private Integer deleted = 0;
+```
+
+#### 执行逻辑删除
+
+```java
+DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+    .eq(TUser::getId, userId)
+    .build();
+int affected = executor.executeLogicalDelete(spec);
+// 执行：UPDATE t_user SET deleted = 1 WHERE id = :p1
+```
+
+#### SELECT 自动过滤
+
+默认情况下（`jdbcdsl.logical-delete-auto-filter=true`），所有 SELECT 查询会自动追加 `AND t.deleted = 0` 条件，过滤已逻辑删除的行。
+
+```yaml
+# application.yml
+jdbcdsl:
+  logical-delete-auto-filter: true   # 默认值，可设为 false 关闭
+```
+
+支持的列名模式（代码生成时自动识别）：`deleted`。
+
+---
+
+### 自动填充（创建时间 / 更新时间）
+
+在实体字段上使用 Spring Data 的标准注解，`JdbcDslExecutor` 会自动注入当前时间：
+
+| 注解 | 触发时机 |
+|------|---------|
+| `@org.springframework.data.annotation.CreatedDate` | INSERT（`save`、`saveNonNull`、`executeBatchInsert`） |
+| `@org.springframework.data.annotation.LastModifiedDate` | INSERT 和 UPDATE（若 UPDATE 的 SET 中未显式设置该字段，则自动追加） |
+
+#### 实体定义
+
+```java
+@Column(name = "created_at")
+@CreatedDate
+private LocalDateTime createdAt;
+
+@Column(name = "updated_at")
+@LastModifiedDate
+private LocalDateTime updatedAt;
+```
+
+#### 使用示例
+
+```java
+TUser user = new TUser("alice", "ACTIVE");
+executor.save(user);
+// → INSERT 时自动设置 created_at = NOW() 和 updated_at = NOW()
+
+UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+    .set(TUser::getStatus, "INACTIVE")
+    .eq(TUser::getId, userId)
+    .build();
+executor.executeUpdate(spec);
+// → UPDATE 时自动追加 SET updated_at = NOW()（若 spec 未显式设置 updatedAt）
+```
+
+#### 自定义时间提供者（便于测试）
+
+```java
+LocalDateTime fixedTime = LocalDateTime.of(2024, 1, 1, 0, 0, 0);
+executor.setTimeProvider(() -> fixedTime);
+```
+
+支持的列名模式（代码生成时自动识别）：
+
+- `@CreatedDate`：`created_at`
+- `@LastModifiedDate`：`updated_at`
 

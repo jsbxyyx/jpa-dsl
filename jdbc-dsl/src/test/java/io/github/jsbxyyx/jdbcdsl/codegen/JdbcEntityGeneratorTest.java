@@ -622,6 +622,117 @@ class JdbcEntityGeneratorTest {
     }
 
     // -------------------------------------------------------------------------
+    // New-annotation patterns (@LogicalDelete, @CreatedDate, @LastModifiedDate)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void entity_deletedColumn_emitsLogicalDeleteAnnotation_withTimestamps() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_soft");
+            stmt.execute(
+                "CREATE TABLE t_soft (" +
+                "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
+                "  name       VARCHAR(100)," +
+                "  deleted    INT DEFAULT 0," +
+                "  created_at TIMESTAMP," +
+                "  updated_at TIMESTAMP" +
+                ")"
+            );
+        }
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .useLombok(false)
+                .generate("t_soft");
+
+        File entityFile = new File(outputDir, "com/example/entity/TSoft.java");
+        assertThat(entityFile).exists();
+        String content = readFile(entityFile);
+
+        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete;");
+        assertThat(content).contains("@LogicalDelete");
+        assertThat(content).contains("import org.springframework.data.annotation.CreatedDate;");
+        assertThat(content).contains("@CreatedDate");
+        assertThat(content).contains("import org.springframework.data.annotation.LastModifiedDate;");
+        assertThat(content).contains("@LastModifiedDate");
+    }
+
+    @Test
+    void entity_deletedColumn_emitsLogicalDeleteAnnotation() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_del");
+            stmt.execute(
+                "CREATE TABLE t_del (" +
+                "  id      BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
+                "  deleted INT DEFAULT 0" +
+                ")"
+            );
+        }
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .useLombok(false)
+                .generate("t_del");
+
+        File entityFile = new File(outputDir, "com/example/entity/TDel.java");
+        assertThat(entityFile).exists();
+        String content = readFile(entityFile);
+
+        assertThat(content).contains("@LogicalDelete");
+    }
+
+    @Test
+    void entity_createdAtUpdatedAtColumns_emitDateAnnotations() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TABLE IF EXISTS t_time");
+            stmt.execute(
+                "CREATE TABLE t_time (" +
+                "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
+                "  created_at TIMESTAMP," +
+                "  updated_at TIMESTAMP" +
+                ")"
+            );
+        }
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .useLombok(false)
+                .generate("t_time");
+
+        File entityFile = new File(outputDir, "com/example/entity/TTime.java");
+        assertThat(entityFile).exists();
+        String content = readFile(entityFile);
+
+        assertThat(content).contains("@CreatedDate");
+        assertThat(content).contains("@LastModifiedDate");
+    }
+
+    @Test
+    void entity_noSpecialColumns_doesNotEmitSpecialAnnotations() throws Exception {
+        // stock_all has no is_deleted / created_at / updated_at columns
+        JdbcEntityGenerator.builder()
+                .dataSource(dataSource)
+                .entityPackage("com.example.entity")
+                .outputDir(outputDir.getAbsolutePath())
+                .useLombok(false)
+                .generate("stock_all");
+
+        File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
+        assertThat(entityFile).exists();
+        String content = readFile(entityFile);
+
+        assertThat(content).doesNotContain("@LogicalDelete");
+        assertThat(content).doesNotContain("@CreatedDate");
+        assertThat(content).doesNotContain("@LastModifiedDate");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

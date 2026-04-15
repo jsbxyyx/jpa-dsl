@@ -49,6 +49,7 @@ public class JdbcDslAutoConfiguration {
     @Bean
     public JdbcDslProperties jdbcDslProperties(JdbcDslProperties properties) {
         JdbcDslConfig.setAllowEmptyWhere(properties.isAllowEmptyWhere());
+        JdbcDslConfig.setLogicalDeleteAutoFilter(properties.isLogicalDeleteAutoFilter());
         return properties;
     }
 

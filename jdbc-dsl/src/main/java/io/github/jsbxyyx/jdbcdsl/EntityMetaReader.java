@@ -1,14 +1,19 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete;
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -58,6 +63,16 @@ public final class EntityMetaReader {
         String idColumnName = null;
         boolean idGeneratedByIdentity = false;
 
+        // Logical-delete metadata
+        String logicalDeletePropertyName = null;
+        String logicalDeleteColumnName = null;
+        String logicalDeletedValue = null;
+        String logicalDeleteNormalValue = null;
+
+        // Auto-fill metadata
+        List<String> createdDateProps = new ArrayList<>();
+        List<String> lastModifiedDateProps = new ArrayList<>();
+
         // --- Scan fields (walking up the class hierarchy) ---
         Class<?> current = entityClass;
         while (current != null && current != Object.class) {
@@ -79,6 +94,27 @@ public final class EntityMetaReader {
                         GeneratedValue gv = field.getAnnotation(GeneratedValue.class);
                         idGeneratedByIdentity = gv != null && gv.strategy() == GenerationType.IDENTITY;
                     }
+                }
+
+                // @LogicalDelete
+                LogicalDelete ld = field.getAnnotation(LogicalDelete.class);
+                if (ld != null && logicalDeletePropertyName == null) {
+                    // Resolve column name (field must have @Column or default to field name)
+                    String ldColName = resolveColumnName(colAnn, propName);
+                    logicalDeletePropertyName = propName;
+                    logicalDeleteColumnName = ldColName;
+                    logicalDeletedValue = ld.deletedValue();
+                    logicalDeleteNormalValue = ld.normalValue();
+                }
+
+                // @CreatedDate (Spring Data)
+                if (field.isAnnotationPresent(CreatedDate.class)) {
+                    createdDateProps.add(propName);
+                }
+
+                // @LastModifiedDate (Spring Data)
+                if (field.isAnnotationPresent(LastModifiedDate.class)) {
+                    lastModifiedDateProps.add(propName);
                 }
             }
             current = current.getSuperclass();
@@ -122,7 +158,11 @@ public final class EntityMetaReader {
             current = current.getSuperclass();
         }
 
-        return new EntityMeta(tableName, propertyToColumn, idPropertyName, idColumnName, idGeneratedByIdentity);
+        return new EntityMeta(tableName, propertyToColumn, idPropertyName, idColumnName,
+                idGeneratedByIdentity,
+                logicalDeletePropertyName, logicalDeleteColumnName,
+                logicalDeletedValue, logicalDeleteNormalValue,
+                createdDateProps, lastModifiedDateProps);
     }
 
     private static String resolveColumnName(Column colAnn, String defaultName) {
