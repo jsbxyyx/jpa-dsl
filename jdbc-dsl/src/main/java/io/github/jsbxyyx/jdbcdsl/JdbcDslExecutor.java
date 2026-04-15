@@ -102,6 +102,20 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Executes a COUNT query for the given spec and returns the total number of matching rows.
+     *
+     * <p>When the spec contains JOINs (no GROUP BY), uses {@code COUNT(DISTINCT pk)} to avoid
+     * counting duplicate rows produced by one-to-many joins.
+     * When the spec contains GROUP BY, wraps the query as a derived table and counts groups.
+     */
+    public <T, R> long count(SelectSpec<T, R> spec) {
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
+        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
+        Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
+        return total != null ? total : 0L;
+    }
+
+    /**
      * Executes a paginated SELECT (applying sort, offset, and limit from {@code pageable}) and
      * returns the matching rows as a list. No COUNT query is executed.
      *
