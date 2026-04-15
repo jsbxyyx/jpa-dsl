@@ -1,18 +1,21 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Runtime configuration holder for jdbc-dsl.
  *
  * <p>Populated by {@link JdbcDslAutoConfiguration} on startup from {@link JdbcDslProperties}.
- * Builders ({@link UpdateBuilder}, {@link DeleteBuilder}) read from this class so that they
- * do not need a Spring dependency injection context.
+ * Builders ({@link UpdateBuilder}, {@link DeleteBuilder}) and {@link EntityMetaReader} read from
+ * this class so that they do not need a Spring dependency injection context.
  */
 public final class JdbcDslConfig {
 
     private static final AtomicBoolean allowEmptyWhere = new AtomicBoolean(false);
     private static final AtomicBoolean logicalDeleteAutoFilter = new AtomicBoolean(true);
+    private static final AtomicReference<NamingStrategy> namingStrategy =
+            new AtomicReference<>(DefaultNamingStrategy.INSTANCE);
 
     private JdbcDslConfig() {
     }
@@ -48,5 +51,24 @@ public final class JdbcDslConfig {
      */
     static void setLogicalDeleteAutoFilter(boolean value) {
         logicalDeleteAutoFilter.set(value);
+    }
+
+    /**
+     * Returns the active {@link NamingStrategy} used by {@link EntityMetaReader} to derive
+     * column and table names when no explicit JPA annotation is present.
+     * Defaults to {@link DefaultNamingStrategy} (identity).
+     */
+    public static NamingStrategy getNamingStrategy() {
+        return namingStrategy.get();
+    }
+
+    /**
+     * Sets the active {@link NamingStrategy}.
+     * Called by {@link JdbcDslAutoConfiguration}; may also be called directly when
+     * running without Spring (e.g. {@code JdbcDslConfig.setNamingStrategy(SnakeCaseNamingStrategy.INSTANCE)}).
+     */
+    public static void setNamingStrategy(NamingStrategy strategy) {
+        namingStrategy.set(strategy != null ? strategy : DefaultNamingStrategy.INSTANCE);
+        EntityMetaReader.clearCache();
     }
 }
