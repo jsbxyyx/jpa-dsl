@@ -7,10 +7,13 @@ import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
+import io.github.jsbxyyx.jdbcdsl.predicate.ExistsPredicate;
+import io.github.jsbxyyx.jdbcdsl.predicate.InSubqueryPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
+import io.github.jsbxyyx.jdbcdsl.predicate.ScalarSubqueryPredicate;
 import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
 
 import java.util.ArrayList;
@@ -46,7 +49,21 @@ public final class SqlRenderer {
     public static <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec) {
         Map<String, Object> params = new LinkedHashMap<>();
         AtomicInteger paramIdx = new AtomicInteger(0);
+        return new RenderedSql(buildSelectSql(spec, params, paramIdx, true), params);
+    }
 
+    /**
+     * Builds SELECT SQL sharing the given {@code params} map and {@code paramIdx} counter.
+     * Used internally so that subquery parameters are folded into the outer query's
+     * parameter map with globally unique names.
+     *
+     * @param includeOrderBy {@code false} when rendering a subquery (ORDER BY is not valid
+     *                       inside a subquery in SQL-92)
+     */
+    static <T, R> String buildSelectSql(SelectSpec<T, R> spec,
+                                         Map<String, Object> params,
+                                         AtomicInteger paramIdx,
+                                         boolean includeOrderBy) {
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
 
@@ -56,8 +73,6 @@ public final class SqlRenderer {
         sb.append("SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
         if (exprs.isEmpty()) {
-            // No explicit select(): expand all entity columns in entity declaration order,
-            // which mirrors database column ordinal order for generated entities.
             EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
             StringJoiner cols = new StringJoiner(", ");
             meta.getPropertyToColumn().entrySet()
@@ -86,31 +101,44 @@ public final class SqlRenderer {
         // HAVING clause
         appendHavingClause(sb, spec, params, paramIdx);
 
-        // ORDER BY clause
-        JSort<T> sort = spec.getSort();
-        if (!sort.isEmpty()) {
-            sb.append(" ORDER BY ");
-            StringJoiner orderJoiner = new StringJoiner(", ");
-            for (JOrder<T> order : sort.getOrders()) {
-                String colExpr;
-                if (order.isIgnoreCase() && order.getExpression() instanceof ColumnExpression<?> colExprNode) {
-                    // Backward-compat: ignoreCase wraps a column in LOWER(...)
-                    String rendered = renderColumnExpression(colExprNode, spec);
-                    colExpr = "LOWER(" + rendered + ")";
-                } else {
-                    colExpr = renderExpression(order.getExpression(), spec, params, paramIdx);
+        // ORDER BY clause (omitted inside subqueries)
+        if (includeOrderBy) {
+            JSort<T> sort = spec.getSort();
+            if (!sort.isEmpty()) {
+                sb.append(" ORDER BY ");
+                StringJoiner orderJoiner = new StringJoiner(", ");
+                for (JOrder<T> order : sort.getOrders()) {
+                    String colExpr;
+                    if (order.isIgnoreCase() && order.getExpression() instanceof ColumnExpression<?> colExprNode) {
+                        String rendered = renderColumnExpression(colExprNode, spec);
+                        colExpr = "LOWER(" + rendered + ")";
+                    } else {
+                        colExpr = renderExpression(order.getExpression(), spec, params, paramIdx);
+                    }
+                    String nullHandling = switch (order.getNullHandling()) {
+                        case NULLS_FIRST -> " NULLS FIRST";
+                        case NULLS_LAST -> " NULLS LAST";
+                        case NATIVE -> "";
+                    };
+                    orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
                 }
-                String nullHandling = switch (order.getNullHandling()) {
-                    case NULLS_FIRST -> " NULLS FIRST";
-                    case NULLS_LAST -> " NULLS LAST";
-                    case NATIVE -> "";
-                };
-                orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
+                sb.append(orderJoiner);
             }
-            sb.append(orderJoiner);
         }
 
-        return new RenderedSql(sb.toString(), params);
+        return sb.toString();
+    }
+
+    /**
+     * Renders a subquery {@link SelectSpec} inline, sharing the outer query's parameter map and
+     * counter so that all named parameters are globally unique (e.g. {@code :p1, :p2, ...}).
+     * ORDER BY is intentionally omitted — it is not valid inside a SQL-92 subquery.
+     */
+    @SuppressWarnings("unchecked")
+    static String renderSubquerySql(SelectSpec<?, ?> spec,
+                                     Map<String, Object> params,
+                                     AtomicInteger paramIdx) {
+        return buildSelectSql((SelectSpec<Object, Object>) spec, params, paramIdx, false);
     }
 
     /**
@@ -280,9 +308,50 @@ public final class SqlRenderer {
             return "NOT (" + renderPredicate(not.getChild(), spec, params, paramIdx) + ")";
         } else if (node instanceof OnEqPredicate onEq) {
             return renderOnEqAsWhere(onEq, spec);
+        } else if (node instanceof InSubqueryPredicate inSub) {
+            return renderInSubquery(inSub, spec, params, paramIdx);
+        } else if (node instanceof ExistsPredicate exists) {
+            return renderExists(exists, params, paramIdx);
+        } else if (node instanceof ScalarSubqueryPredicate scalar) {
+            return renderScalarSubquery(scalar, spec, params, paramIdx);
         } else {
             throw new IllegalArgumentException("Unknown predicate node type: " + node.getClass());
         }
+    }
+
+    private static <T, R> String renderInSubquery(InSubqueryPredicate node,
+                                                    SelectSpec<T, R> spec,
+                                                    Map<String, Object> params,
+                                                    AtomicInteger paramIdx) {
+        String lhs = renderExpression(node.getLhs(), spec, params, paramIdx);
+        String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
+        String op = node.isNegated() ? " NOT IN (" : " IN (";
+        return lhs + op + inner + ")";
+    }
+
+    private static String renderExists(ExistsPredicate node,
+                                        Map<String, Object> params,
+                                        AtomicInteger paramIdx) {
+        String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
+        String prefix = node.isNegated() ? "NOT EXISTS (" : "EXISTS (";
+        return prefix + inner + ")";
+    }
+
+    private static <T, R> String renderScalarSubquery(ScalarSubqueryPredicate node,
+                                                        SelectSpec<T, R> spec,
+                                                        Map<String, Object> params,
+                                                        AtomicInteger paramIdx) {
+        String lhs = renderExpression(node.getLhs(), spec, params, paramIdx);
+        String op = switch (node.getOp()) {
+            case EQ -> " = ";
+            case NE -> " <> ";
+            case GT -> " > ";
+            case GTE -> " >= ";
+            case LT -> " < ";
+            case LTE -> " <= ";
+        };
+        String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
+        return lhs + op + "(" + inner + ")";
     }
 
     private static <T, R> String renderLeaf(LeafPredicate leaf,
