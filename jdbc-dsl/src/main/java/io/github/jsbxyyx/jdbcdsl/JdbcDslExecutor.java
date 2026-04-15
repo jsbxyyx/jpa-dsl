@@ -13,7 +13,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
 
@@ -351,16 +350,16 @@ public final class JdbcDslExecutor {
 
         // Build SqlParameterSource array (one entry per row)
         List<String> cols = new ArrayList<>(firstColValues.keySet());
-        SqlParameterSource[] batchParams = rows.stream()
+        MapSqlParameterSource[] batchParams = rows.stream()
                 .map(row -> {
                     LinkedHashMap<String, Object> cv = buildColumnValues(row, meta, excludeIdentityPk);
                     Map<String, Object> p = new LinkedHashMap<>();
                     for (String col : cols) {
                         p.put(col, cv.get(col));
                     }
-                    return (SqlParameterSource) new MapSqlParameterSource(p);
+                    return new MapSqlParameterSource(p);
                 })
-                .toArray(SqlParameterSource[]::new);
+                .toArray(MapSqlParameterSource[]::new);
 
         return jdbc.batchUpdate(rendered.getSql(), batchParams);
     }
@@ -788,6 +787,8 @@ public final class JdbcDslExecutor {
     /**
      * Converts a logical-delete String value (e.g. {@code "1"}) to match the Java type of the
      * annotated field. Uses {@link DefaultConversionService} for the conversion.
+     *
+     * @return the converted value, or {@code null} when {@code stringValue} is {@code null}
      */
     private static Object convertLogicalDeleteString(String stringValue, Class<?> entityClass,
                                                       String propName) {
