@@ -1,9 +1,11 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.dto.UserDto;
+import io.github.jsbxyyx.jdbcdsl.entity.TOrder;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.count;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -112,6 +114,60 @@ class SqlRendererTest {
                 .startsWith("SELECT COUNT(*)")
                 .contains("FROM t_user t");
         assertThat(rendered.getParams()).isEmpty();
+    }
+
+    @Test
+    void renderCount_withJoin_useCountDistinctPk() {
+        // When JOINs are present (e.g. user → orders one-to-many), COUNT(*) would
+        // count duplicate rows. The fix uses COUNT(DISTINCT alias.pk) instead.
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(TUser::getId, TUser::getUsername)
+                .join(TOrder.class, "o", JoinType.LEFT, on ->
+                        on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderCount(spec);
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(DISTINCT u.id)")
+                .contains("LEFT JOIN t_order o")
+                .contains("WHERE")
+                .doesNotContain("ORDER BY");
+        assertThat(rendered.getParams()).containsKey("p1");
+    }
+
+    @Test
+    void renderCount_withGroupBy_wrapsAsSubquery() {
+        // When GROUP BY is present, COUNT(*) counts raw rows, not groups.
+        // The fix wraps the grouped query as a derived table.
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(SqlFunctions.col(TUser::getStatus), SqlFunctions.countStar().as("cnt"))
+                .groupBy(TUser::getStatus)
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderCount(spec);
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(*) FROM (")
+                .contains("GROUP BY")
+                .contains("_count_t")
+                .doesNotContain("ORDER BY");
+    }
+
+    @Test
+    void renderCount_withGroupByAndHaving_wrapsAsSubquery() {
+        // HAVING must also be included in the inner query.
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(SqlFunctions.col(TUser::getStatus), SqlFunctions.countStar().as("cnt"))
+                .groupBy(TUser::getStatus)
+                .having(h -> h.gt(SqlFunctions.countStar(), 1))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderCount(spec);
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(*) FROM (")
+                .contains("GROUP BY")
+                .contains("HAVING")
+                .contains("_count_t");
     }
 
     @Test
