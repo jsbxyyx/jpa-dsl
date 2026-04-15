@@ -15,6 +15,7 @@ public final class SelectSpec<T, R> {
 
     private final Class<T> entityClass;
     private final String alias;
+    private final boolean distinct;
     private final List<SqlExpression<?>> selectedExpressions;
     private final PredicateNode where;
     private final List<JoinSpec> joins;
@@ -25,6 +26,7 @@ public final class SelectSpec<T, R> {
 
     SelectSpec(Class<T> entityClass,
                String alias,
+               boolean distinct,
                List<SqlExpression<?>> selectedExpressions,
                PredicateNode where,
                List<JoinSpec> joins,
@@ -34,6 +36,7 @@ public final class SelectSpec<T, R> {
                PredicateNode having) {
         this.entityClass = entityClass;
         this.alias = alias;
+        this.distinct = distinct;
         this.selectedExpressions = List.copyOf(selectedExpressions);
         this.where = where;
         this.joins = List.copyOf(joins);
@@ -45,6 +48,7 @@ public final class SelectSpec<T, R> {
 
     public Class<T> getEntityClass() { return entityClass; }
     public String getAlias() { return alias; }
+    public boolean isDistinct() { return distinct; }
     public List<SqlExpression<?>> getSelectedExpressions() { return selectedExpressions; }
     public PredicateNode getWhere() { return where; }
     public List<JoinSpec> getJoins() { return joins; }
