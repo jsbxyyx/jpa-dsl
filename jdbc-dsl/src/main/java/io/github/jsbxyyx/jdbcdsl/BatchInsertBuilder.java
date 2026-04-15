@@ -1,7 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -60,18 +59,6 @@ public final class BatchInsertBuilder<T> {
             String colName = meta.getColumnName(ref.propertyName());
             columnNames.add(colName != null ? colName : ref.propertyName());
         }
-        return this;
-    }
-
-    /**
-     * 通过列名字符串指定要插入的列。可多次调用以累积列名。
-     * 若未调用，则插入实体全部列（排除 IDENTITY 主键）。
-     *
-     * @param columns 列名（来自 {@code @Column(name=...)}）
-     * @return {@code this}（链式调用）
-     */
-    public BatchInsertBuilder<T> columns(String... columns) {
-        columnNames.addAll(Arrays.asList(columns));
         return this;
     }
 
