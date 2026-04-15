@@ -176,6 +176,37 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Executes a {@link UnionSpec} ({@code UNION} / {@code UNION ALL}) and returns all rows
+     * mapped to the common result type {@code R}.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * UnionSpec<NameDto> union = UnionSpec
+     *     .of(SelectBuilder.from(User.class).select(User::getName).mapTo(NameDto.class))
+     *     .unionAll(SelectBuilder.from(Admin.class).select(Admin::getName).mapTo(NameDto.class))
+     *     .build();
+     *
+     * List<NameDto> results = executor.union(union);
+     * }</pre>
+     */
+    public <R> List<R> union(UnionSpec<R> spec) {
+        RenderedSql rendered = SqlRenderer.renderUnion(spec);
+        RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
+        return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
+    }
+
+    /**
+     * Executes a paginated {@link UnionSpec} and returns a page of results.
+     */
+    public <R> List<R> union(UnionSpec<R> spec, long offset, int size) {
+        RenderedSql rendered = SqlRenderer.renderUnion(spec);
+        Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
+        String paginatedSql = dialect.applyPagination(rendered.getSql(), offset, size, paginatedParams);
+        RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
+        return jdbc.query(paginatedSql, paginatedParams, mapper);
+    }
+
+    /**
      * Executes a paginated SELECT and returns a Spring {@link Page}.
      *
      * <p>Note: when the spec contains JOINs, the COUNT query uses {@code COUNT(*)} which may
@@ -701,6 +732,7 @@ public final class JdbcDslExecutor {
             return new SelectSpec<>(
                     spec.getEntityClass(),
                     spec.getAlias(),
+                    spec.isDistinct(),
                     spec.getSelectedExpressions(),
                     spec.getWhere(),
                     spec.getJoins(),
@@ -744,7 +776,7 @@ public final class JdbcDslExecutor {
             combinedWhere = new AndPredicate(List.of(spec.getWhere(), ldPredicate));
         }
         return new SelectSpec<>(spec.getEntityClass(), spec.getAlias(),
-                spec.getSelectedExpressions(), combinedWhere,
+                spec.isDistinct(), spec.getSelectedExpressions(), combinedWhere,
                 spec.getJoins(), spec.getSort(), spec.getDtoClass(),
                 spec.getGroupByExpressions(), spec.getHaving());
     }

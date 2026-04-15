@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.AliasedExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
@@ -44,6 +45,33 @@ public final class SqlRenderer {
     }
 
     /**
+     * Renders a {@link UnionSpec} into a parameterized {@link RenderedSql}.
+     *
+     * <p>Each branch is rendered as a full SELECT (without ORDER BY), joined by
+     * {@code UNION} or {@code UNION ALL} operators. The result is wrapped in a derived
+     * table so that an outer ORDER BY can be applied if needed in the future.
+     */
+    public static <R> RenderedSql renderUnion(UnionSpec<R> spec) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        AtomicInteger paramIdx = new AtomicInteger(0);
+
+        List<UnionSpec.Branch<R>> branches = spec.getBranches();
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < branches.size(); i++) {
+            UnionSpec.Branch<R> branch = branches.get(i);
+            if (i > 0) {
+                String op = branch.unionType() == UnionSpec.UnionType.UNION_ALL
+                        ? " UNION ALL " : " UNION ";
+                sb.append(op);
+            }
+            sb.append(buildSelectSqlUnchecked(branch.spec(), params, paramIdx, false));
+        }
+
+        return new RenderedSql(sb.toString(), params);
+    }
+
+    /**
      * Renders the SELECT query for a {@link SelectSpec}.
      */
     public static <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec) {
@@ -70,7 +98,7 @@ public final class SqlRenderer {
         StringBuilder sb = new StringBuilder();
 
         // SELECT clause
-        sb.append("SELECT ");
+        sb.append(spec.isDistinct() ? "SELECT DISTINCT " : "SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
         if (exprs.isEmpty()) {
             EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
@@ -139,6 +167,14 @@ public final class SqlRenderer {
                                      Map<String, Object> params,
                                      AtomicInteger paramIdx) {
         return buildSelectSql((SelectSpec<Object, Object>) spec, params, paramIdx, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String buildSelectSqlUnchecked(SelectSpec<?, ?> spec,
+                                                   Map<String, Object> params,
+                                                   AtomicInteger paramIdx,
+                                                   boolean includeOrderBy) {
+        return buildSelectSql((SelectSpec<Object, Object>) spec, params, paramIdx, includeOrderBy);
     }
 
     /**
@@ -253,6 +289,8 @@ public final class SqlRenderer {
             return renderAggregateExpression(agg, spec, params, paramIdx);
         } else if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
+        } else if (expression instanceof CaseExpression<?> caseExpr) {
+            return renderCaseExpression(caseExpr, spec, params, paramIdx);
         } else {
             throw new IllegalArgumentException("Unknown SqlExpression type: " + expression.getClass());
         }
@@ -288,6 +326,22 @@ public final class SqlRenderer {
         }
         String inner = agg.isDistinct() ? "DISTINCT " + argJoiner : argJoiner.toString();
         return agg.getFunctionName() + "(" + inner + ")";
+    }
+
+    private static <T, R> String renderCaseExpression(CaseExpression<?> expr,
+                                                       SelectSpec<T, R> spec,
+                                                       Map<String, Object> params,
+                                                       AtomicInteger paramIdx) {
+        StringBuilder sb = new StringBuilder("CASE");
+        for (CaseExpression.WhenClause when : expr.getWhenClauses()) {
+            sb.append(" WHEN ").append(renderPredicate(when.condition(), spec, params, paramIdx));
+            sb.append(" THEN ").append(renderExpression(when.result(), spec, params, paramIdx));
+        }
+        if (expr.getElseExpr() != null) {
+            sb.append(" ELSE ").append(renderExpression(expr.getElseExpr(), spec, params, paramIdx));
+        }
+        sb.append(" END");
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------ //
@@ -663,7 +717,8 @@ public final class SqlRenderer {
             EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
             sb.append(" ").append(joinTypeStr(join.getJoinType()))
               .append(" ").append(joinMeta.getTableName()).append(" ").append(join.getAlias());
-            if (!join.getOnConditions().isEmpty()) {
+            // CROSS JOIN has no ON clause
+            if (join.getJoinType() != JoinType.CROSS && !join.getOnConditions().isEmpty()) {
                 sb.append(" ON ");
                 StringJoiner onJoiner = new StringJoiner(" AND ");
                 for (PredicateNode cond : join.getOnConditions()) {
@@ -732,6 +787,8 @@ public final class SqlRenderer {
             case INNER -> "INNER JOIN";
             case LEFT -> "LEFT JOIN";
             case RIGHT -> "RIGHT JOIN";
+            case FULL -> "FULL OUTER JOIN";
+            case CROSS -> "CROSS JOIN";
         };
     }
 }

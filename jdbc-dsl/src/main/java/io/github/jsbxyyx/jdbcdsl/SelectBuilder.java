@@ -48,6 +48,7 @@ public final class SelectBuilder<T> {
 
     private final Class<T> entityClass;
     private final String alias;
+    private boolean distinct = false;
     private final List<SqlExpression<?>> selectedExpressions = new ArrayList<>();
     private PredicateNode where;
     private final List<JoinSpec> joins = new ArrayList<>();
@@ -68,6 +69,12 @@ public final class SelectBuilder<T> {
     /** Starts building a select from the given entity class with a custom alias. */
     public static <T> SelectBuilder<T> from(Class<T> entityClass, String alias) {
         return new SelectBuilder<>(entityClass, alias);
+    }
+
+    /** Adds {@code DISTINCT} to the SELECT clause, eliminating duplicate rows. */
+    public SelectBuilder<T> distinct() {
+        this.distinct = true;
+        return this;
     }
 
     /**
@@ -115,6 +122,12 @@ public final class SelectBuilder<T> {
         OnBuilder ob = new OnBuilder();
         onConsumer.accept(ob);
         joins.add(new JoinSpec(joinEntity, joinAlias, type, ob.getConditions()));
+        return this;
+    }
+
+    /** Adds a CROSS JOIN clause (no ON condition required). */
+    public <J> SelectBuilder<T> crossJoin(Class<J> joinEntity, String joinAlias) {
+        joins.add(new JoinSpec(joinEntity, joinAlias, JoinType.CROSS, List.of()));
         return this;
     }
 
@@ -166,7 +179,7 @@ public final class SelectBuilder<T> {
      * @param dtoClass the result type; must have a no-arg constructor and setters
      */
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
-        return new SelectSpec<>(entityClass, alias, selectedExpressions, where, joins, sort,
+        return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
                 dtoClass, groupByExpressions, having);
     }
 
@@ -184,7 +197,7 @@ public final class SelectBuilder<T> {
      * @return a spec where the result type {@code R} equals the entity type {@code T}
      */
     public SelectSpec<T, T> mapToEntity() {
-        return new SelectSpec<>(entityClass, alias, selectedExpressions, where, joins, sort,
+        return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
                 entityClass, groupByExpressions, having);
     }
 }

@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
@@ -31,6 +32,41 @@ import java.util.List;
 public final class SqlFunctions {
 
     private SqlFunctions() {
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Literal / CASE
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Embeds a raw SQL fragment verbatim (NOT bound as a JDBC parameter).
+     *
+     * <p>Use for SQL keywords, quoted string literals, or numeric constants:
+     * <pre>{@code
+     * lit("'Active'")  // → 'Active'
+     * lit("0")         // → 0
+     * }</pre>
+     */
+    public static <V> LiteralExpression<V> lit(String sql) {
+        return LiteralExpression.of(sql);
+    }
+
+    /**
+     * Starts building a searched {@code CASE WHEN ... THEN ... END} expression.
+     *
+     * <pre>{@code
+     * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+     * import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
+     *
+     * // CASE WHEN t.status = 1 THEN 'Active' ELSE 'Inactive' END AS statusLabel
+     * case_()
+     *     .when(LeafPredicate.ofExpr(col(User::getStatus), LeafPredicate.Op.EQ, 1), lit("'Active'"))
+     *     .otherwise(lit("'Inactive'"))
+     *     .as("statusLabel")
+     * }</pre>
+     */
+    public static CaseExpression.Builder case_() {
+        return CaseExpression.builder();
     }
 
     // ------------------------------------------------------------------ //
