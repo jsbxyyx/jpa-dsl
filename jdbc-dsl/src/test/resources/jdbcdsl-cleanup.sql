@@ -1,2 +1,3 @@
 TRUNCATE TABLE t_order;
 TRUNCATE TABLE t_user;
+TRUNCATE TABLE t_audit_user;

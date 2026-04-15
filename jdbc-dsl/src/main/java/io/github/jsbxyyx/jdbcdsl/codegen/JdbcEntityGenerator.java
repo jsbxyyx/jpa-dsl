@@ -324,6 +324,26 @@ public final class JdbcEntityGenerator {
             imports.add("jakarta.persistence.GenerationType");
         }
 
+        // Check whether any column needs special jdbc-dsl annotations
+        boolean hasLogicalDelete = false;
+        boolean hasCreatedDate = false;
+        boolean hasLastModifiedDate = false;
+        for (ColumnInfo col : columns) {
+            String lc = col.name.toLowerCase();
+            if (isLogicalDeleteColumn(lc)) hasLogicalDelete = true;
+            if (isCreatedDateColumn(lc)) hasCreatedDate = true;
+            if (isLastModifiedDateColumn(lc)) hasLastModifiedDate = true;
+        }
+        if (hasLogicalDelete) {
+            imports.add("io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete");
+        }
+        if (hasCreatedDate) {
+            imports.add("org.springframework.data.annotation.CreatedDate");
+        }
+        if (hasLastModifiedDate) {
+            imports.add("org.springframework.data.annotation.LastModifiedDate");
+        }
+
         // Determine Java types and collect additional imports
         Map<ColumnInfo, String> javaTypes = new LinkedHashMap<>();
         for (ColumnInfo col : columns) {
@@ -400,6 +420,15 @@ public final class JdbcEntityGenerator {
                     w.println("    @Column(name = \"" + lowerCol + "\", nullable = false)");
                 } else {
                     w.println("    @Column(name = \"" + lowerCol + "\")");
+                }
+                if (isLogicalDeleteColumn(lowerCol)) {
+                    w.println("    @LogicalDelete");
+                }
+                if (isCreatedDateColumn(lowerCol)) {
+                    w.println("    @CreatedDate");
+                }
+                if (isLastModifiedDateColumn(lowerCol)) {
+                    w.println("    @LastModifiedDate");
                 }
                 w.println("    private " + simpleType + " " + fieldName + ";");
                 w.println();
@@ -806,6 +835,40 @@ public final class JdbcEntityGenerator {
             }
         }
         return tableName;
+    }
+
+    // -------------------------------------------------------------------------
+    // Column-name pattern helpers for special annotations
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns {@code true} when a column name (lower-case) maps to a logical-delete flag.
+     * Patterns: {@code is_deleted}, {@code deleted}, {@code del_flag}.
+     */
+    static boolean isLogicalDeleteColumn(String lowerColName) {
+        return "is_deleted".equals(lowerColName)
+                || "deleted".equals(lowerColName)
+                || "del_flag".equals(lowerColName);
+    }
+
+    /**
+     * Returns {@code true} when a column name (lower-case) maps to a creation-time field.
+     * Patterns: {@code created_at}, {@code create_time}, {@code gmt_create}.
+     */
+    static boolean isCreatedDateColumn(String lowerColName) {
+        return "created_at".equals(lowerColName)
+                || "create_time".equals(lowerColName)
+                || "gmt_create".equals(lowerColName);
+    }
+
+    /**
+     * Returns {@code true} when a column name (lower-case) maps to an update-time field.
+     * Patterns: {@code updated_at}, {@code update_time}, {@code gmt_modified}.
+     */
+    static boolean isLastModifiedDateColumn(String lowerColName) {
+        return "updated_at".equals(lowerColName)
+                || "update_time".equals(lowerColName)
+                || "gmt_modified".equals(lowerColName);
     }
 
     static String toJavaType(String sqlType) {

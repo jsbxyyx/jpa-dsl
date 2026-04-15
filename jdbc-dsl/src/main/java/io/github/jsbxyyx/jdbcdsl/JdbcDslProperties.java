@@ -9,6 +9,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <pre>
  * # Allow UPDATE/DELETE without a WHERE clause (default: false)
  * jdbcdsl.allow-empty-where=true
+ *
+ * # Automatically filter logically-deleted rows in SELECT (default: true)
+ * jdbcdsl.logical-delete-auto-filter=false
  * </pre>
  */
 @ConfigurationProperties(prefix = "jdbcdsl")
@@ -21,11 +24,27 @@ public class JdbcDslProperties {
      */
     private boolean allowEmptyWhere = false;
 
+    /**
+     * Whether SELECT queries automatically append {@code AND deleted_col = normalValue}
+     * when the root entity has a field annotated with
+     * {@link io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete}.
+     * Defaults to {@code true}.
+     */
+    private boolean logicalDeleteAutoFilter = true;
+
     public boolean isAllowEmptyWhere() {
         return allowEmptyWhere;
     }
 
     public void setAllowEmptyWhere(boolean allowEmptyWhere) {
         this.allowEmptyWhere = allowEmptyWhere;
+    }
+
+    public boolean isLogicalDeleteAutoFilter() {
+        return logicalDeleteAutoFilter;
+    }
+
+    public void setLogicalDeleteAutoFilter(boolean logicalDeleteAutoFilter) {
+        this.logicalDeleteAutoFilter = logicalDeleteAutoFilter;
     }
 }

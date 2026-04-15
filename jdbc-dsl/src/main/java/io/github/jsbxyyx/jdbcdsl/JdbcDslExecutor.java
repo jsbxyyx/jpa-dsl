@@ -2,7 +2,9 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
+import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
+import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
@@ -11,6 +13,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
 
@@ -19,6 +22,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +30,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Executes jdbc-dsl select queries using {@link NamedParameterJdbcTemplate}.
@@ -46,6 +52,7 @@ public final class JdbcDslExecutor {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Dialect dialect;
+    private TimeProvider timeProvider = LocalDateTime::now;
 
     /**
      * Creates a {@link JdbcDslExecutor} that auto-detects the {@link Dialect} from the
@@ -68,11 +75,30 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Replaces the time provider used for auto-filling
+     * {@link org.springframework.data.annotation.CreatedDate} and
+     * {@link org.springframework.data.annotation.LastModifiedDate} fields.
+     *
+     * <p>The default provider returns {@link LocalDateTime#now()}.
+     * Inject a fixed-time provider in tests for deterministic assertions:
+     * <pre>{@code
+     * executor.setTimeProvider(() -> LocalDateTime.of(2024, 1, 1, 0, 0, 0));
+     * }</pre>
+     *
+     * @param timeProvider the new time provider (must not be {@code null})
+     */
+    public void setTimeProvider(TimeProvider timeProvider) {
+        if (timeProvider == null) throw new IllegalArgumentException("timeProvider must not be null");
+        this.timeProvider = timeProvider;
+    }
+
+    /**
      * Executes a SELECT and maps results to {@code R} via setter injection.
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec) {
-        RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
 
@@ -86,7 +112,7 @@ public final class JdbcDslExecutor {
      * <p>Mapping strategy is identical to {@link #select(SelectSpec)}.
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec, JPageable<T> pageable) {
-        SelectSpec<T, R> effectiveSpec = mergeSort(spec, pageable);
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
         RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
         String paginatedSql = dialect.applyPagination(
@@ -105,10 +131,11 @@ public final class JdbcDslExecutor {
      * <p>Mapping strategy is identical to {@link #select(SelectSpec)}.
      */
     public <T, R> R findOne(SelectSpec<T, R> spec) {
-        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
         String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
-        RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
+        RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         List<R> results = jdbc.query(limitedSql, limitedParams, mapper);
         return results.isEmpty() ? null : results.get(0);
     }
@@ -126,7 +153,7 @@ public final class JdbcDslExecutor {
      * <p>Mapping strategy is identical to {@link #select(SelectSpec)}.
      */
     public <T, R> R findOne(SelectSpec<T, R> spec, JPageable<T> pageable) {
-        SelectSpec<T, R> effectiveSpec = mergeSort(spec, pageable);
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
         RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
         String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
@@ -142,7 +169,7 @@ public final class JdbcDslExecutor {
      * count duplicate rows. See the README for details.
      */
     public <T, R> Page<R> selectPage(SelectSpec<T, R> spec, JPageable<T> pageable) {
-        SelectSpec<T, R> effectiveSpec = mergeSort(spec, pageable);
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
 
         RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
@@ -162,11 +189,17 @@ public final class JdbcDslExecutor {
     /**
      * Executes an UPDATE described by the given {@link UpdateSpec}.
      *
+     * <p>If the entity has a field annotated with
+     * {@link org.springframework.data.annotation.LastModifiedDate} that is <em>not</em> already
+     * present in {@code spec}'s assignments, it is automatically added with the current timestamp
+     * from the configured {@link TimeProvider}.
+     *
      * @param spec the update specification (SET assignments and optional WHERE conditions)
      * @return the number of rows affected
      */
     public <T> int executeUpdate(UpdateSpec<T> spec) {
-        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+        UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
+        RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -181,6 +214,34 @@ public final class JdbcDslExecutor {
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
+    /**
+     * 执行逻辑删除（软删除）：将实体中 {@link io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete}
+     * 标注字段的值更新为 {@code deletedValue}，而不是真正删除行。
+     *
+     * <p>实体类必须恰好有一个字段标注了 {@code @LogicalDelete}，否则抛出
+     * {@link IllegalArgumentException}。
+     *
+     * @param spec 指定了 WHERE 条件的删除规格（WHERE 条件被复用为 UPDATE 的 WHERE 条件）
+     * @param <T>  实体类型
+     * @return 受影响的行数
+     * @throws IllegalArgumentException 当实体类没有 {@code @LogicalDelete} 字段时
+     */
+    public <T> int executeLogicalDelete(DeleteSpec<T> spec) {
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        String ldPropName = meta.getLogicalDeletePropertyName();
+        if (ldPropName == null) {
+            throw new IllegalArgumentException(
+                    "No @LogicalDelete field found on " + spec.getEntityClass().getName());
+        }
+        // Build UPDATE ... SET deleted_col = deletedValue WHERE ...
+        List<Map.Entry<String, Object>> assignments = new ArrayList<>();
+        assignments.add(new AbstractMap.SimpleImmutableEntry<>(ldPropName,
+                convertLogicalDeleteString(meta.getLogicalDeletedValue(), spec.getEntityClass(), ldPropName)));
+        UpdateSpec<T> updateSpec = new UpdateSpec<>(spec.getEntityClass(), assignments, spec.getWhere());
+        RenderedSql rendered = SqlRenderer.renderUpdate(updateSpec);
+        return jdbc.update(rendered.getSql(), rendered.getParams());
+    }
+
     // ------------------------------------------------------------------ //
     //  INSERT
     // ------------------------------------------------------------------ //
@@ -192,12 +253,17 @@ public final class JdbcDslExecutor {
      * {@code @GeneratedValue(strategy = GenerationType.IDENTITY)}, the generated key is read
      * back and set on the entity.
      *
+     * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
+     * {@link org.springframework.data.annotation.LastModifiedDate} are automatically set to the
+     * current timestamp from the configured {@link TimeProvider}.
+     *
      * @param entity the entity to insert
      */
     public <T> void save(T entity) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
         EntityMeta meta = EntityMetaReader.read(entityClass);
+        injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         doInsert(InsertSpec.of(entityClass), meta, colValues, entity);
     }
@@ -212,11 +278,16 @@ public final class JdbcDslExecutor {
      * <p>When the entity's primary key is {@code IDENTITY}-generated and the spec does not
      * restrict columns, the generated key is read back and set on the entity.
      *
+     * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
+     * {@link org.springframework.data.annotation.LastModifiedDate} are automatically set to the
+     * current timestamp from the configured {@link TimeProvider}.
+     *
      * @param spec   the insert specification (entity class and optional column list)
      * @param entity the entity to insert
      */
     public <T> void save(InsertSpec<T> spec, T entity) {
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        injectInsertTimestamps(entity, meta);
         boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, excludeIdentityPk);
         doInsert(spec, meta, colValues, entity);
@@ -226,17 +297,72 @@ public final class JdbcDslExecutor {
      * Inserts only the non-{@code null} columns of {@code entity} (excluding IDENTITY-generated
      * primary keys regardless of their value).
      *
+     * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
+     * {@link org.springframework.data.annotation.LastModifiedDate} are automatically set to the
+     * current timestamp from the configured {@link TimeProvider} before null-filtering.
+     *
      * @param entity the entity to insert
      */
     public <T> void saveNonNull(T entity) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
         EntityMeta meta = EntityMetaReader.read(entityClass);
+        injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         // Remove null-valued columns
         colValues.entrySet().removeIf(e -> e.getValue() == null);
         InsertSpec<T> spec = InsertSpec.of(entityClass, new ArrayList<>(colValues.keySet()));
         doInsert(spec, meta, colValues, entity);
+    }
+
+    /**
+     * 批量插入 {@code spec.getRows()} 中的所有实体，使用单条 SQL + 多参数数组的方式
+     * 调用 {@link NamedParameterJdbcTemplate#batchUpdate}。
+     *
+     * <p>若 {@code rows} 为空，立即返回空数组 {@code int[0]}。
+     *
+     * <p>字段自动填充：与单条 {@link #save(Object)} 相同，每行在插入前注入
+     * {@link org.springframework.data.annotation.CreatedDate} /
+     * {@link org.springframework.data.annotation.LastModifiedDate} 字段。
+     *
+     * @param spec 批量插入规格（实体类、行列表和可选的显式列名）
+     * @param <T>  实体类型
+     * @return 每行受影响的行数数组
+     */
+    public <T> int[] executeBatchInsert(BatchInsertSpec<T> spec) {
+        List<T> rows = spec.getRows();
+        if (rows.isEmpty()) {
+            return new int[0];
+        }
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
+
+        // Auto-fill timestamps for each row
+        for (T row : rows) {
+            injectInsertTimestamps(row, meta);
+        }
+
+        // Build column values for the first row to determine the column set and SQL
+        LinkedHashMap<String, Object> firstColValues = buildColumnValues(rows.get(0), meta, excludeIdentityPk);
+        InsertSpec<T> insertSpec = spec.getColumnNames().isEmpty()
+                ? InsertSpec.of(spec.getEntityClass())
+                : InsertSpec.of(spec.getEntityClass(), spec.getColumnNames());
+        RenderedSql rendered = SqlRenderer.renderInsert(insertSpec, meta, firstColValues);
+
+        // Build SqlParameterSource array (one entry per row)
+        List<String> cols = new ArrayList<>(firstColValues.keySet());
+        SqlParameterSource[] batchParams = rows.stream()
+                .map(row -> {
+                    LinkedHashMap<String, Object> cv = buildColumnValues(row, meta, excludeIdentityPk);
+                    Map<String, Object> p = new LinkedHashMap<>();
+                    for (String col : cols) {
+                        p.put(col, cv.get(col));
+                    }
+                    return (SqlParameterSource) new MapSqlParameterSource(p);
+                })
+                .toArray(SqlParameterSource[]::new);
+
+        return jdbc.batchUpdate(rendered.getSql(), batchParams);
     }
 
     private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta,
@@ -571,5 +697,121 @@ public final class JdbcDslExecutor {
                     spec.getHaving());
         }
         return spec;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Logical-delete auto-filter helper
+    // ------------------------------------------------------------------ //
+
+    /**
+     * If {@link JdbcDslConfig#isLogicalDeleteAutoFilter()} is {@code true} and the root entity
+     * has a {@code @LogicalDelete} field, returns a new {@link SelectSpec} with an additional
+     * {@code AND alias.deleted_col = normalValue} predicate. Otherwise returns {@code spec} as-is.
+     */
+    private static <T, R> SelectSpec<T, R> applyLogicalDeleteFilter(SelectSpec<T, R> spec) {
+        if (!JdbcDslConfig.isLogicalDeleteAutoFilter()) {
+            return spec;
+        }
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        String ldPropName = meta.getLogicalDeletePropertyName();
+        if (ldPropName == null) {
+            return spec;
+        }
+        // Build a predicate: alias.deleted_col = normalValue
+        Object normalVal = convertLogicalDeleteString(meta.getLogicalDeleteNormalValue(),
+                spec.getEntityClass(), ldPropName);
+        PropertyRef propRef = new PropertyRef(spec.getEntityClass(), ldPropName);
+        LeafPredicate ldPredicate = LeafPredicate.of(propRef, spec.getAlias(),
+                LeafPredicate.Op.EQ, normalVal);
+
+        PredicateNode combinedWhere;
+        if (spec.getWhere() == null) {
+            combinedWhere = ldPredicate;
+        } else {
+            combinedWhere = new AndPredicate(List.of(spec.getWhere(), ldPredicate));
+        }
+        return new SelectSpec<>(spec.getEntityClass(), spec.getAlias(),
+                spec.getSelectedExpressions(), combinedWhere,
+                spec.getJoins(), spec.getSort(), spec.getDtoClass(),
+                spec.getGroupByExpressions(), spec.getHaving());
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Auto-fill helpers (@CreatedDate / @LastModifiedDate)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Injects the current timestamp into all {@code @CreatedDate} and {@code @LastModifiedDate}
+     * fields of {@code entity} before an INSERT.
+     */
+    private <T> void injectInsertTimestamps(T entity, EntityMeta meta) {
+        LocalDateTime now = timeProvider.now();
+        for (String propName : meta.getCreatedDatePropertyNames()) {
+            setPropertyValue(entity, propName, now);
+        }
+        for (String propName : meta.getLastModifiedDatePropertyNames()) {
+            setPropertyValue(entity, propName, now);
+        }
+    }
+
+    /**
+     * If {@code spec}'s entity has {@code @LastModifiedDate} fields that are not already in the
+     * spec's assignments, adds them with the current timestamp and returns a new
+     * {@link UpdateSpec}. Otherwise returns {@code spec} unchanged.
+     */
+    private <T> UpdateSpec<T> injectLastModifiedDate(UpdateSpec<T> spec) {
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        List<String> lmdProps = meta.getLastModifiedDatePropertyNames();
+        if (lmdProps.isEmpty()) {
+            return spec;
+        }
+        Set<String> assignedProps = spec.getAssignments().stream()
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        List<Map.Entry<String, Object>> newAssignments = new ArrayList<>(spec.getAssignments());
+        LocalDateTime now = timeProvider.now();
+        for (String propName : lmdProps) {
+            if (!assignedProps.contains(propName)) {
+                newAssignments.add(new AbstractMap.SimpleImmutableEntry<>(propName, now));
+            }
+        }
+        if (newAssignments.size() == spec.getAssignments().size()) {
+            return spec; // nothing added
+        }
+        return new UpdateSpec<>(spec.getEntityClass(), newAssignments, spec.getWhere());
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Logical-delete value conversion helper
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Converts a logical-delete String value (e.g. {@code "1"}) to match the Java type of the
+     * annotated field. Uses {@link DefaultConversionService} for the conversion.
+     */
+    private static Object convertLogicalDeleteString(String stringValue, Class<?> entityClass,
+                                                      String propName) {
+        if (stringValue == null) {
+            return null;
+        }
+        // Resolve the field's type
+        Class<?> cls = entityClass;
+        while (cls != null && cls != Object.class) {
+            try {
+                Field f = cls.getDeclaredField(propName);
+                Class<?> fieldType = f.getType();
+                if (fieldType == String.class) {
+                    return stringValue;
+                }
+                ConversionService cs = DefaultConversionService.getSharedInstance();
+                if (cs.canConvert(String.class, fieldType)) {
+                    return cs.convert(stringValue, fieldType);
+                }
+                return stringValue;
+            } catch (NoSuchFieldException e) {
+                cls = cls.getSuperclass();
+            }
+        }
+        return stringValue;
     }
 }
