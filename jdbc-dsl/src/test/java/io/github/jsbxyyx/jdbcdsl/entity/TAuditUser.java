@@ -30,9 +30,9 @@ public class TAuditUser {
     @Column(name = "status")
     private String status;
 
-    @Column(name = "is_deleted")
+    @Column(name = "deleted")
     @LogicalDelete(deletedValue = "1", normalValue = "0")
-    private Integer isDeleted = 0;
+    private Integer deleted = 0;
 
     @Column(name = "created_at")
     @CreatedDate
@@ -54,8 +54,8 @@ public class TAuditUser {
     public void setUsername(String username) { this.username = username; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
-    public Integer getIsDeleted() { return isDeleted; }
-    public void setIsDeleted(Integer isDeleted) { this.isDeleted = isDeleted; }
+    public Integer getDeleted() { return deleted; }
+    public void setDeleted(Integer deleted) { this.deleted = deleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS t_audit_user (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     username   VARCHAR(100) NOT NULL,
     status     VARCHAR(50),
-    is_deleted INT DEFAULT 0,
+    deleted    INT DEFAULT 0,
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );

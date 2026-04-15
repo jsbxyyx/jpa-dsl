@@ -71,7 +71,7 @@ class JdbcDslNewFeaturesTest {
         SelectSpec<TAuditUser, TAuditUser> query = SelectBuilder.from(TAuditUser.class)
                 .where(w -> w.in(TAuditUser::getStatus, List.of("ACTIVE", "INACTIVE")))
                 .mapToEntity();
-        // Disable auto-filter for this read (is_deleted is 0 for all, no issue)
+        // Disable auto-filter for this read (deleted is 0 for all, no issue)
         List<TAuditUser> result = executor.select(query);
         assertThat(result).extracting(TAuditUser::getUsername)
                 .containsExactlyInAnyOrder("batch1", "batch2", "batch3");
@@ -105,7 +105,7 @@ class JdbcDslNewFeaturesTest {
         executor.save(user);
         assertThat(user.getId()).isNotNull();
 
-        // Logical delete: set is_deleted = 1
+        // Logical delete: set deleted = 1
         DeleteSpec<TAuditUser> del = DeleteBuilder.from(TAuditUser.class)
                 .eq(TAuditUser::getId, user.getId())
                 .build();
@@ -115,14 +115,14 @@ class JdbcDslNewFeaturesTest {
         // Verify the flag is set in DB
         SelectSpec<TAuditUser, TAuditUser> verify = SelectBuilder.from(TAuditUser.class)
                 .where(w -> w.eq(TAuditUser::getId, user.getId())
-                              .eq(TAuditUser::getIsDeleted, 1))
+                              .eq(TAuditUser::getDeleted, 1))
                 .mapToEntity();
         // Use raw query without the logical-delete auto-filter
         JdbcDslConfig.setLogicalDeleteAutoFilter(false);
         try {
             List<TAuditUser> found = executor.select(verify);
             assertThat(found).hasSize(1);
-            assertThat(found.get(0).getIsDeleted()).isEqualTo(1);
+            assertThat(found.get(0).getDeleted()).isEqualTo(1);
         } finally {
             JdbcDslConfig.setLogicalDeleteAutoFilter(true);
         }
