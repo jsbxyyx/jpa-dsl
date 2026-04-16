@@ -3,6 +3,7 @@ package io.github.jsbxyyx.jdbcdsl;
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.AliasedExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
@@ -290,6 +291,9 @@ public final class SqlRenderer {
             return renderAggregateExpression(agg, spec, params, paramIdx);
         } else if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
+        } else if (expression instanceof CastExpression<?> cast) {
+            String inner = renderExpression(cast.getInner(), spec, params, paramIdx);
+            return "CAST(" + inner + " AS " + cast.getTargetType() + ")";
         } else if (expression instanceof CaseExpression<?> caseExpr) {
             return renderCaseExpression(caseExpr, spec, params, paramIdx);
         } else {
