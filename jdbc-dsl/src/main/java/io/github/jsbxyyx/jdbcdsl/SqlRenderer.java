@@ -14,6 +14,7 @@ import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
+import io.github.jsbxyyx.jdbcdsl.predicate.RawPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.ScalarSubqueryPredicate;
 import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
 
@@ -368,6 +369,8 @@ public final class SqlRenderer {
             return renderExists(exists, params, paramIdx);
         } else if (node instanceof ScalarSubqueryPredicate scalar) {
             return renderScalarSubquery(scalar, spec, params, paramIdx);
+        } else if (node instanceof RawPredicate raw) {
+            return renderRawPredicate(raw, params);
         } else {
             throw new IllegalArgumentException("Unknown predicate node type: " + node.getClass());
         }
@@ -406,6 +409,12 @@ public final class SqlRenderer {
         };
         String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
         return lhs + op + "(" + inner + ")";
+    }
+
+    private static String renderRawPredicate(RawPredicate node, Map<String, Object> params) {
+        // Merge any user-supplied parameters into the shared parameter map.
+        params.putAll(node.getParams());
+        return node.getSql();
     }
 
     private static <T, R> String renderLeaf(LeafPredicate leaf,
@@ -628,6 +637,8 @@ public final class SqlRenderer {
             return joiner.toString();
         } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate not) {
             return "NOT (" + renderPredicateStandalone(not.getChild(), meta, params, paramIdx) + ")";
+        } else if (node instanceof RawPredicate raw) {
+            return renderRawPredicate(raw, params);
         } else {
             throw new IllegalArgumentException("Unsupported predicate node type: " + node.getClass());
         }
