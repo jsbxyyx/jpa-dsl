@@ -324,4 +324,144 @@ class SqlFunctionsTest {
         // WHERE should use the inner expression, not the alias
         assertThat(rendered.getSql()).contains("UPPER(t.email) = :p1");
     }
+
+    // ------------------------------------------------------------------ //
+    //  CAST
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void cast_column_rendersCastWithAsKeyword() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(cast(TUser::getAge, "VARCHAR(10)"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("CAST(t.age AS VARCHAR(10))");
+    }
+
+    @Test
+    void cast_withExplicitAlias_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(cast(TUser::getAge, "VARCHAR(10)").as("ageStr"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("CAST(t.age AS VARCHAR(10)) AS ageStr");
+    }
+
+    @Test
+    void cast_nestedExpression_rendered() {
+        // CAST(UPPER(t.email) AS VARCHAR(200))
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(cast(upper(TUser::getEmail), "VARCHAR(200)"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("CAST(UPPER(t.email) AS VARCHAR(200))");
+    }
+
+    @Test
+    void cast_inWhereClause_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId)
+                .where(w -> w.eq(cast(TUser::getAge, "VARCHAR(10)"), "25"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("CAST(t.age AS VARCHAR(10)) = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "25");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  SUBSTRING / SUBSTR
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void substring_posAndLen_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(substring(TUser::getUsername, 1, 3))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("SUBSTRING(t.username, 1, 3)");
+    }
+
+    @Test
+    void substring_posOnly_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(substring(TUser::getEmail, 5))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("SUBSTRING(t.email, 5)");
+    }
+
+    @Test
+    void substr_oracle_posAndLen_rendered() {
+        // Oracle users call substr() instead of substring()
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(substr(TUser::getUsername, 1, 3))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("SUBSTR(t.username, 1, 3)");
+    }
+
+    @Test
+    void substring_inWhereClause_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId)
+                .where(w -> w.eq(substring(TUser::getEmail, 1, 3), "adm"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("SUBSTRING(t.email, 1, 3) = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "adm");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  NULLIF
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void nullif_withValueLiteral_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(nullif(TUser::getAge, "0").as("age"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("NULLIF(t.age, 0) AS age");
+    }
+
+    @Test
+    void nullif_withStringLiteral_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(nullif(TUser::getStatus, "'N/A'").as("status"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("NULLIF(t.status, 'N/A') AS status");
+    }
+
+    @Test
+    void nullif_expressionOverload_rendered() {
+        // NULLIF(TRIM(t.username), '')
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(nullif(trim(TUser::getUsername), lit("''")).as("username"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("NULLIF(TRIM(t.username), '') AS username");
+    }
+
+    @Test
+    void nullif_inWhereClause_rendered() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId)
+                .where(w -> w.isNotNull(nullif(TUser::getStatus, "''")))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("NULLIF(t.status, '') IS NOT NULL");
+    }
 }

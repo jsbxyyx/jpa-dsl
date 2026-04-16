@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
@@ -126,6 +127,112 @@ public final class SqlFunctions {
     public static <T> FunctionExpression<String> coalesce(SFunction<T, ?> prop, String fallbackLiteral) {
         return new FunctionExpression<>("COALESCE",
                 List.of(ColumnExpression.of(prop), LiteralExpression.of(fallbackLiteral)));
+    }
+
+    /**
+     * {@code CAST(col AS targetType)} — converts a column to the given SQL type.
+     *
+     * <p>{@code targetType} is a SQL type name embedded verbatim, e.g.
+     * {@code "VARCHAR(100)"}, {@code "SIGNED"}, {@code "DECIMAL(10,2)"}.
+     * Never put user-controlled input in {@code targetType}.
+     *
+     * <p>Supported by all major databases (MySQL, PostgreSQL, SQL Server, Oracle, H2).
+     *
+     * <p>Examples:
+     * <pre>{@code
+     * cast(TUser::getAge, "VARCHAR(10)")      // → CAST(t.age AS VARCHAR(10))
+     * cast(TUser::getScore, "DECIMAL(10,2)")  // → CAST(t.score AS DECIMAL(10,2))
+     * }</pre>
+     */
+    public static <T, V> CastExpression<V> cast(SFunction<T, ?> prop, String targetType) {
+        return new CastExpression<>(ColumnExpression.of(prop), targetType);
+    }
+
+    /**
+     * {@code CAST(expr AS targetType)} — overload for nested expressions.
+     *
+     * <pre>{@code
+     * cast(upper(TUser::getEmail), "VARCHAR(200)")  // → CAST(UPPER(t.email) AS VARCHAR(200))
+     * }</pre>
+     */
+    public static <V> CastExpression<V> cast(SqlExpression<?> expr, String targetType) {
+        return new CastExpression<>(expr, targetType);
+    }
+
+    /**
+     * {@code SUBSTRING(col, pos)} — extracts from {@code pos} to the end of the string.
+     *
+     * <p>Supported by MySQL, PostgreSQL, SQL Server, H2.
+     * Oracle does not support {@code SUBSTRING} — use {@link #substr(SFunction, int)} instead.
+     */
+    public static <T> FunctionExpression<String> substring(SFunction<T, ?> prop, int pos) {
+        return new FunctionExpression<>("SUBSTRING",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos))));
+    }
+
+    /**
+     * {@code SUBSTRING(col, pos, len)} — extracts {@code len} characters starting at {@code pos}.
+     *
+     * <p>Supported by MySQL, PostgreSQL, SQL Server, H2.
+     * Oracle does not support {@code SUBSTRING} — use {@link #substr(SFunction, int, int)} instead.
+     */
+    public static <T> FunctionExpression<String> substring(SFunction<T, ?> prop, int pos, int len) {
+        return new FunctionExpression<>("SUBSTRING",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos)),
+                        LiteralExpression.of(String.valueOf(len))));
+    }
+
+    /**
+     * {@code SUBSTR(col, pos)} — Oracle-compatible alias for {@link #substring(SFunction, int)}.
+     *
+     * <p>Supported by MySQL, PostgreSQL, Oracle, H2.
+     * SQL Server does not support {@code SUBSTR} — use {@link #substring(SFunction, int)} instead.
+     */
+    public static <T> FunctionExpression<String> substr(SFunction<T, ?> prop, int pos) {
+        return new FunctionExpression<>("SUBSTR",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos))));
+    }
+
+    /**
+     * {@code SUBSTR(col, pos, len)} — Oracle-compatible alias for {@link #substring(SFunction, int, int)}.
+     *
+     * <p>Supported by MySQL, PostgreSQL, Oracle, H2.
+     * SQL Server does not support {@code SUBSTR} — use {@link #substring(SFunction, int, int)} instead.
+     */
+    public static <T> FunctionExpression<String> substr(SFunction<T, ?> prop, int pos, int len) {
+        return new FunctionExpression<>("SUBSTR",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos)),
+                        LiteralExpression.of(String.valueOf(len))));
+    }
+
+    /**
+     * {@code NULLIF(col, valueLiteral)} — returns {@code NULL} if {@code col} equals
+     * {@code valueLiteral}, otherwise returns {@code col}.
+     *
+     * <p>Standard SQL (SQL:1992), supported by all major databases.
+     *
+     * <p>Examples:
+     * <pre>{@code
+     * nullif(TUser::getAge, "0")      // → NULLIF(t.age, 0)
+     * nullif(TUser::getStatus, "'N/A'") // → NULLIF(t.status, 'N/A')
+     * }</pre>
+     *
+     * @param valueLiteral a raw SQL literal (use quotes for strings, e.g. {@code "'N/A'"})
+     */
+    public static <T, V> FunctionExpression<V> nullif(SFunction<T, ?> prop, String valueLiteral) {
+        return new FunctionExpression<>("NULLIF",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(valueLiteral)));
+    }
+
+    /**
+     * {@code NULLIF(expr1, expr2)} — expression overload of {@link #nullif(SFunction, String)}.
+     *
+     * <pre>{@code
+     * nullif(trim(TUser::getUsername), lit("''"))  // → NULLIF(TRIM(t.username), '')
+     * }</pre>
+     */
+    public static <V> FunctionExpression<V> nullif(SqlExpression<?> expr1, SqlExpression<?> expr2) {
+        return new FunctionExpression<>("NULLIF", List.of(expr1, expr2));
     }
 
     // ------------------------------------------------------------------ //
