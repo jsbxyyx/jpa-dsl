@@ -9,11 +9,13 @@ import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
+import io.github.jsbxyyx.jdbcdsl.predicate.RawPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.ScalarSubqueryPredicate;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -400,6 +402,53 @@ public final class WhereBuilder<T> {
     /** IS NOT NULL predicate with an arbitrary SQL expression on the left. */
     public WhereBuilder<T> isNotNull(SqlExpression<?> expression) {
         predicates.add(LeafPredicate.ofExprNullCheck(expression, false));
+        return this;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Raw SQL predicate (escape hatch)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Embeds a raw SQL condition verbatim in the WHERE clause.
+     *
+     * <p>Use this escape hatch when the typed DSL cannot express a condition — for example,
+     * database-specific functions or cross-column comparisons.
+     *
+     * <p><strong>Warning:</strong> never pass user-controlled data in {@code sql}.
+     * Bind user input as named parameters via {@link #raw(String, Map)}.
+     *
+     * <p>Example: {@code .where(w -> w.raw("t.age > t.min_age"))}
+     */
+    public WhereBuilder<T> raw(String sql) {
+        return raw(sql, true);
+    }
+
+    /** Conditional raw SQL predicate — skipped when {@code condition} is {@code false}. */
+    public WhereBuilder<T> raw(String sql, boolean condition) {
+        if (condition) {
+            predicates.add(new RawPredicate(sql, Map.of()));
+        }
+        return this;
+    }
+
+    /**
+     * Embeds a raw SQL condition with named parameters in the WHERE clause.
+     *
+     * <p>Parameter names must not start with {@code p} followed by digits (e.g. {@code p1})
+     * as those are reserved for auto-generated DSL parameters.
+     *
+     * <p>Example: {@code .where(w -> w.raw("YEAR(t.created_at) = :yr", Map.of("yr", 2024)))}
+     */
+    public WhereBuilder<T> raw(String sql, Map<String, Object> params) {
+        return raw(sql, params, true);
+    }
+
+    /** Conditional raw SQL predicate with parameters — skipped when {@code condition} is {@code false}. */
+    public WhereBuilder<T> raw(String sql, Map<String, Object> params, boolean condition) {
+        if (condition) {
+            predicates.add(new RawPredicate(sql, params));
+        }
         return this;
     }
 

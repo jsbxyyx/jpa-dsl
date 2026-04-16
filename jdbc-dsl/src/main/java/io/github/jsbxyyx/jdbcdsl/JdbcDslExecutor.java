@@ -91,6 +91,53 @@ public final class JdbcDslExecutor {
         this.timeProvider = timeProvider;
     }
 
+    // ------------------------------------------------------------------ //
+    //  Raw SQL escape hatch
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Executes an arbitrary SQL query and maps each row to {@code resultClass} via the same
+     * setter-injection strategy used by {@link #select(SelectSpec)}.
+     *
+     * <p>This is the escape hatch for queries that cannot be expressed with the typed DSL
+     * (e.g. cross-database-specific functions, recursive CTEs, UNION queries).
+     *
+     * <p><strong>Warning:</strong> never pass user-controlled data directly in {@code sql}.
+     * Bind user input as named parameters in {@code params}.
+     *
+     * @param sql         parameterized SQL string with {@code :name} placeholders
+     * @param params      map of named parameter values (may be empty, not null)
+     * @param resultClass JavaBean class to map each row into
+     */
+    public <R> List<R> query(String sql, Map<String, Object> params, Class<R> resultClass) {
+        RowMapper<R> mapper = buildBeanRowMapper(resultClass);
+        return jdbc.query(sql, params, mapper);
+    }
+
+    /**
+     * Executes an arbitrary SQL query and returns the first row mapped to {@code resultClass},
+     * or {@code null} if no rows match.
+     */
+    public <R> R queryOne(String sql, Map<String, Object> params, Class<R> resultClass) {
+        RowMapper<R> mapper = buildBeanRowMapper(resultClass);
+        List<R> results = jdbc.query(sql, params, mapper);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
+     * Executes an arbitrary SQL DML statement (INSERT, UPDATE, or DELETE) and returns the
+     * number of affected rows.
+     *
+     * <p><strong>Warning:</strong> never pass user-controlled data directly in {@code sql}.
+     */
+    public int update(String sql, Map<String, Object> params) {
+        return jdbc.update(sql, params);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Type-safe DSL queries
+    // ------------------------------------------------------------------ //
+
     /**
      * Executes a SELECT and maps results to {@code R} via setter injection.
      */

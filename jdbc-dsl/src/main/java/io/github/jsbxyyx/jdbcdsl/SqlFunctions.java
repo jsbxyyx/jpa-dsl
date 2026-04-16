@@ -215,4 +215,29 @@ public final class SqlFunctions {
     public static <V> FunctionExpression<V> fn(String name, SqlExpression<?>... args) {
         return new FunctionExpression<>(name, List.of(args));
     }
+
+    // ------------------------------------------------------------------ //
+    //  Raw SQL expression (escape hatch)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Wraps an arbitrary SQL fragment as a {@link LiteralExpression} that is embedded verbatim
+     * in the SELECT, ORDER BY, GROUP BY, or HAVING clause.
+     *
+     * <p>Use this escape hatch when the DSL cannot express a complex expression — for example,
+     * a {@code CASE WHEN} expression or a database-specific function.
+     * Combine with {@link SqlExpression#as(String)} to give the expression a column alias:
+     * <pre>{@code
+     * .select(raw("CASE WHEN t.age >= 18 THEN 'ADULT' ELSE 'MINOR' END").as("ageGroup"))
+     * }</pre>
+     *
+     * <p><strong>Warning:</strong> never pass user-controlled data in {@code sql}.
+     * Bind user input as named parameters in the WHERE clause.
+     *
+     * @param sql the raw SQL fragment to embed verbatim
+     * @return a {@link LiteralExpression} for use in SELECT / ORDER BY / GROUP BY / HAVING
+     */
+    public static <V> LiteralExpression<V> raw(String sql) {
+        return LiteralExpression.of(sql);
+    }
 }
