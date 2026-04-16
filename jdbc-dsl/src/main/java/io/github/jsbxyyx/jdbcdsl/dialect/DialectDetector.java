@@ -17,6 +17,7 @@ import java.sql.DatabaseMetaData;
  *   <li>PostgreSQL → {@link PostgresDialect}</li>
  *   <li>Microsoft SQL Server → {@link SqlServerDialect}</li>
  *   <li>H2 → {@link H2Dialect}</li>
+ *   <li>Oracle → {@link OracleDialect} (12c+)</li>
  *   <li>unrecognised or {@code null} DataSource → {@link Sql2008Dialect} (with a {@code WARN} log)</li>
  * </ul>
  */
@@ -58,6 +59,9 @@ public final class DialectDetector {
                 }
                 if (lower.contains("h2")) {
                     return new H2Dialect();
+                }
+                if (lower.contains("oracle")) {
+                    return new OracleDialect();
                 }
                 log.warn("jdbc-dsl: unrecognized database product '{}', falling back to Sql2008Dialect",
                         productName);
