@@ -6,6 +6,7 @@ import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
+import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ScalarSubqueryExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
@@ -101,6 +102,18 @@ public final class SqlRenderer {
 
         StringBuilder sb = new StringBuilder();
 
+        // WITH clause (CTE preamble)
+        List<CteDef> cteDefs = spec.getCteDefs();
+        if (!cteDefs.isEmpty()) {
+            sb.append("WITH ");
+            StringJoiner cteJoiner = new StringJoiner(", ");
+            for (CteDef cte : cteDefs) {
+                String body = buildSelectSqlUnchecked(cte.body(), params, paramIdx, false);
+                cteJoiner.add(cte.name() + " AS (" + body + ")");
+            }
+            sb.append(cteJoiner).append(" ");
+        }
+
         // SELECT clause
         sb.append(spec.isDistinct() ? "SELECT DISTINCT " : "SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
@@ -118,8 +131,11 @@ public final class SqlRenderer {
             sb.append(cols);
         }
 
-        // FROM clause
-        sb.append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+        // FROM clause (use tableNameOverride when spec was built via fromCte())
+        String fromTarget = spec.getTableNameOverride() != null
+                ? spec.getTableNameOverride()
+                : rootMeta.getTableName();
+        sb.append(" FROM ").append(fromTarget).append(" ").append(alias);
 
         // JOIN clauses
         appendJoinClauses(sb, spec, params, paramIdx);
@@ -198,6 +214,13 @@ public final class SqlRenderer {
 
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
+        // Honour tableNameOverride so that CTE-backed specs use the CTE name in FROM.
+        String fromTarget = spec.getTableNameOverride() != null
+                ? spec.getTableNameOverride()
+                : rootMeta.getTableName();
+
+        // Prepend WITH clause when the spec has CTEs.
+        String ctePrefix = buildCtePrefix(spec, params, paramIdx);
 
         boolean hasJoins = !spec.getJoins().isEmpty();
         boolean hasGroupBy = !spec.getGroupByExpressions().isEmpty();
@@ -205,12 +228,12 @@ public final class SqlRenderer {
         if (hasGroupBy) {
             // Wrap the grouped query as a derived table and count its rows.
             StringBuilder inner = new StringBuilder("SELECT 1")
-                    .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+                    .append(" FROM ").append(fromTarget).append(" ").append(alias);
             appendJoinClauses(inner, spec, params, paramIdx);
             appendWhereClause(inner, spec, params, paramIdx);
             appendGroupByClause(inner, spec, params, paramIdx);
             appendHavingClause(inner, spec, params, paramIdx);
-            return new RenderedSql("SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
+            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
         }
 
         if (hasJoins) {
@@ -220,24 +243,38 @@ public final class SqlRenderer {
             if (pkCol != null) {
                 StringBuilder sb = new StringBuilder("SELECT COUNT(DISTINCT ")
                         .append(alias).append(".").append(pkCol).append(")")
-                        .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+                        .append(" FROM ").append(fromTarget).append(" ").append(alias);
                 appendJoinClauses(sb, spec, params, paramIdx);
                 appendWhereClause(sb, spec, params, paramIdx);
-                return new RenderedSql(sb.toString(), params);
+                return new RenderedSql(ctePrefix + sb, params);
             }
             // No PK available: fall back to subquery.
             StringBuilder inner = new StringBuilder("SELECT 1")
-                    .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+                    .append(" FROM ").append(fromTarget).append(" ").append(alias);
             appendJoinClauses(inner, spec, params, paramIdx);
             appendWhereClause(inner, spec, params, paramIdx);
-            return new RenderedSql("SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
+            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
         }
 
         // Simple case: no JOINs, no GROUP BY.
         StringBuilder sb = new StringBuilder("SELECT COUNT(*)")
-                .append(" FROM ").append(rootMeta.getTableName()).append(" ").append(alias);
+                .append(" FROM ").append(fromTarget).append(" ").append(alias);
         appendWhereClause(sb, spec, params, paramIdx);
-        return new RenderedSql(sb.toString(), params);
+        return new RenderedSql(ctePrefix + sb, params);
+    }
+
+    /** Builds the {@code WITH cte1 AS (...), cte2 AS (...) } prefix string (empty string when no CTEs). */
+    private static <T, R> String buildCtePrefix(SelectSpec<T, R> spec,
+                                                 Map<String, Object> params,
+                                                 AtomicInteger paramIdx) {
+        List<CteDef> cteDefs = spec.getCteDefs();
+        if (cteDefs.isEmpty()) return "";
+        StringJoiner cteJoiner = new StringJoiner(", ");
+        for (CteDef cte : cteDefs) {
+            String body = buildSelectSqlUnchecked(cte.body(), params, paramIdx, false);
+            cteJoiner.add(cte.name() + " AS (" + body + ")");
+        }
+        return "WITH " + cteJoiner + " ";
     }
 
     // ------------------------------------------------------------------ //
@@ -573,6 +610,26 @@ public final class SqlRenderer {
 
     private static <T, R> String renderOnEqAsWhere(OnEqPredicate onEq, SelectSpec<T, R> spec) {
         return renderOnEq(onEq, spec);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  UPSERT rendering
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Renders a dialect-specific UPSERT (INSERT … ON CONFLICT / MERGE) statement.
+     *
+     * @param spec      the upsert specification (conflict and update columns)
+     * @param meta      entity metadata (table name, column mappings)
+     * @param colValues ordered map of {@code columnName → value} for the full row
+     * @param dialect   the active dialect that determines SQL syntax
+     * @return the rendered SQL and its named parameters
+     * @throws UnsupportedOperationException when the dialect does not support UPSERT
+     */
+    public static <T> RenderedSql renderUpsert(UpsertSpec<T> spec, EntityMeta meta,
+                                                java.util.LinkedHashMap<String, Object> colValues,
+                                                Dialect dialect) {
+        return dialect.renderUpsert(spec, meta, colValues);
     }
 
     // ------------------------------------------------------------------ //

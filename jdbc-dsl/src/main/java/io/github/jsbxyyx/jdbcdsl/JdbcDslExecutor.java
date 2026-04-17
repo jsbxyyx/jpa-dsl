@@ -338,6 +338,47 @@ public final class JdbcDslExecutor {
     // ------------------------------------------------------------------ //
 
     /**
+     * Executes an UPSERT (INSERT … ON CONFLICT / MERGE) for the given entity.
+     *
+     * <p>The SQL syntax is determined by the configured {@link Dialect}:
+     * <ul>
+     *   <li>MySQL: {@code INSERT … ON DUPLICATE KEY UPDATE}</li>
+     *   <li>PostgreSQL / H2: {@code INSERT … ON CONFLICT … DO UPDATE SET}</li>
+     *   <li>Oracle / Oracle 11g: {@code MERGE INTO … USING … FROM DUAL …}</li>
+     *   <li>SQL Server: {@code MERGE INTO … USING (SELECT …) AS s(…) … ;}</li>
+     *   <li>Default (Sql2008): throws {@link UnsupportedOperationException}</li>
+     * </ul>
+     *
+     * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
+     * {@link org.springframework.data.annotation.LastModifiedDate} are injected with the
+     * current timestamp before rendering (same as {@link #save(Object)}).
+     * Because the database decides at runtime whether to INSERT or UPDATE, the
+     * {@code @CreatedDate} column is only actually written when the row does not yet exist —
+     * it is excluded from the UPDATE clause by default when {@link UpsertBuilder#doUpdateAll()}
+     * or an explicit {@link UpsertBuilder#doUpdate(SFunction[])} that omits it is used.
+     *
+     * <p><b>Note on primary keys:</b> identity-generated primary keys (annotated with
+     * {@code @GeneratedValue(strategy = IDENTITY)}) are excluded from the INSERT and UPDATE
+     * clauses. The database assigns the PK on INSERT; the PK is never included in the UPDATE SET
+     * (updating a primary key is almost always wrong). When the conflict key is the PK itself,
+     * set the id field on the entity — the conflict is detected via the unique index; the value
+     * is still supplied through the conflict column's parameter.
+     *
+     * @param spec   the upsert specification (conflict columns, optional update-column subset)
+     * @param entity the entity whose field values are used for both INSERT and conditional UPDATE
+     * @throws UnsupportedOperationException if the configured dialect does not support UPSERT
+     */
+    public <T> void upsert(UpsertSpec<T> spec, T entity) {
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        injectInsertTimestamps(entity, meta);
+        // Skip the identity PK — the database assigns it on INSERT, and PKs must not appear
+        // in the UPDATE SET clause (databases forbid updating a primary key via ON CONFLICT).
+        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
+        RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, colValues, dialect);
+        jdbc.update(rendered.getSql(), rendered.getParams());
+    }
+
+    /**
      * Inserts {@code entity} using all its columns (excluding IDENTITY-generated primary keys).
      *
      * <p>If the entity's primary key is annotated with
@@ -786,7 +827,9 @@ public final class JdbcDslExecutor {
                     pageableSort,
                     spec.getDtoClass(),
                     spec.getGroupByExpressions(),
-                    spec.getHaving());
+                    spec.getHaving(),
+                    spec.getCteDefs(),
+                    spec.getTableNameOverride());
         }
         return spec;
     }
@@ -825,7 +868,8 @@ public final class JdbcDslExecutor {
         return new SelectSpec<>(spec.getEntityClass(), spec.getAlias(),
                 spec.isDistinct(), spec.getSelectedExpressions(), combinedWhere,
                 spec.getJoins(), spec.getSort(), spec.getDtoClass(),
-                spec.getGroupByExpressions(), spec.getHaving());
+                spec.getGroupByExpressions(), spec.getHaving(),
+                spec.getCteDefs(), spec.getTableNameOverride());
     }
 
     // ------------------------------------------------------------------ //
