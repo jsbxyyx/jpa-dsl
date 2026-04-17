@@ -179,13 +179,13 @@ class SqlFunctionsTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(col(TUser::getStatus), countStar())
                 .groupBy(TUser::getStatus)
-                .having(h -> h.gt(countStar(), 5))
+                .having(h -> h.gt(countStar(), 5L))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("GROUP BY t.status");
         assertThat(rendered.getSql()).contains("HAVING COUNT(*) > :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 5);
+        assertThat(rendered.getParams()).containsEntry("p1", 5L);
     }
 
     @Test
@@ -207,7 +207,7 @@ class SqlFunctionsTest {
                 .select(col(TUser::getStatus), countStar())
                 .where(w -> w.isNotNull(TUser::getEmail))
                 .groupBy(TUser::getStatus)
-                .having(h -> h.gt(countStar(), 2))
+                .having(h -> h.gt(countStar(), 2L))
                 .orderBy(JSort.byDesc(TUser::getStatus))
                 .mapTo(UserDto.class);
 

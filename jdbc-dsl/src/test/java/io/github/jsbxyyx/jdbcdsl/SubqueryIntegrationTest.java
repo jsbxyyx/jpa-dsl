@@ -154,7 +154,7 @@ class SubqueryIntegrationTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.gt(TUser::getAge, inner))
+                .where(w -> w.gt((SFunction<TUser, Integer>) TUser::getAge, inner))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);

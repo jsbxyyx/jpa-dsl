@@ -107,7 +107,7 @@ class SubqueryRendererTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.gt(TUser::getAge, inner))
+                .where(w -> w.gt((SFunction<TUser, Integer>) TUser::getAge, inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
@@ -125,7 +125,7 @@ class SubqueryRendererTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.eq(TUser::getAge, inner))
+                .where(w -> w.eq((SFunction<TUser, Integer>) TUser::getAge, inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);

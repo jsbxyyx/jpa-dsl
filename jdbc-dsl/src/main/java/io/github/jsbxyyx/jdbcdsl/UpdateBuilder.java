@@ -89,22 +89,22 @@ public final class UpdateBuilder<T> {
     //  WHERE – direct shortcut methods (aligned with JPA UpdateBuilder)
     // ------------------------------------------------------------------ //
 
-    public UpdateBuilder<T> eq(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> eq(SFunction<T, V> prop, V value) {
         wb().eq(prop, value);
         return this;
     }
 
-    public UpdateBuilder<T> eq(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> eq(SFunction<T, V> prop, V value, boolean condition) {
         wb().eq(prop, value, condition);
         return this;
     }
 
-    public UpdateBuilder<T> ne(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> ne(SFunction<T, V> prop, V value) {
         wb().ne(prop, value);
         return this;
     }
 
-    public UpdateBuilder<T> ne(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> ne(SFunction<T, V> prop, V value, boolean condition) {
         wb().ne(prop, value, condition);
         return this;
     }
@@ -129,92 +129,92 @@ public final class UpdateBuilder<T> {
         return this;
     }
 
-    public UpdateBuilder<T> like(SFunction<T, ?> prop, String pattern) {
+    public UpdateBuilder<T> like(SFunction<T, String> prop, String pattern) {
         wb().like(prop, pattern);
         return this;
     }
 
-    public UpdateBuilder<T> like(SFunction<T, ?> prop, String pattern, boolean condition) {
+    public UpdateBuilder<T> like(SFunction<T, String> prop, String pattern, boolean condition) {
         wb().like(prop, pattern, condition);
         return this;
     }
 
-    public UpdateBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern) {
+    public UpdateBuilder<T> likeIgnoreCase(SFunction<T, String> prop, String pattern) {
         wb().likeIgnoreCase(prop, pattern);
         return this;
     }
 
-    public UpdateBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern, boolean condition) {
+    public UpdateBuilder<T> likeIgnoreCase(SFunction<T, String> prop, String pattern, boolean condition) {
         wb().likeIgnoreCase(prop, pattern, condition);
         return this;
     }
 
-    public UpdateBuilder<T> gt(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> gt(SFunction<T, V> prop, V value) {
         wb().gt(prop, value);
         return this;
     }
 
-    public UpdateBuilder<T> gt(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> gt(SFunction<T, V> prop, V value, boolean condition) {
         wb().gt(prop, value, condition);
         return this;
     }
 
-    public UpdateBuilder<T> gte(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> gte(SFunction<T, V> prop, V value) {
         wb().gte(prop, value);
         return this;
     }
 
-    public UpdateBuilder<T> gte(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> gte(SFunction<T, V> prop, V value, boolean condition) {
         wb().gte(prop, value, condition);
         return this;
     }
 
-    public UpdateBuilder<T> lt(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> lt(SFunction<T, V> prop, V value) {
         wb().lt(prop, value);
         return this;
     }
 
-    public UpdateBuilder<T> lt(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> lt(SFunction<T, V> prop, V value, boolean condition) {
         wb().lt(prop, value, condition);
         return this;
     }
 
-    public UpdateBuilder<T> lte(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> lte(SFunction<T, V> prop, V value) {
         wb().lte(prop, value);
         return this;
     }
 
-    public UpdateBuilder<T> lte(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> lte(SFunction<T, V> prop, V value, boolean condition) {
         wb().lte(prop, value, condition);
         return this;
     }
 
-    public UpdateBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi) {
+    public <V> UpdateBuilder<T> between(SFunction<T, V> prop, V lo, V hi) {
         wb().between(prop, lo, hi);
         return this;
     }
 
-    public UpdateBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi, boolean condition) {
+    public <V> UpdateBuilder<T> between(SFunction<T, V> prop, V lo, V hi, boolean condition) {
         wb().between(prop, lo, hi, condition);
         return this;
     }
 
-    public UpdateBuilder<T> in(SFunction<T, ?> prop, Collection<?> values) {
+    public <V> UpdateBuilder<T> in(SFunction<T, V> prop, Collection<? extends V> values) {
         wb().in(prop, values);
         return this;
     }
 
-    public UpdateBuilder<T> in(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+    public <V> UpdateBuilder<T> in(SFunction<T, V> prop, Collection<? extends V> values, boolean condition) {
         wb().in(prop, values, condition);
         return this;
     }
 
-    public UpdateBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values) {
+    public <V> UpdateBuilder<T> notIn(SFunction<T, V> prop, Collection<? extends V> values) {
         wb().notIn(prop, values);
         return this;
     }
 
-    public UpdateBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+    public <V> UpdateBuilder<T> notIn(SFunction<T, V> prop, Collection<? extends V> values, boolean condition) {
         wb().notIn(prop, values, condition);
         return this;
     }

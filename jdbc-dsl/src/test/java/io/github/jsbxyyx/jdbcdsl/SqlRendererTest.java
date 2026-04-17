@@ -159,7 +159,7 @@ class SqlRendererTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(SqlFunctions.col(TUser::getStatus), SqlFunctions.countStar().as("cnt"))
                 .groupBy(TUser::getStatus)
-                .having(h -> h.gt(SqlFunctions.countStar(), 1))
+                .having(h -> h.gt(SqlFunctions.countStar(), 1L))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
