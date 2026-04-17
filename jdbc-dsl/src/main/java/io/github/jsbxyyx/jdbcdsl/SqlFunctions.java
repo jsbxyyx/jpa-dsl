@@ -6,6 +6,7 @@ import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ScalarSubqueryExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 
 import java.util.ArrayList;
@@ -321,6 +322,262 @@ public final class SqlFunctions {
     @SuppressWarnings("unchecked")
     public static <V> FunctionExpression<V> fn(String name, SqlExpression<?>... args) {
         return new FunctionExpression<>(name, List.of(args));
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Window functions
+    // ------------------------------------------------------------------ //
+
+    /**
+     * {@code ROW_NUMBER()} — assigns a unique sequential integer to each row.
+     * Chain {@code .over(...)} to specify the window.
+     *
+     * <p>Example: {@code rowNumber().over(w -> w.partitionBy(TUser::getStatus).orderBy(JOrder.asc(TUser::getId))).as("rn")}
+     */
+    public static FunctionExpression<Long> rowNumber() {
+        return new FunctionExpression<>("ROW_NUMBER", List.of());
+    }
+
+    /**
+     * {@code RANK()} — assigns a rank within the window; gaps appear after ties.
+     * Chain {@code .over(...)} to specify the window.
+     */
+    public static FunctionExpression<Long> rank() {
+        return new FunctionExpression<>("RANK", List.of());
+    }
+
+    /**
+     * {@code DENSE_RANK()} — assigns a rank within the window; no gaps after ties.
+     * Chain {@code .over(...)} to specify the window.
+     */
+    public static FunctionExpression<Long> denseRank() {
+        return new FunctionExpression<>("DENSE_RANK", List.of());
+    }
+
+    /**
+     * {@code NTILE(n)} — divides the result set into {@code n} equal buckets.
+     * Chain {@code .over(...)} to specify the window.
+     *
+     * <p>Example: {@code ntile(4).over(w -> w.orderBy(JOrder.asc(TUser::getAge))).as("quartile")}
+     */
+    public static FunctionExpression<Long> ntile(int n) {
+        return new FunctionExpression<>("NTILE", List.of(LiteralExpression.of(String.valueOf(n))));
+    }
+
+    /**
+     * {@code LAG(col, offset)} — returns the value from a preceding row within the window.
+     *
+     * <p>Example: {@code lag(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("prevAge")}
+     */
+    public static <T> FunctionExpression<Object> lag(SFunction<T, ?> prop, int offset) {
+        return new FunctionExpression<>("LAG",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
+    }
+
+    /**
+     * {@code LAG(col)} — returns the value from the immediately preceding row (offset=1).
+     */
+    public static <T> FunctionExpression<Object> lag(SFunction<T, ?> prop) {
+        return lag(prop, 1);
+    }
+
+    /**
+     * {@code LEAD(col, offset)} — returns the value from a following row within the window.
+     *
+     * <p>Example: {@code lead(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("nextAge")}
+     */
+    public static <T> FunctionExpression<Object> lead(SFunction<T, ?> prop, int offset) {
+        return new FunctionExpression<>("LEAD",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
+    }
+
+    /**
+     * {@code LEAD(col)} — returns the value from the immediately following row (offset=1).
+     */
+    public static <T> FunctionExpression<Object> lead(SFunction<T, ?> prop) {
+        return lead(prop, 1);
+    }
+
+    /**
+     * {@code FIRST_VALUE(col)} — returns the first value in the window frame.
+     * Chain {@code .over(...)} to specify the window.
+     */
+    public static <T> FunctionExpression<Object> firstValue(SFunction<T, ?> prop) {
+        return fn("FIRST_VALUE", prop);
+    }
+
+    /**
+     * {@code LAST_VALUE(col)} — returns the last value in the window frame.
+     * Chain {@code .over(...)} to specify the window.
+     */
+    public static <T> FunctionExpression<Object> lastValue(SFunction<T, ?> prop) {
+        return fn("LAST_VALUE", prop);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  SELECT scalar subquery
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Wraps a {@link SelectSpec} as a scalar subquery expression for use in the SELECT clause.
+     *
+     * <p>The subquery must return exactly one row and one column. Use {@link SqlExpression#as(String)}
+     * to map the result to a DTO property.
+     *
+     * <p>Example — count orders per user inline:
+     * <pre>{@code
+     * SelectSpec<TOrder, TOrder> countSpec = SelectBuilder.from(TOrder.class, "o")
+     *         .select(countStar())
+     *         .where(w -> w.raw("o.user_id = t.id"))
+     *         .mapToEntity();
+     *
+     * SelectSpec<TUser, UserOrderCountDto> spec = SelectBuilder.from(TUser.class)
+     *         .select(col(TUser::getUsername), subquery(countSpec).as("orderCount"))
+     *         .mapTo(UserOrderCountDto.class);
+     * }</pre>
+     *
+     * @param selectSpec the inner SELECT returning a single scalar value
+     */
+    public static <V> ScalarSubqueryExpression<V> subquery(SelectSpec<?, ?> selectSpec) {
+        return new ScalarSubqueryExpression<>(selectSpec);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Math functions
+    // ------------------------------------------------------------------ //
+
+    /** {@code FLOOR(col)} — largest integer ≤ col */
+    public static <T> FunctionExpression<Number> floor(SFunction<T, ?> prop) {
+        return fn("FLOOR", prop);
+    }
+
+    /** {@code CEIL(col)} — smallest integer ≥ col (alias: CEILING) */
+    public static <T> FunctionExpression<Number> ceil(SFunction<T, ?> prop) {
+        return fn("CEIL", prop);
+    }
+
+    /** {@code ROUND(col)} — rounds to nearest integer */
+    public static <T> FunctionExpression<Number> round(SFunction<T, ?> prop) {
+        return fn("ROUND", prop);
+    }
+
+    /** {@code ROUND(col, scale)} — rounds to {@code scale} decimal places */
+    public static <T> FunctionExpression<Number> round(SFunction<T, ?> prop, int scale) {
+        return new FunctionExpression<>("ROUND",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(scale))));
+    }
+
+    /** {@code ABS(col)} — absolute value */
+    public static <T> FunctionExpression<Number> abs(SFunction<T, ?> prop) {
+        return fn("ABS", prop);
+    }
+
+    /** {@code MOD(col, divisor)} — remainder of col / divisor */
+    public static <T> FunctionExpression<Number> mod(SFunction<T, ?> prop, int divisor) {
+        return new FunctionExpression<>("MOD",
+                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(divisor))));
+    }
+
+    /**
+     * {@code GREATEST(col1, col2, ...)} — returns the greatest value among the arguments.
+     * Supported by MySQL, PostgreSQL, Oracle, H2. Not available in SQL Server.
+     */
+    @SafeVarargs
+    public static <T> FunctionExpression<Object> greatest(SFunction<T, ?>... props) {
+        List<SqlExpression<?>> args = new ArrayList<>(props.length);
+        for (SFunction<T, ?> p : props) args.add(ColumnExpression.of(p));
+        return new FunctionExpression<>("GREATEST", args);
+    }
+
+    /**
+     * {@code LEAST(col1, col2, ...)} — returns the smallest value among the arguments.
+     * Supported by MySQL, PostgreSQL, Oracle, H2. Not available in SQL Server.
+     */
+    @SafeVarargs
+    public static <T> FunctionExpression<Object> least(SFunction<T, ?>... props) {
+        List<SqlExpression<?>> args = new ArrayList<>(props.length);
+        for (SFunction<T, ?> p : props) args.add(ColumnExpression.of(p));
+        return new FunctionExpression<>("LEAST", args);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Additional string functions
+    // ------------------------------------------------------------------ //
+
+    /**
+     * {@code REPLACE(col, searchLiteral, replaceLiteral)} — replaces occurrences of
+     * {@code searchLiteral} with {@code replaceLiteral} in {@code col}.
+     *
+     * <p>Literals must be properly quoted for strings, e.g. {@code "'old'"}, {@code "'new'"}.
+     *
+     * <p>Example: {@code replace(TUser::getEmail, "'@old.com'", "'@new.com'")}
+     * → {@code REPLACE(t.email, '@old.com', '@new.com')}
+     */
+    public static <T> FunctionExpression<String> replace(SFunction<T, ?> prop,
+                                                          String searchLiteral,
+                                                          String replaceLiteral) {
+        return new FunctionExpression<>("REPLACE",
+                List.of(ColumnExpression.of(prop),
+                        LiteralExpression.of(searchLiteral),
+                        LiteralExpression.of(replaceLiteral)));
+    }
+
+    /**
+     * {@code LPAD(col, length, padLiteral)} — left-pads {@code col} to {@code length} characters.
+     *
+     * <p>Example: {@code lpad(TUser::getUsername, 10, "'0'")} → {@code LPAD(t.username, 10, '0')}
+     */
+    public static <T> FunctionExpression<String> lpad(SFunction<T, ?> prop, int length, String padLiteral) {
+        return new FunctionExpression<>("LPAD",
+                List.of(ColumnExpression.of(prop),
+                        LiteralExpression.of(String.valueOf(length)),
+                        LiteralExpression.of(padLiteral)));
+    }
+
+    /**
+     * {@code RPAD(col, length, padLiteral)} — right-pads {@code col} to {@code length} characters.
+     */
+    public static <T> FunctionExpression<String> rpad(SFunction<T, ?> prop, int length, String padLiteral) {
+        return new FunctionExpression<>("RPAD",
+                List.of(ColumnExpression.of(prop),
+                        LiteralExpression.of(String.valueOf(length)),
+                        LiteralExpression.of(padLiteral)));
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Date / time functions (additional)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * {@code CURRENT_TIMESTAMP} — returns the current date and time.
+     * Standard SQL, supported by all major databases.
+     * Use {@code .as("alias")} to map to a DTO property.
+     */
+    public static LiteralExpression<Object> now() {
+        return LiteralExpression.of("CURRENT_TIMESTAMP");
+    }
+
+    /**
+     * {@code CURRENT_DATE} — returns the current date (without time).
+     * Standard SQL, supported by all major databases.
+     */
+    public static LiteralExpression<Object> currentDate() {
+        return LiteralExpression.of("CURRENT_DATE");
+    }
+
+    /** {@code HOUR(col)} */
+    public static <T> FunctionExpression<Integer> hour(SFunction<T, ?> prop) {
+        return fn("HOUR", prop);
+    }
+
+    /** {@code MINUTE(col)} */
+    public static <T> FunctionExpression<Integer> minute(SFunction<T, ?> prop) {
+        return fn("MINUTE", prop);
+    }
+
+    /** {@code SECOND(col)} */
+    public static <T> FunctionExpression<Integer> second(SFunction<T, ?> prop) {
+        return fn("SECOND", prop);
     }
 
     // ------------------------------------------------------------------ //
