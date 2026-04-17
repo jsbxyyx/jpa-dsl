@@ -7,7 +7,9 @@ import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ScalarSubqueryExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.WindowExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.ExistsPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.InSubqueryPredicate;
@@ -296,6 +298,10 @@ public final class SqlRenderer {
             return "CAST(" + inner + " AS " + cast.getTargetType() + ")";
         } else if (expression instanceof CaseExpression<?> caseExpr) {
             return renderCaseExpression(caseExpr, spec, params, paramIdx);
+        } else if (expression instanceof WindowExpression<?> win) {
+            return renderWindowExpression(win, spec, params, paramIdx);
+        } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
+            return renderScalarSubqueryExpression(sub, params, paramIdx);
         } else {
             throw new IllegalArgumentException("Unknown SqlExpression type: " + expression.getClass());
         }
@@ -347,6 +353,49 @@ public final class SqlRenderer {
         }
         sb.append(" END");
         return sb.toString();
+    }
+
+    private static <T, R> String renderWindowExpression(WindowExpression<?> win,
+                                                          SelectSpec<T, R> spec,
+                                                          Map<String, Object> params,
+                                                          AtomicInteger paramIdx) {
+        String funcSql = renderExpression(win.getFunction(), spec, params, paramIdx);
+
+        StringBuilder over = new StringBuilder();
+
+        List<SqlExpression<?>> partitionBy = win.getPartitionBy();
+        if (!partitionBy.isEmpty()) {
+            StringJoiner pj = new StringJoiner(", ");
+            for (SqlExpression<?> expr : partitionBy) {
+                pj.add(renderExpression(expr, spec, params, paramIdx));
+            }
+            over.append("PARTITION BY ").append(pj);
+        }
+
+        List<JOrder<?>> orderBy = win.getOrderBy();
+        if (!orderBy.isEmpty()) {
+            if (over.length() > 0) over.append(" ");
+            StringJoiner oj = new StringJoiner(", ");
+            for (JOrder<?> order : orderBy) {
+                String colExpr = renderExpression(order.getExpression(), spec, params, paramIdx);
+                String nullHandling = switch (order.getNullHandling()) {
+                    case NULLS_FIRST -> " NULLS FIRST";
+                    case NULLS_LAST -> " NULLS LAST";
+                    case NATIVE -> "";
+                };
+                oj.add(colExpr + " " + order.getDirection().name() + nullHandling);
+            }
+            over.append("ORDER BY ").append(oj);
+        }
+
+        return funcSql + " OVER (" + over + ")";
+    }
+
+    private static String renderScalarSubqueryExpression(ScalarSubqueryExpression<?> sub,
+                                                          Map<String, Object> params,
+                                                          AtomicInteger paramIdx) {
+        String inner = renderSubquerySql(sub.getSubquery(), params, paramIdx);
+        return "(" + inner + ")";
     }
 
     // ------------------------------------------------------------------ //

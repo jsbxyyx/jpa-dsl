@@ -11,12 +11,16 @@ package io.github.jsbxyyx.jdbcdsl.expr;
  *   <li>{@link LiteralExpression} – a raw SQL fragment embedded verbatim, e.g. {@code *}, {@code 'N/A'}</li>
  *   <li>{@link AggregateExpression} – an aggregate function call, e.g. {@code COUNT(*)}, {@code SUM(t.amount)}</li>
  *   <li>{@link AliasedExpression} – any expression wrapped with an explicit {@code AS <alias>}</li>
+ *   <li>{@link WindowExpression} – a window function: {@code FUNC(...) OVER (PARTITION BY ... ORDER BY ...)}</li>
+ *   <li>{@link ScalarSubqueryExpression} – a scalar subquery in the SELECT clause: {@code (SELECT ...)}</li>
  * </ul>
  *
  * @param <V> the Java type of the value produced by this expression (used for type-safe wiring)
  */
 public sealed interface SqlExpression<V>
-        permits ColumnExpression, FunctionExpression, LiteralExpression, AggregateExpression, AliasedExpression, CaseExpression, CastExpression {
+        permits ColumnExpression, FunctionExpression, LiteralExpression, AggregateExpression,
+                AliasedExpression, CaseExpression, CastExpression,
+                WindowExpression, ScalarSubqueryExpression {
 
     /**
      * Wraps this expression with an explicit SQL column alias ({@code <expr> AS <alias>}).
