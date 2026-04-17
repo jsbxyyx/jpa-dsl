@@ -23,7 +23,16 @@ public final class SelectSpec<T, R> {
     private final Class<R> dtoClass;
     private final List<SqlExpression<?>> groupByExpressions;
     private final PredicateNode having;
+    /** Ordered list of Common Table Expressions prepended as a {@code WITH} clause. */
+    private final List<CteDef> cteDefs;
+    /**
+     * When non-null, overrides the entity's {@code @Table} name in the FROM clause.
+     * Used by {@link SelectBuilder#fromCte(String, Class)} to emit {@code FROM cte_name alias}
+     * instead of {@code FROM t_entity_table alias}.
+     */
+    private final String tableNameOverride;
 
+    /** Full canonical constructor. */
     SelectSpec(Class<T> entityClass,
                String alias,
                boolean distinct,
@@ -33,7 +42,9 @@ public final class SelectSpec<T, R> {
                JSort<T> sort,
                Class<R> dtoClass,
                List<SqlExpression<?>> groupByExpressions,
-               PredicateNode having) {
+               PredicateNode having,
+               List<CteDef> cteDefs,
+               String tableNameOverride) {
         this.entityClass = entityClass;
         this.alias = alias;
         this.distinct = distinct;
@@ -44,6 +55,8 @@ public final class SelectSpec<T, R> {
         this.dtoClass = dtoClass;
         this.groupByExpressions = List.copyOf(groupByExpressions);
         this.having = having;
+        this.cteDefs = List.copyOf(cteDefs);
+        this.tableNameOverride = tableNameOverride;
     }
 
     public Class<T> getEntityClass() { return entityClass; }
@@ -56,4 +69,13 @@ public final class SelectSpec<T, R> {
     public Class<R> getDtoClass() { return dtoClass; }
     public List<SqlExpression<?>> getGroupByExpressions() { return groupByExpressions; }
     public PredicateNode getHaving() { return having; }
+
+    /** Returns the CTE definitions attached to this spec's WITH clause (may be empty). */
+    public List<CteDef> getCteDefs() { return cteDefs; }
+
+    /**
+     * Returns the FROM-clause table-name override, or {@code null} if the entity's
+     * {@code @Table} name should be used.
+     */
+    public String getTableNameOverride() { return tableNameOverride; }
 }

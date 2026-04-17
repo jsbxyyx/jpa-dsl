@@ -1,0 +1,1 @@
+TRUNCATE TABLE t_user;

@@ -1,5 +1,10 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
+import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.RenderedSql;
+import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
+
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -23,6 +28,9 @@ import java.util.Map;
  * }</pre>
  *
  * <p>For Oracle 12c+ use {@link OracleDialect} (cleaner, standard syntax).
+ *
+ * <p>UPSERT: delegates to {@link OracleDialect} — the MERGE INTO … USING … FROM DUAL syntax
+ * is the same for all Oracle versions.
  */
 public final class Oracle11gDialect implements Dialect {
 
@@ -35,5 +43,11 @@ public final class Oracle11gDialect implements Dialect {
                 + "SELECT _q_.*, ROWNUM _rn_ FROM (" + sql + ") _q_"
                 + " WHERE ROWNUM <= :_end"
                 + ") WHERE _rn_ > :_offset";
+    }
+
+    @Override
+    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
+                                    LinkedHashMap<String, Object> colValues) {
+        return OracleDialect.renderMergeViaDual(spec, meta, colValues);
     }
 }

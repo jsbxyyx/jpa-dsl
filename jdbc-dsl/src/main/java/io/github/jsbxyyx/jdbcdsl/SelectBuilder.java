@@ -43,6 +43,19 @@ import java.util.function.Consumer;
  *     .having(h -> h.gt(countStar(), 5))
  *     .mapTo(StatusCountDto.class);
  * }</pre>
+ *
+ * <p>Usage example (CTE):
+ * <pre>{@code
+ * SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
+ *     .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+ *     .mapToEntity();
+ *
+ * SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("active_users", TUser.class)
+ *     .withCte("active_users", cteBody)
+ *     .select(TUser::getId, TUser::getUsername)
+ *     .mapTo(UserDto.class);
+ * // → WITH active_users AS (...) SELECT … FROM active_users t
+ * }</pre>
  */
 public final class SelectBuilder<T> {
 
@@ -55,6 +68,8 @@ public final class SelectBuilder<T> {
     private JSort<T> sort = JSort.unsorted();
     private final List<SqlExpression<?>> groupByExpressions = new ArrayList<>();
     private PredicateNode having;
+    private final List<CteDef> cteDefs = new ArrayList<>();
+    private String tableNameOverride = null;
 
     private SelectBuilder(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
@@ -69,6 +84,41 @@ public final class SelectBuilder<T> {
     /** Starts building a select from the given entity class with a custom alias. */
     public static <T> SelectBuilder<T> from(Class<T> entityClass, String alias) {
         return new SelectBuilder<>(entityClass, alias);
+    }
+
+    /**
+     * Starts building a select whose FROM clause uses {@code cteName} as the table name,
+     * while {@code entityClass} provides the column mappings for type-safe property references.
+     *
+     * <p>Use this together with {@link #withCte(String, SelectSpec)} to query from a CTE:
+     * <pre>{@code
+     * SelectBuilder.fromCte("active_users", TUser.class)
+     *     .withCte("active_users", cteBody)
+     *     .select(TUser::getId, TUser::getUsername)
+     *     .mapTo(UserDto.class)
+     * // → FROM active_users t  (not FROM t_user t)
+     * }</pre>
+     *
+     * <p>The default alias is {@code "t"}.
+     *
+     * @param cteName     the CTE name to use in the FROM clause
+     * @param entityClass entity whose column mappings describe the CTE's columns
+     */
+    public static <T> SelectBuilder<T> fromCte(String cteName, Class<T> entityClass) {
+        return fromCte(cteName, entityClass, "t");
+    }
+
+    /**
+     * Starts building a select from a CTE name with a custom alias.
+     *
+     * @param cteName     the CTE name to use in the FROM clause
+     * @param entityClass entity whose column mappings describe the CTE's columns
+     * @param alias       the SQL alias for the CTE table reference
+     */
+    public static <T> SelectBuilder<T> fromCte(String cteName, Class<T> entityClass, String alias) {
+        SelectBuilder<T> b = new SelectBuilder<>(entityClass, alias);
+        b.tableNameOverride = cteName;
+        return b;
     }
 
     /** Adds {@code DISTINCT} to the SELECT clause, eliminating duplicate rows. */
@@ -171,6 +221,25 @@ public final class SelectBuilder<T> {
     }
 
     /**
+     * Declares a Common Table Expression (CTE) to be prepended as a {@code WITH} clause.
+     * Can be called multiple times; CTEs are rendered in declaration order.
+     *
+     * <p>The CTE body is rendered without ORDER BY (ORDER BY inside a CTE is not valid in
+     * SQL-92 and is ignored even when the body spec has one).
+     *
+     * <p>To reference this CTE as the outer query's FROM source, use
+     * {@link #fromCte(String, Class)} instead of {@link #from(Class)}.
+     * For CTE references inside WHERE / IN / EXISTS, use {@link WhereBuilder#raw(String)}.
+     *
+     * @param name the CTE name used in SQL and referenced in FROM / JOIN clauses
+     * @param body the SELECT spec defining the CTE body
+     */
+    public SelectBuilder<T> withCte(String name, SelectSpec<?, ?> body) {
+        cteDefs.add(new CteDef(name, body));
+        return this;
+    }
+
+    /**
      * Finalizes the spec by specifying the DTO class to project results into.
      *
      * <p>The DTO must be a JavaBean with a no-arg constructor and setter methods for each
@@ -180,7 +249,7 @@ public final class SelectBuilder<T> {
      */
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
         return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
-                dtoClass, groupByExpressions, having);
+                dtoClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride);
     }
 
     /**
@@ -198,6 +267,6 @@ public final class SelectBuilder<T> {
      */
     public SelectSpec<T, T> mapToEntity() {
         return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
-                entityClass, groupByExpressions, having);
+                entityClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride);
     }
 }
