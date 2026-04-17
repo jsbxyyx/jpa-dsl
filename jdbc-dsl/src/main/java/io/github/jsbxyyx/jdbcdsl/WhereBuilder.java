@@ -345,45 +345,39 @@ public final class WhereBuilder<T> {
     //  Scalar subquery comparisons  (col OP (SELECT single-value))
     // ------------------------------------------------------------------ //
 
-    /** {@code col = (SELECT single-value)} */
-    public WhereBuilder<T> eq(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.EQ, subquery));
+    /** {@code expr = (SELECT single-value)} */
+    public WhereBuilder<T> eqScalar(SqlExpression<?> expr, Scalar<?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.EQ, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col <> (SELECT single-value)} */
-    public WhereBuilder<T> ne(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.NE, subquery));
+    /** {@code expr <> (SELECT single-value)} */
+    public WhereBuilder<T> neScalar(SqlExpression<?> expr, Scalar<?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.NE, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col > (SELECT single-value)} */
-    public WhereBuilder<T> gt(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.GT, subquery));
+    /** {@code expr > (SELECT single-value)} */
+    public WhereBuilder<T> gtScalar(SqlExpression<?> expr, Scalar<?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.GT, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col >= (SELECT single-value)} */
-    public WhereBuilder<T> gte(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.GTE, subquery));
+    /** {@code expr >= (SELECT single-value)} */
+    public WhereBuilder<T> gteScalar(SqlExpression<?> expr, Scalar<?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.GTE, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col < (SELECT single-value)} */
-    public WhereBuilder<T> lt(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.LT, subquery));
+    /** {@code expr < (SELECT single-value)} */
+    public WhereBuilder<T> ltScalar(SqlExpression<?> expr, Scalar<?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.LT, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col <= (SELECT single-value)} */
-    public WhereBuilder<T> lte(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.LTE, subquery));
+    /** {@code expr <= (SELECT single-value)} */
+    public WhereBuilder<T> lteScalar(SqlExpression<?> expr, Scalar<?> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.LTE, subquery.getSpec()));
         return this;
     }
 

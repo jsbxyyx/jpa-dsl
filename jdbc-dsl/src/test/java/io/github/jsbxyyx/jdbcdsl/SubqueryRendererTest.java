@@ -5,6 +5,7 @@ import io.github.jsbxyyx.jdbcdsl.entity.TOrder;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
+import static io.github.jsbxyyx.jdbcdsl.Scalar.scalar;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.avg;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -107,7 +108,7 @@ class SubqueryRendererTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.gt((SFunction<TUser, Integer>) TUser::getAge, inner))
+                .where(w -> w.gtScalar(col(TUser::getAge), scalar(inner)))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
@@ -125,7 +126,7 @@ class SubqueryRendererTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.eq((SFunction<TUser, Integer>) TUser::getAge, inner))
+                .where(w -> w.eqScalar(col(TUser::getAge), scalar(inner)))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
