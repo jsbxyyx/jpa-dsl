@@ -33,10 +33,21 @@ public final class Scalar<V> {
     /**
      * Wraps {@code spec} as a scalar subquery.
      *
-     * <p>Typically used via a static import:
-     * <pre>{@code w.gt(TUser::getAge, scalar(inner)) }</pre>
+     * <p>The result type {@code V} is inferred from the second type parameter of
+     * {@link SelectSpec}, ensuring the subquery return type matches the column type
+     * at the call site:
+     * <pre>{@code
+     * SelectSpec<TUser, Integer> inner = SelectBuilder.from(TUser.class)
+     *         .select(max(TUser::getAge).as("maxAge"))
+     *         .mapTo(Integer.class);
+     *
+     * // V=Integer enforced on both sides:
+     * w.eqScalar(col(TUser::getAge), scalar(inner))
+     * }</pre>
+     *
+     * <p>Typically used via a static import: {@code import static ...Scalar.scalar}.
      */
-    public static <V> Scalar<V> scalar(SelectSpec<?, ?> spec) {
+    public static <V> Scalar<V> scalar(SelectSpec<?, V> spec) {
         return new Scalar<>(spec);
     }
 

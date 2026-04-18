@@ -102,9 +102,9 @@ class SubqueryRendererTest {
     @Test
     void renderSelect_scalarSubquery_gt_generatesCorrectSql() {
         // SELECT AVG(age) FROM t_user — inner uses the default alias "t"
-        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class)
+        SelectSpec<TUser, Integer> inner = SelectBuilder.from(TUser.class)
                 .select(avg(TUser::getAge).as("avgAge"))
-                .mapToEntity();
+                .mapTo(Integer.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
@@ -120,9 +120,9 @@ class SubqueryRendererTest {
 
     @Test
     void renderSelect_scalarSubquery_eq_generatesCorrectSql() {
-        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class)
+        SelectSpec<TUser, Integer> inner = SelectBuilder.from(TUser.class)
                 .select(SqlFunctions.max(TUser::getAge).as("maxAge"))
-                .mapToEntity();
+                .mapTo(Integer.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)

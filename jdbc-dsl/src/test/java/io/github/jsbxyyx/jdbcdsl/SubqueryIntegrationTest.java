@@ -149,9 +149,9 @@ class SubqueryIntegrationTest {
     @Test
     void scalarSubquery_gt_usersOlderThanAverage_returnsCharlie() {
         // AVG(age) = (30 + 25 + 40) / 3 ≈ 31.67  →  charlie (40) qualifies
-        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class, "u2")
+        SelectSpec<TUser, Integer> inner = SelectBuilder.from(TUser.class, "u2")
                 .select(avg(TUser::getAge).as("avgAge"))
-                .mapToEntity();
+                .mapTo(Integer.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
