@@ -6,8 +6,8 @@ import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcdsl.Scalar.scalar;
-import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.avg;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -22,14 +22,14 @@ class SubqueryRendererTest {
 
     @Test
     void renderSelect_inSubquery_generatesCorrectSql() {
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
                 .where(w -> w.eq(TOrder::getStatus, "PAID"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.in(TUser::getId, inner))
+                .where(w -> w.inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
@@ -44,13 +44,13 @@ class SubqueryRendererTest {
 
     @Test
     void renderSelect_notInSubquery_generatesCorrectSql() {
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.notIn(TUser::getId, inner))
+                .where(w -> w.notInSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
@@ -103,7 +103,7 @@ class SubqueryRendererTest {
     void renderSelect_scalarSubquery_gt_generatesCorrectSql() {
         // SELECT AVG(age) FROM t_user — inner uses the default alias "t"
         SelectSpec<TUser, Integer> inner = SelectBuilder.from(TUser.class)
-                .select(avg(TUser::getAge).as("avgAge"))
+                .select(max(TUser::getAge).as("maxAge"))
                 .mapTo(Integer.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
@@ -114,7 +114,7 @@ class SubqueryRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
         assertThat(rendered.getSql())
                 .contains("t.age > (SELECT")
-                .contains("AVG(t.age)")
+                .contains("MAX(t.age)")
                 .contains("FROM t_user");
     }
 
@@ -139,16 +139,16 @@ class SubqueryRendererTest {
 
     @Test
     void renderSelect_subqueryParams_numberedSequentially() {
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
                 .where(w -> w.eq(TOrder::getStatus, "PAID"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
                 .where(w -> w
                         .eq(TUser::getStatus, "ACTIVE")
-                        .in(TUser::getId, inner))
+                        .inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
@@ -168,14 +168,14 @@ class SubqueryRendererTest {
     @Test
     void renderSelect_subquery_orderByOmitted() {
         // Even if the inner spec has an orderBy, it must NOT appear in the subquery SQL
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
                 .orderBy(JSort.by(JOrder.desc(TOrder::getAmount)))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.in(TUser::getId, inner))
+                .where(w -> w.inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);

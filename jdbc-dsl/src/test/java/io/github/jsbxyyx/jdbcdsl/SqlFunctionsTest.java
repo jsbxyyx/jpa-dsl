@@ -7,6 +7,8 @@ import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -193,12 +195,12 @@ class SqlFunctionsTest {
         SelectSpec<TOrder, UserDto> spec = SelectBuilder.from(TOrder.class)
                 .select(col(TOrder::getStatus), sum(TOrder::getAmount))
                 .groupBy(TOrder::getStatus)
-                .having(h -> h.gte(sum(TOrder::getAmount), 1000))
+                .having(h -> h.gte(sum(TOrder::getAmount), BigDecimal.valueOf(1000)))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("HAVING SUM(t.amount) >= :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 1000);
+        assertThat(rendered.getParams()).containsEntry("p1", BigDecimal.valueOf(1000));
     }
 
     @Test

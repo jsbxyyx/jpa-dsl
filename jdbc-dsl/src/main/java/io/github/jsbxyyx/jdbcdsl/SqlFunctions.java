@@ -279,18 +279,18 @@ public final class SqlFunctions {
         return AggregateExpression.ofDistinct("COUNT", List.of(ColumnExpression.of(prop)));
     }
 
-    /** {@code SUM(col)} */
-    public static <T> AggregateExpression<Number> sum(SFunction<T, ?> prop) {
+    /** {@code SUM(col)} — preserves the numeric column type {@code V}. */
+    public static <T, V extends Number> AggregateExpression<V> sum(SFunction<T, V> prop) {
         return AggregateExpression.of("SUM", List.of(ColumnExpression.of(prop)));
     }
 
-    /** {@code MAX(col)} */
-    public static <T> AggregateExpression<Object> max(SFunction<T, ?> prop) {
+    /** {@code MAX(col)} — preserves the column type {@code V}. */
+    public static <T, V> AggregateExpression<V> max(SFunction<T, V> prop) {
         return AggregateExpression.of("MAX", List.of(ColumnExpression.of(prop)));
     }
 
-    /** {@code MIN(col)} */
-    public static <T> AggregateExpression<Object> min(SFunction<T, ?> prop) {
+    /** {@code MIN(col)} — preserves the column type {@code V}. */
+    public static <T, V> AggregateExpression<V> min(SFunction<T, V> prop) {
         return AggregateExpression.of("MIN", List.of(ColumnExpression.of(prop)));
     }
 
@@ -369,7 +369,7 @@ public final class SqlFunctions {
      *
      * <p>Example: {@code lag(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("prevAge")}
      */
-    public static <T> FunctionExpression<Object> lag(SFunction<T, ?> prop, int offset) {
+    public static <T, V> FunctionExpression<V> lag(SFunction<T, V> prop, int offset) {
         return new FunctionExpression<>("LAG",
                 List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
     }
@@ -377,7 +377,7 @@ public final class SqlFunctions {
     /**
      * {@code LAG(col)} — returns the value from the immediately preceding row (offset=1).
      */
-    public static <T> FunctionExpression<Object> lag(SFunction<T, ?> prop) {
+    public static <T, V> FunctionExpression<V> lag(SFunction<T, V> prop) {
         return lag(prop, 1);
     }
 
@@ -386,7 +386,7 @@ public final class SqlFunctions {
      *
      * <p>Example: {@code lead(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("nextAge")}
      */
-    public static <T> FunctionExpression<Object> lead(SFunction<T, ?> prop, int offset) {
+    public static <T, V> FunctionExpression<V> lead(SFunction<T, V> prop, int offset) {
         return new FunctionExpression<>("LEAD",
                 List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
     }
@@ -394,7 +394,7 @@ public final class SqlFunctions {
     /**
      * {@code LEAD(col)} — returns the value from the immediately following row (offset=1).
      */
-    public static <T> FunctionExpression<Object> lead(SFunction<T, ?> prop) {
+    public static <T, V> FunctionExpression<V> lead(SFunction<T, V> prop) {
         return lead(prop, 1);
     }
 
@@ -402,7 +402,7 @@ public final class SqlFunctions {
      * {@code FIRST_VALUE(col)} — returns the first value in the window frame.
      * Chain {@code .over(...)} to specify the window.
      */
-    public static <T> FunctionExpression<Object> firstValue(SFunction<T, ?> prop) {
+    public static <T, V> FunctionExpression<V> firstValue(SFunction<T, V> prop) {
         return fn("FIRST_VALUE", prop);
     }
 
@@ -410,7 +410,7 @@ public final class SqlFunctions {
      * {@code LAST_VALUE(col)} — returns the last value in the window frame.
      * Chain {@code .over(...)} to specify the window.
      */
-    public static <T> FunctionExpression<Object> lastValue(SFunction<T, ?> prop) {
+    public static <T, V> FunctionExpression<V> lastValue(SFunction<T, V> prop) {
         return fn("LAST_VALUE", prop);
     }
 

@@ -47,7 +47,7 @@ public final class UpdateBuilder<T> {
      * @param prop  a method reference identifying the property (and thus the column)
      * @param value the new value for that column
      */
-    public UpdateBuilder<T> set(SFunction<T, ?> prop, Object value) {
+    public <V> UpdateBuilder<T> set(SFunction<T, V> prop, V value) {
         PropertyRef ref = PropertyRefResolver.resolve(prop);
         assignments.add(new AbstractMap.SimpleImmutableEntry<>(ref.propertyName(), value));
         return this;
@@ -61,7 +61,7 @@ public final class UpdateBuilder<T> {
      * @param value     the new value for that column
      * @param condition when {@code false} this call is a no-op
      */
-    public UpdateBuilder<T> set(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> UpdateBuilder<T> set(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
             assignments.add(new AbstractMap.SimpleImmutableEntry<>(ref.propertyName(), value));

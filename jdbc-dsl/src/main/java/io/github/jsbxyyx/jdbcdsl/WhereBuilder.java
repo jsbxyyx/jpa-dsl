@@ -279,32 +279,33 @@ public final class WhereBuilder<T> {
     // ------------------------------------------------------------------ //
 
     /**
-     * {@code col IN (SELECT ...)} predicate.
+     * {@code expr IN (SELECT ...)} predicate.
      *
-     * @param prop     property on the root entity to test
-     * @param subquery inner SELECT that returns the candidate values
+     * <p>{@code V} must match the column type and the subquery's result type, ensuring
+     * the IN list is type-compatible at compile time.
+     *
+     * @param expr     SQL expression (typically {@code col(Entity::getProp)}) whose value is tested
+     * @param subquery inner SELECT whose second type parameter {@code V} matches the expression type
      */
-    public WhereBuilder<T> in(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        return in(prop, subquery, true);
+    public <V> WhereBuilder<T> inSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery) {
+        return inSubquery(expr, subquery, true);
     }
 
-    public WhereBuilder<T> in(SFunction<T, ?> prop, SelectSpec<?, ?> subquery, boolean condition) {
+    public <V> WhereBuilder<T> inSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery, boolean condition) {
         if (condition) {
-            predicates.add(new InSubqueryPredicate(
-                    ColumnExpression.of(resolve(prop), alias), subquery, false));
+            predicates.add(new InSubqueryPredicate(expr, subquery, false));
         }
         return this;
     }
 
-    /** {@code col NOT IN (SELECT ...)} predicate. */
-    public WhereBuilder<T> notIn(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        return notIn(prop, subquery, true);
+    /** {@code expr NOT IN (SELECT ...)} predicate. */
+    public <V> WhereBuilder<T> notInSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery) {
+        return notInSubquery(expr, subquery, true);
     }
 
-    public WhereBuilder<T> notIn(SFunction<T, ?> prop, SelectSpec<?, ?> subquery, boolean condition) {
+    public <V> WhereBuilder<T> notInSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery, boolean condition) {
         if (condition) {
-            predicates.add(new InSubqueryPredicate(
-                    ColumnExpression.of(resolve(prop), alias), subquery, true));
+            predicates.add(new InSubqueryPredicate(expr, subquery, true));
         }
         return this;
     }
