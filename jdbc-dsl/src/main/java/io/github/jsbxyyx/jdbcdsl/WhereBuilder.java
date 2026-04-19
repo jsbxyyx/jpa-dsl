@@ -28,6 +28,11 @@ import java.util.function.Consumer;
  * function or aggregate expressions as the left-hand operand, enabling conditions such as
  * {@code UPPER(t.email) = ?} or {@code COUNT(*) > ?}.
  *
+ * <p><strong>v2.0 type safety:</strong> value parameters are now generic ({@code V}) and must
+ * match the column type exactly. Cross-column comparisons require both sides to share the same
+ * {@code V}. Intentional type mismatches (e.g. a BIGINT column compared to a VARCHAR column)
+ * must use the {@link #raw(String)} escape hatch.
+ *
  * @param <T> the root entity type
  */
 public final class WhereBuilder<T> {
@@ -45,11 +50,11 @@ public final class WhereBuilder<T> {
     //  EQ / NE
     // ------------------------------------------------------------------ //
 
-    public WhereBuilder<T> eq(SFunction<T, ?> prop, Object value) {
+    public <V> WhereBuilder<T> eq(SFunction<T, V> prop, V value) {
         return eq(prop, value, true);
     }
 
-    public WhereBuilder<T> eq(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> WhereBuilder<T> eq(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.EQ, value));
         }
@@ -57,22 +62,28 @@ public final class WhereBuilder<T> {
     }
 
     /** Cross-entity equality: allows filtering on joined table properties with an explicit alias. */
-    public <X> WhereBuilder<T> eq(SFunction<X, ?> prop, String tableAlias, Object value) {
+    public <X, V> WhereBuilder<T> eq(SFunction<X, V> prop, String tableAlias, V value) {
         predicates.add(LeafPredicate.of(PropertyRefResolver.resolve(prop), tableAlias, LeafPredicate.Op.EQ, value));
         return this;
     }
 
     /** Equality predicate with an arbitrary SQL expression on the left (e.g. a function call). */
-    public WhereBuilder<T> eq(SqlExpression<?> expression, Object value) {
+    public <V> WhereBuilder<T> eq(SqlExpression<V> expression, V value) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.EQ, value));
         return this;
     }
 
-    public WhereBuilder<T> ne(SFunction<T, ?> prop, Object value) {
+    /** Column–column equality: both sides must carry the same value type {@code V}. */
+    public <V> WhereBuilder<T> eq(SqlExpression<V> left, SqlExpression<V> right) {
+        predicates.add(LeafPredicate.ofExpr(left, LeafPredicate.Op.EQ, right));
+        return this;
+    }
+
+    public <V> WhereBuilder<T> ne(SFunction<T, V> prop, V value) {
         return ne(prop, value, true);
     }
 
-    public WhereBuilder<T> ne(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> WhereBuilder<T> ne(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.NE, value));
         }
@@ -80,8 +91,14 @@ public final class WhereBuilder<T> {
     }
 
     /** Inequality predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> ne(SqlExpression<?> expression, Object value) {
+    public <V> WhereBuilder<T> ne(SqlExpression<V> expression, V value) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.NE, value));
+        return this;
+    }
+
+    /** Column–column inequality: both sides must carry the same value type {@code V}. */
+    public <V> WhereBuilder<T> ne(SqlExpression<V> left, SqlExpression<V> right) {
+        predicates.add(LeafPredicate.ofExpr(left, LeafPredicate.Op.NE, right));
         return this;
     }
 
@@ -89,11 +106,11 @@ public final class WhereBuilder<T> {
     //  GT / GTE / LT / LTE
     // ------------------------------------------------------------------ //
 
-    public WhereBuilder<T> gt(SFunction<T, ?> prop, Object value) {
+    public <V> WhereBuilder<T> gt(SFunction<T, V> prop, V value) {
         return gt(prop, value, true);
     }
 
-    public WhereBuilder<T> gt(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> WhereBuilder<T> gt(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.GT, value));
         }
@@ -101,16 +118,22 @@ public final class WhereBuilder<T> {
     }
 
     /** Greater-than predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> gt(SqlExpression<?> expression, Object value) {
+    public <V> WhereBuilder<T> gt(SqlExpression<V> expression, V value) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.GT, value));
         return this;
     }
 
-    public WhereBuilder<T> gte(SFunction<T, ?> prop, Object value) {
+    /** Column–column greater-than: both sides must carry the same value type {@code V}. */
+    public <V> WhereBuilder<T> gt(SqlExpression<V> left, SqlExpression<V> right) {
+        predicates.add(LeafPredicate.ofExpr(left, LeafPredicate.Op.GT, right));
+        return this;
+    }
+
+    public <V> WhereBuilder<T> gte(SFunction<T, V> prop, V value) {
         return gte(prop, value, true);
     }
 
-    public WhereBuilder<T> gte(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> WhereBuilder<T> gte(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.GTE, value));
         }
@@ -118,16 +141,22 @@ public final class WhereBuilder<T> {
     }
 
     /** Greater-than-or-equal predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> gte(SqlExpression<?> expression, Object value) {
+    public <V> WhereBuilder<T> gte(SqlExpression<V> expression, V value) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.GTE, value));
         return this;
     }
 
-    public WhereBuilder<T> lt(SFunction<T, ?> prop, Object value) {
+    /** Column–column greater-than-or-equal: both sides must carry the same value type {@code V}. */
+    public <V> WhereBuilder<T> gte(SqlExpression<V> left, SqlExpression<V> right) {
+        predicates.add(LeafPredicate.ofExpr(left, LeafPredicate.Op.GTE, right));
+        return this;
+    }
+
+    public <V> WhereBuilder<T> lt(SFunction<T, V> prop, V value) {
         return lt(prop, value, true);
     }
 
-    public WhereBuilder<T> lt(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> WhereBuilder<T> lt(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LT, value));
         }
@@ -135,16 +164,22 @@ public final class WhereBuilder<T> {
     }
 
     /** Less-than predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> lt(SqlExpression<?> expression, Object value) {
+    public <V> WhereBuilder<T> lt(SqlExpression<V> expression, V value) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LT, value));
         return this;
     }
 
-    public WhereBuilder<T> lte(SFunction<T, ?> prop, Object value) {
+    /** Column–column less-than: both sides must carry the same value type {@code V}. */
+    public <V> WhereBuilder<T> lt(SqlExpression<V> left, SqlExpression<V> right) {
+        predicates.add(LeafPredicate.ofExpr(left, LeafPredicate.Op.LT, right));
+        return this;
+    }
+
+    public <V> WhereBuilder<T> lte(SFunction<T, V> prop, V value) {
         return lte(prop, value, true);
     }
 
-    public WhereBuilder<T> lte(SFunction<T, ?> prop, Object value, boolean condition) {
+    public <V> WhereBuilder<T> lte(SFunction<T, V> prop, V value, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LTE, value));
         }
@@ -152,8 +187,14 @@ public final class WhereBuilder<T> {
     }
 
     /** Less-than-or-equal predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> lte(SqlExpression<?> expression, Object value) {
+    public <V> WhereBuilder<T> lte(SqlExpression<V> expression, V value) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LTE, value));
+        return this;
+    }
+
+    /** Column–column less-than-or-equal: both sides must carry the same value type {@code V}. */
+    public <V> WhereBuilder<T> lte(SqlExpression<V> left, SqlExpression<V> right) {
+        predicates.add(LeafPredicate.ofExpr(left, LeafPredicate.Op.LTE, right));
         return this;
     }
 
@@ -161,11 +202,11 @@ public final class WhereBuilder<T> {
     //  LIKE
     // ------------------------------------------------------------------ //
 
-    public WhereBuilder<T> like(SFunction<T, ?> prop, String pattern) {
+    public WhereBuilder<T> like(SFunction<T, String> prop, String pattern) {
         return like(prop, pattern, true);
     }
 
-    public WhereBuilder<T> like(SFunction<T, ?> prop, String pattern, boolean condition) {
+    public WhereBuilder<T> like(SFunction<T, String> prop, String pattern, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE, "%" + pattern + "%"));
         }
@@ -173,16 +214,16 @@ public final class WhereBuilder<T> {
     }
 
     /** LIKE predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> like(SqlExpression<?> expression, String pattern) {
+    public WhereBuilder<T> like(SqlExpression<String> expression, String pattern) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE, "%" + pattern + "%"));
         return this;
     }
 
-    public WhereBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern) {
+    public WhereBuilder<T> likeIgnoreCase(SFunction<T, String> prop, String pattern) {
         return likeIgnoreCase(prop, pattern, true);
     }
 
-    public WhereBuilder<T> likeIgnoreCase(SFunction<T, ?> prop, String pattern, boolean condition) {
+    public WhereBuilder<T> likeIgnoreCase(SFunction<T, String> prop, String pattern, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE_IC, "%" + pattern + "%"));
         }
@@ -190,7 +231,7 @@ public final class WhereBuilder<T> {
     }
 
     /** Case-insensitive LIKE predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> likeIgnoreCase(SqlExpression<?> expression, String pattern) {
+    public WhereBuilder<T> likeIgnoreCase(SqlExpression<String> expression, String pattern) {
         predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE_IC, "%" + pattern + "%"));
         return this;
     }
@@ -199,11 +240,11 @@ public final class WhereBuilder<T> {
     //  IN / NOT IN
     // ------------------------------------------------------------------ //
 
-    public WhereBuilder<T> in(SFunction<T, ?> prop, Collection<?> values) {
+    public <V> WhereBuilder<T> in(SFunction<T, V> prop, Collection<? extends V> values) {
         return in(prop, values, true);
     }
 
-    public WhereBuilder<T> in(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+    public <V> WhereBuilder<T> in(SFunction<T, V> prop, Collection<? extends V> values, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.ofIn(resolve(prop), alias, values, false));
         }
@@ -211,16 +252,16 @@ public final class WhereBuilder<T> {
     }
 
     /** IN predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> in(SqlExpression<?> expression, Collection<?> values) {
+    public <V> WhereBuilder<T> in(SqlExpression<V> expression, Collection<? extends V> values) {
         predicates.add(LeafPredicate.ofExprIn(expression, values, false));
         return this;
     }
 
-    public WhereBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values) {
+    public <V> WhereBuilder<T> notIn(SFunction<T, V> prop, Collection<? extends V> values) {
         return notIn(prop, values, true);
     }
 
-    public WhereBuilder<T> notIn(SFunction<T, ?> prop, Collection<?> values, boolean condition) {
+    public <V> WhereBuilder<T> notIn(SFunction<T, V> prop, Collection<? extends V> values, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.ofIn(resolve(prop), alias, values, true));
         }
@@ -228,7 +269,7 @@ public final class WhereBuilder<T> {
     }
 
     /** NOT IN predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> notIn(SqlExpression<?> expression, Collection<?> values) {
+    public <V> WhereBuilder<T> notIn(SqlExpression<V> expression, Collection<? extends V> values) {
         predicates.add(LeafPredicate.ofExprIn(expression, values, true));
         return this;
     }
@@ -238,32 +279,33 @@ public final class WhereBuilder<T> {
     // ------------------------------------------------------------------ //
 
     /**
-     * {@code col IN (SELECT ...)} predicate.
+     * {@code expr IN (SELECT ...)} predicate.
      *
-     * @param prop     property on the root entity to test
-     * @param subquery inner SELECT that returns the candidate values
+     * <p>{@code V} must match the column type and the subquery's result type, ensuring
+     * the IN list is type-compatible at compile time.
+     *
+     * @param expr     SQL expression (typically {@code col(Entity::getProp)}) whose value is tested
+     * @param subquery inner SELECT whose second type parameter {@code V} matches the expression type
      */
-    public WhereBuilder<T> in(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        return in(prop, subquery, true);
+    public <V> WhereBuilder<T> inSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery) {
+        return inSubquery(expr, subquery, true);
     }
 
-    public WhereBuilder<T> in(SFunction<T, ?> prop, SelectSpec<?, ?> subquery, boolean condition) {
+    public <V> WhereBuilder<T> inSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery, boolean condition) {
         if (condition) {
-            predicates.add(new InSubqueryPredicate(
-                    ColumnExpression.of(resolve(prop), alias), subquery, false));
+            predicates.add(new InSubqueryPredicate(expr, subquery, false));
         }
         return this;
     }
 
-    /** {@code col NOT IN (SELECT ...)} predicate. */
-    public WhereBuilder<T> notIn(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        return notIn(prop, subquery, true);
+    /** {@code expr NOT IN (SELECT ...)} predicate. */
+    public <V> WhereBuilder<T> notInSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery) {
+        return notInSubquery(expr, subquery, true);
     }
 
-    public WhereBuilder<T> notIn(SFunction<T, ?> prop, SelectSpec<?, ?> subquery, boolean condition) {
+    public <V> WhereBuilder<T> notInSubquery(SqlExpression<V> expr, SelectSpec<?, V> subquery, boolean condition) {
         if (condition) {
-            predicates.add(new InSubqueryPredicate(
-                    ColumnExpression.of(resolve(prop), alias), subquery, true));
+            predicates.add(new InSubqueryPredicate(expr, subquery, true));
         }
         return this;
     }
@@ -304,45 +346,39 @@ public final class WhereBuilder<T> {
     //  Scalar subquery comparisons  (col OP (SELECT single-value))
     // ------------------------------------------------------------------ //
 
-    /** {@code col = (SELECT single-value)} */
-    public WhereBuilder<T> eq(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.EQ, subquery));
+    /** {@code expr = (SELECT single-value)} — {@code V} must match the column and subquery result type. */
+    public <V> WhereBuilder<T> eqScalar(SqlExpression<V> expr, Scalar<V> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.EQ, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col <> (SELECT single-value)} */
-    public WhereBuilder<T> ne(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.NE, subquery));
+    /** {@code expr <> (SELECT single-value)} — {@code V} must match the column and subquery result type. */
+    public <V> WhereBuilder<T> neScalar(SqlExpression<V> expr, Scalar<V> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.NE, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col > (SELECT single-value)} */
-    public WhereBuilder<T> gt(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.GT, subquery));
+    /** {@code expr > (SELECT single-value)} — {@code V} must match the column and subquery result type. */
+    public <V> WhereBuilder<T> gtScalar(SqlExpression<V> expr, Scalar<V> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.GT, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col >= (SELECT single-value)} */
-    public WhereBuilder<T> gte(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.GTE, subquery));
+    /** {@code expr >= (SELECT single-value)} — {@code V} must match the column and subquery result type. */
+    public <V> WhereBuilder<T> gteScalar(SqlExpression<V> expr, Scalar<V> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.GTE, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col < (SELECT single-value)} */
-    public WhereBuilder<T> lt(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.LT, subquery));
+    /** {@code expr < (SELECT single-value)} — {@code V} must match the column and subquery result type. */
+    public <V> WhereBuilder<T> ltScalar(SqlExpression<V> expr, Scalar<V> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.LT, subquery.getSpec()));
         return this;
     }
 
-    /** {@code col <= (SELECT single-value)} */
-    public WhereBuilder<T> lte(SFunction<T, ?> prop, SelectSpec<?, ?> subquery) {
-        predicates.add(new ScalarSubqueryPredicate(
-                ColumnExpression.of(resolve(prop), alias), ScalarSubqueryPredicate.Op.LTE, subquery));
+    /** {@code expr <= (SELECT single-value)} — {@code V} must match the column and subquery result type. */
+    public <V> WhereBuilder<T> lteScalar(SqlExpression<V> expr, Scalar<V> subquery) {
+        predicates.add(new ScalarSubqueryPredicate(expr, ScalarSubqueryPredicate.Op.LTE, subquery.getSpec()));
         return this;
     }
 
@@ -350,11 +386,11 @@ public final class WhereBuilder<T> {
     //  BETWEEN
     // ------------------------------------------------------------------ //
 
-    public WhereBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi) {
+    public <V> WhereBuilder<T> between(SFunction<T, V> prop, V lo, V hi) {
         return between(prop, lo, hi, true);
     }
 
-    public WhereBuilder<T> between(SFunction<T, ?> prop, Object lo, Object hi, boolean condition) {
+    public <V> WhereBuilder<T> between(SFunction<T, V> prop, V lo, V hi, boolean condition) {
         if (condition) {
             predicates.add(LeafPredicate.ofBetween(resolve(prop), alias, lo, hi));
         }
@@ -362,7 +398,7 @@ public final class WhereBuilder<T> {
     }
 
     /** BETWEEN predicate with an arbitrary SQL expression on the left. */
-    public WhereBuilder<T> between(SqlExpression<?> expression, Object lo, Object hi) {
+    public <V> WhereBuilder<T> between(SqlExpression<V> expression, V lo, V hi) {
         predicates.add(LeafPredicate.ofExprBetween(expression, lo, hi));
         return this;
     }
@@ -413,7 +449,9 @@ public final class WhereBuilder<T> {
      * Embeds a raw SQL condition verbatim in the WHERE clause.
      *
      * <p>Use this escape hatch when the typed DSL cannot express a condition — for example,
-     * database-specific functions or cross-column comparisons.
+     * database-specific functions, cross-column comparisons with intentionally mismatched types
+     * (e.g. a BIGINT column compared to a VARCHAR column in a legacy schema), or complex
+     * expressions.
      *
      * <p><strong>Warning:</strong> never pass user-controlled data in {@code sql}.
      * Bind user input as named parameters via {@link #raw(String, Map)}.

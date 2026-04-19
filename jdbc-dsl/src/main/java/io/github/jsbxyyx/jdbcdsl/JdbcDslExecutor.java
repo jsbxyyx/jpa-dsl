@@ -11,6 +11,7 @@ import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -625,7 +626,20 @@ public final class JdbcDslExecutor {
      *   <li>Columns with no matching property or field are silently ignored.</li>
      * </ol>
      */
+    private static boolean isScalarType(Class<?> cls) {
+        return cls.isPrimitive()
+                || Number.class.isAssignableFrom(cls)
+                || CharSequence.class.isAssignableFrom(cls)
+                || Boolean.class == cls
+                || Character.class == cls
+                || java.util.Date.class.isAssignableFrom(cls)
+                || java.time.temporal.Temporal.class.isAssignableFrom(cls);
+    }
+
     private static <R> RowMapper<R> buildBeanRowMapper(Class<R> beanClass) {
+        if (isScalarType(beanClass)) {
+            return new SingleColumnRowMapper<>(beanClass);
+        }
         Map<String, PropertyDescriptor> propMap = buildPropertyMap(beanClass);
         Map<String, Field> fieldMap = buildFieldMap(beanClass);
         ConversionService conversionService = DefaultConversionService.getSharedInstance();

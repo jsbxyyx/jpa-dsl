@@ -12,10 +12,13 @@ import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
  * <p>Example:
  * <pre>{@code
  * // WHERE t.age > (SELECT AVG(age) FROM t_user)
- * .where(w -> w.gt(TUser::getAge,
+ * import static io.github.jsbxyyx.jdbcdsl.Scalar.scalar;
+ * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
+ * ...
+ * .where(w -> w.gtScalar(col(TUser::getAge), scalar(
  *     SelectBuilder.from(TUser.class)
  *         .select(SqlFunctions.avg(TUser::getAge).as("avgAge"))
- *         .mapToEntity()))
+ *         .mapToEntity())))
  * }</pre>
  */
 public final class ScalarSubqueryPredicate implements PredicateNode {

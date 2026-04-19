@@ -7,6 +7,8 @@ import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -179,13 +181,13 @@ class SqlFunctionsTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(col(TUser::getStatus), countStar())
                 .groupBy(TUser::getStatus)
-                .having(h -> h.gt(countStar(), 5))
+                .having(h -> h.gt(countStar(), 5L))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("GROUP BY t.status");
         assertThat(rendered.getSql()).contains("HAVING COUNT(*) > :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 5);
+        assertThat(rendered.getParams()).containsEntry("p1", 5L);
     }
 
     @Test
@@ -193,12 +195,12 @@ class SqlFunctionsTest {
         SelectSpec<TOrder, UserDto> spec = SelectBuilder.from(TOrder.class)
                 .select(col(TOrder::getStatus), sum(TOrder::getAmount))
                 .groupBy(TOrder::getStatus)
-                .having(h -> h.gte(sum(TOrder::getAmount), 1000))
+                .having(h -> h.gte(sum(TOrder::getAmount), BigDecimal.valueOf(1000)))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("HAVING SUM(t.amount) >= :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 1000);
+        assertThat(rendered.getParams()).containsEntry("p1", BigDecimal.valueOf(1000));
     }
 
     @Test
@@ -207,7 +209,7 @@ class SqlFunctionsTest {
                 .select(col(TUser::getStatus), countStar())
                 .where(w -> w.isNotNull(TUser::getEmail))
                 .groupBy(TUser::getStatus)
-                .having(h -> h.gt(countStar(), 2))
+                .having(h -> h.gt(countStar(), 2L))
                 .orderBy(JSort.byDesc(TUser::getStatus))
                 .mapTo(UserDto.class);
 

@@ -13,8 +13,9 @@ import org.springframework.test.context.jdbc.Sql;
 
 import java.util.List;
 
-import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.avg;
+import static io.github.jsbxyyx.jdbcdsl.Scalar.scalar;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.min;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -50,13 +51,13 @@ class SubqueryIntegrationTest {
 
     @Test
     void inSubquery_usersWithOrders_returnsAliceAndBob() {
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.in(TUser::getId, inner))
+                .where(w -> w.inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
@@ -67,14 +68,14 @@ class SubqueryIntegrationTest {
 
     @Test
     void inSubquery_usersWithPaidOrders_returnsAliceAndBob() {
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
                 .where(w -> w.eq(TOrder::getStatus, "PAID"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.in(TUser::getId, inner))
+                .where(w -> w.inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
@@ -89,13 +90,13 @@ class SubqueryIntegrationTest {
 
     @Test
     void notInSubquery_usersWithNoOrders_returnsCharlie() {
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.notIn(TUser::getId, inner))
+                .where(w -> w.notInSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
@@ -146,21 +147,21 @@ class SubqueryIntegrationTest {
     // ------------------------------------------------------------------ //
 
     @Test
-    void scalarSubquery_gt_usersOlderThanAverage_returnsCharlie() {
-        // AVG(age) = (30 + 25 + 40) / 3 ≈ 31.67  →  charlie (40) qualifies
-        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class, "u2")
-                .select(avg(TUser::getAge).as("avgAge"))
-                .mapToEntity();
+    void scalarSubquery_gt_usersOlderThanMin_returnsAliceAndCharlie() {
+        // MIN(age) = 25 (bob)  →  alice (30) and charlie (40) qualify
+        SelectSpec<TUser, Integer> inner = SelectBuilder.from(TUser.class, "u2")
+                .select(min(TUser::getAge).as("minAge"))
+                .mapTo(Integer.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.gt(TUser::getAge, inner))
+                .where(w -> w.gtScalar(col(TUser::getAge), scalar(inner)))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(1)
+        assertThat(result).hasSize(2)
                 .extracting(UserDto::getUsername)
-                .containsExactly("charlie");
+                .containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -170,16 +171,16 @@ class SubqueryIntegrationTest {
     @Test
     void inSubquery_combinedWithOuterWhere_returnsIntersection() {
         // Users who have PAID orders AND are ACTIVE → alice
-        SelectSpec<TOrder, TOrder> inner = SelectBuilder.from(TOrder.class, "o")
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))
                 .where(w -> w.eq(TOrder::getStatus, "PAID"))
-                .mapToEntity();
+                .mapTo(Long.class);
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
                 .where(w -> w
                         .eq(TUser::getStatus, "ACTIVE")
-                        .in(TUser::getId, inner))
+                        .inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
