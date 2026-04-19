@@ -247,18 +247,17 @@ class JoinIntegrationTest {
     @Test
     void leftJoinSubquery_orderCountPerUser_includesUsersWithNoOrders() {
         // LEFT JOIN (SELECT user_id AS userId, COUNT(*) AS orderCount FROM t_order GROUP BY user_id) o
-        //   ON o.userId = t.id
+        //   ON o.userId = t.id   — on.eq() auto-uses camelCase alias for the subquery side
         // → alice: 2 orders, bob: 1 order, charlie: no matching row (LEFT JOIN keeps it)
         SelectSpec<TOrder, TOrder> orderCount = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"), countStar().as("orderCount"))
                 .groupBy(col(TOrder::getUserId, "o"))
                 .mapToEntity();
 
-        // Subquery aliases user_id → userId; use raw ON condition
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
                 .leftJoinSubquery(orderCount, TOrder.class, "o",
-                        on -> on.raw("o.userId = t.id"))
+                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "t"))))
                 .mapTo(UserDto.class);
 
@@ -271,17 +270,17 @@ class JoinIntegrationTest {
 
     @Test
     void innerJoinSubquery_paidOrdersOnly_returnsOnlyUsersWithPaidOrders() {
-        // INNER JOIN (SELECT * FROM t_order WHERE status = 'PAID') o ON o.userId = t.id
+        // INNER JOIN (SELECT * FROM t_order WHERE status = 'PAID') o
+        //   ON o.userId = t.id   — on.eq() auto-uses camelCase alias for the subquery side
         // → alice and bob have PAID orders; charlie has none → only alice and bob returned
         SelectSpec<TOrder, TOrder> paidOrders = SelectBuilder.from(TOrder.class)
                 .where(w -> w.eq(TOrder::getStatus, "PAID"))
                 .mapToEntity();
 
-        // Subquery aliases user_id → userId; use raw ON condition
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
                 .innerJoinSubquery(paidOrders, TOrder.class, "o",
-                        on -> on.raw("o.userId = t.id"))
+                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "t"))))
                 .mapTo(UserDto.class);
 
@@ -292,12 +291,11 @@ class JoinIntegrationTest {
     }
 
     @Test
-    void joinSubquery_rawOnCondition_paidOrdersViaOnFilter() {
-        // LEFT JOIN (SELECT * FROM t_order) o ON o.userId = t.id AND o.status = 'PAID'
+    void joinSubquery_rawOnCondition_multiConditionOnClause() {
+        // raw() is still available for complex multi-condition ON clauses
+        // INNER JOIN (SELECT * FROM t_order) o ON o.userId = t.id AND o.status = 'PAID'
         // WHERE t.username = 'alice'
-        // → alice has 1 PAID order (ORD-001) and 1 PENDING order (ORD-002).
-        //   The PENDING one is excluded via the ON condition, leaving 1 matched row.
-        //   But because it's a LEFT JOIN and alice still matches the outer WHERE, we get 1 row.
+        // → alice has 1 PAID order and 1 PENDING; INNER JOIN with status filter returns 1 row
         SelectSpec<TOrder, TOrder> allOrders = SelectBuilder.from(TOrder.class)
                 .mapToEntity();
 

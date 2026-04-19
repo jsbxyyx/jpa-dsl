@@ -169,8 +169,8 @@ class JoinRendererTest {
 
     @Test
     void renderSelect_leftJoinSubquery_generatesInlineSubquerySql() {
-        // LEFT JOIN (SELECT user_id AS userId, COUNT(*) AS orderCount FROM t_order o GROUP BY user_id) o
-        //   ON o.userId = t.id   (uses raw ON because subquery projects camelCase aliases)
+        // LEFT JOIN (SELECT o.user_id AS userId, COUNT(*) AS orderCount FROM t_order o GROUP BY user_id) o
+        //   ON o.userId = t.id   — on.eq() auto-resolves to camelCase alias for the subquery side
         SelectSpec<TOrder, TOrder> orderCount = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"), countStar().as("orderCount"))
                 .groupBy(col(TOrder::getUserId, "o"))
@@ -179,7 +179,7 @@ class JoinRendererTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(TUser::getId, TUser::getUsername)
                 .leftJoinSubquery(orderCount, TOrder.class, "o",
-                        on -> on.raw("o.userId = t.id"))
+                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -187,6 +187,7 @@ class JoinRendererTest {
 
         assertThat(sql).contains("LEFT JOIN (");
         assertThat(sql).contains("FROM t_order o");
+        // subquery side uses property alias (userId), entity side uses column name (id)
         assertThat(sql).contains(") o ON o.userId = t.id");
         assertThat(sql).contains("FROM t_user t");
     }
@@ -200,18 +201,20 @@ class JoinRendererTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(TUser::getId, TUser::getUsername)
                 .innerJoinSubquery(subq, TOrder.class, "o",
-                        on -> on.raw("o.userId = t.id"))
+                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
         assertThat(sql).contains("INNER JOIN (");
+        // "o" is a subquery alias → property name; "t" is a plain entity → column name
         assertThat(sql).contains("o.userId = t.id");
     }
 
     @Test
     void renderSelect_joinSubqueryWithRawOn_generatesRawCondition() {
+        // raw() is still available as an escape hatch for complex multi-condition ON clauses
         SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class)
                 .mapToEntity();
 
