@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countStar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -237,5 +238,77 @@ class JoinIntegrationTest {
 
         // alice + charlie share ACTIVE status with alice → 2 distinct users
         assertThat(count).isEqualTo(2);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  JOIN (SELECT ...) subquery join
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void leftJoinSubquery_orderCountPerUser_includesUsersWithNoOrders() {
+        // LEFT JOIN (SELECT user_id AS userId, COUNT(*) AS orderCount FROM t_order GROUP BY user_id) o
+        //   ON o.userId = t.id   — on.eq() auto-uses camelCase alias for the subquery side
+        // → alice: 2 orders, bob: 1 order, charlie: no matching row (LEFT JOIN keeps it)
+        SelectSpec<TOrder, TOrder> orderCount = SelectBuilder.from(TOrder.class, "o")
+                .select(col(TOrder::getUserId, "o"), countStar().as("orderCount"))
+                .groupBy(col(TOrder::getUserId, "o"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
+                .leftJoinSubquery(orderCount, TOrder.class, "o",
+                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+                .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "t"))))
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        // all 3 users: LEFT JOIN keeps charlie even though he has no orders
+        assertThat(result).hasSize(3);
+        assertThat(result).extracting(UserDto::getUsername)
+                .containsExactly("alice", "bob", "charlie");
+    }
+
+    @Test
+    void innerJoinSubquery_paidOrdersOnly_returnsOnlyUsersWithPaidOrders() {
+        // INNER JOIN (SELECT * FROM t_order WHERE status = 'PAID') o
+        //   ON o.userId = t.id   — on.eq() auto-uses camelCase alias for the subquery side
+        // → alice and bob have PAID orders; charlie has none → only alice and bob returned
+        SelectSpec<TOrder, TOrder> paidOrders = SelectBuilder.from(TOrder.class)
+                .where(w -> w.eq(TOrder::getStatus, "PAID"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
+                .innerJoinSubquery(paidOrders, TOrder.class, "o",
+                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+                .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "t"))))
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(UserDto::getUsername)
+                .containsExactly("alice", "bob");
+    }
+
+    @Test
+    void joinSubquery_rawOnCondition_multiConditionOnClause() {
+        // raw() is still available for complex multi-condition ON clauses
+        // INNER JOIN (SELECT * FROM t_order) o ON o.userId = t.id AND o.status = 'PAID'
+        // WHERE t.username = 'alice'
+        // → alice has 1 PAID order and 1 PENDING; INNER JOIN with status filter returns 1 row
+        SelectSpec<TOrder, TOrder> allOrders = SelectBuilder.from(TOrder.class)
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
+                .joinSubquery(allOrders, TOrder.class, "o", JoinType.INNER,
+                        on -> on.raw("o.userId = t.id AND o.status = 'PAID'"))
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec);
+        // alice has exactly 1 PAID order → 1 row
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("alice");
     }
 }

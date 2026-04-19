@@ -23,9 +23,11 @@ import io.github.jsbxyyx.jdbcdsl.predicate.ScalarSubqueryPredicate;
 import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -655,27 +657,40 @@ public final class SqlRenderer {
     private static <T, R> String renderOnCondition(PredicateNode cond,
                                                     SelectSpec<T, R> spec,
                                                     Map<String, Object> params,
-                                                    AtomicInteger paramIdx) {
+                                                    AtomicInteger paramIdx,
+                                                    Set<String> subqueryAliases) {
         if (cond instanceof OnEqPredicate onEq) {
-            return renderOnEq(onEq, spec);
+            return renderOnEq(onEq, subqueryAliases);
         }
         return renderPredicate(cond, spec, params, paramIdx);
     }
 
-    private static <T, R> String renderOnEq(OnEqPredicate onEq, SelectSpec<T, R> spec) {
-        EntityMeta leftMeta = EntityMetaReader.read(onEq.getLeftRef().ownerClass());
-        String leftCol = leftMeta.getColumnName(onEq.getLeftRef().propertyName());
-        if (leftCol == null) leftCol = onEq.getLeftRef().propertyName();
+    /**
+     * Resolves a column identifier for an ON-condition side.
+     *
+     * <p>When the alias refers to a subquery, the column is identified by its projected
+     * alias (the camelCase property name), because that is what the subquery outputs.
+     * For plain entity joins the DB column name is used instead.
+     */
+    private static String resolveOnColumn(PropertyRef ref, String alias, Set<String> subqueryAliases) {
+        if (subqueryAliases.contains(alias)) {
+            // Subquery projects columns as camelCase property aliases
+            return ref.propertyName();
+        }
+        EntityMeta meta = EntityMetaReader.read(ref.ownerClass());
+        String col = meta.getColumnName(ref.propertyName());
+        return col != null ? col : ref.propertyName();
+    }
 
-        EntityMeta rightMeta = EntityMetaReader.read(onEq.getRightRef().ownerClass());
-        String rightCol = rightMeta.getColumnName(onEq.getRightRef().propertyName());
-        if (rightCol == null) rightCol = onEq.getRightRef().propertyName();
-
+    private static String renderOnEq(OnEqPredicate onEq, Set<String> subqueryAliases) {
+        String leftCol  = resolveOnColumn(onEq.getLeftRef(),  onEq.getLeftAlias(),  subqueryAliases);
+        String rightCol = resolveOnColumn(onEq.getRightRef(), onEq.getRightAlias(), subqueryAliases);
         return onEq.getLeftAlias() + "." + leftCol + " = " + onEq.getRightAlias() + "." + rightCol;
     }
 
     private static <T, R> String renderOnEqAsWhere(OnEqPredicate onEq, SelectSpec<T, R> spec) {
-        return renderOnEq(onEq, spec);
+        // In WHERE context there are no subquery aliases; fall back to column names.
+        return renderOnEq(onEq, Set.of());
     }
 
     // ------------------------------------------------------------------ //
@@ -906,16 +921,40 @@ public final class SqlRenderer {
                                                    SelectSpec<T, R> spec,
                                                    Map<String, Object> params,
                                                    AtomicInteger paramIdx) {
+        // Collect aliases that refer to subqueries (derived tables), including the spec's
+        // own FROM if it is a subquery.  ON-condition column references for these aliases
+        // use camelCase property names (the aliases projected by the inner SELECT) rather
+        // than the raw DB column names used for real-table joins.
+        Set<String> subqueryAliases = new HashSet<>();
+        if (spec.getSubqueryFrom() != null) {
+            subqueryAliases.add(spec.getAlias());
+        }
+        for (JoinSpec j : spec.getJoins()) {
+            if (j.getSubqueryJoin() != null) {
+                subqueryAliases.add(j.getAlias());
+            }
+        }
+
         for (JoinSpec join : spec.getJoins()) {
-            EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
-            sb.append(" ").append(joinTypeStr(join.getJoinType()))
-              .append(" ").append(joinMeta.getTableName()).append(" ").append(join.getAlias());
+            sb.append(" ").append(joinTypeStr(join.getJoinType())).append(" ");
+
+            if (join.getSubqueryJoin() != null) {
+                // Subquery join: JOIN (SELECT ...) alias
+                String innerSql = buildSelectSqlUnchecked(join.getSubqueryJoin(), params, paramIdx, false);
+                sb.append("(").append(innerSql).append(")");
+            } else {
+                // Entity join: JOIN t_table
+                EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
+                sb.append(joinMeta.getTableName());
+            }
+            sb.append(" ").append(join.getAlias());
+
             // CROSS JOIN has no ON clause
             if (join.getJoinType() != JoinType.CROSS && !join.getOnConditions().isEmpty()) {
                 sb.append(" ON ");
                 StringJoiner onJoiner = new StringJoiner(" AND ");
                 for (PredicateNode cond : join.getOnConditions()) {
-                    onJoiner.add(renderOnCondition(cond, spec, params, paramIdx));
+                    onJoiner.add(renderOnCondition(cond, spec, params, paramIdx, subqueryAliases));
                 }
                 sb.append(onJoiner);
             }
