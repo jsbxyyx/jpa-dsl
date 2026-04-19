@@ -109,7 +109,7 @@ public final class SqlFunctions {
         return fn("LENGTH", prop);
     }
 
-    /** {@code CONCAT(col1, col2, ...)} */
+    /** {@code CONCAT(col1, col2, ...)} — column-reference overload. */
     @SafeVarargs
     public static <T> FunctionExpression<String> concat(SFunction<T, ?>... props) {
         List<SqlExpression<?>> args = new ArrayList<>(props.length);
@@ -117,6 +117,21 @@ public final class SqlFunctions {
             args.add(ColumnExpression.of(p));
         }
         return new FunctionExpression<>("CONCAT", args);
+    }
+
+    /**
+     * {@code CONCAT(expr1, expr2, ...)} — varargs overload accepting arbitrary SQL expressions.
+     *
+     * <p>Accepts any mix of column references, functions, and literals:
+     * <pre>{@code
+     * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+     *
+     * concat(upper(TUser::getFirstName), lit("' '"), col(TUser::getLastName))
+     * // → CONCAT(UPPER(t.first_name), ' ', t.last_name)
+     * }</pre>
+     */
+    public static FunctionExpression<String> concat(SqlExpression<?>... args) {
+        return new FunctionExpression<>("CONCAT", List.of(args));
     }
 
     /**
@@ -128,6 +143,23 @@ public final class SqlFunctions {
     public static <T> FunctionExpression<String> coalesce(SFunction<T, ?> prop, String fallbackLiteral) {
         return new FunctionExpression<>("COALESCE",
                 List.of(ColumnExpression.of(prop), LiteralExpression.of(fallbackLiteral)));
+    }
+
+    /**
+     * {@code COALESCE(expr1, expr2, ...)} — varargs overload accepting arbitrary SQL expressions.
+     *
+     * <p>Returns the first non-null argument. Accepts any number of arguments including
+     * column references, functions, and literals:
+     * <pre>{@code
+     * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+     *
+     * coalesce(col(TUser::getEmail), col(TUser::getBackupEmail), lit("'N/A'"))
+     * // → COALESCE(t.email, t.backup_email, 'N/A')
+     * }</pre>
+     */
+    @SafeVarargs
+    public static <V> FunctionExpression<V> coalesce(SqlExpression<? extends V>... args) {
+        return new FunctionExpression<>("COALESCE", List.of(args));
     }
 
     /**

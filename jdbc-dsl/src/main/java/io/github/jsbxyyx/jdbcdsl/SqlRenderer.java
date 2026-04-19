@@ -53,8 +53,9 @@ public final class SqlRenderer {
      * Renders a {@link UnionSpec} into a parameterized {@link RenderedSql}.
      *
      * <p>Each branch is rendered as a full SELECT (without ORDER BY), joined by
-     * {@code UNION} or {@code UNION ALL} operators. The result is wrapped in a derived
-     * table so that an outer ORDER BY can be applied if needed in the future.
+     * {@code UNION} or {@code UNION ALL} operators. When the spec carries an ORDER BY sort,
+     * the combined result is appended with an {@code ORDER BY} clause whose column references
+     * are rendered without a table-alias prefix (matching the output column aliases).
      */
     public static <R> RenderedSql renderUnion(UnionSpec<R> spec) {
         Map<String, Object> params = new LinkedHashMap<>();
@@ -73,7 +74,55 @@ public final class SqlRenderer {
             sb.append(buildSelectSqlUnchecked(branch.spec(), params, paramIdx, false));
         }
 
+        // Append ORDER BY on the combined union result when a sort is specified.
+        JSort<?> sort = spec.getSort();
+        if (!sort.isEmpty()) {
+            sb.append(" ORDER BY ");
+            StringJoiner orderJoiner = new StringJoiner(", ");
+            for (JOrder<?> order : sort.getOrders()) {
+                String colExpr = renderOrderExpressionUnqualified(order.getExpression(), params, paramIdx);
+                String nullHandling = switch (order.getNullHandling()) {
+                    case NULLS_FIRST -> " NULLS FIRST";
+                    case NULLS_LAST -> " NULLS LAST";
+                    case NATIVE -> "";
+                };
+                orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
+            }
+            sb.append(orderJoiner);
+        }
+
         return new RenderedSql(sb.toString(), params);
+    }
+
+    /**
+     * Renders a {@link JOrder}'s expression without a table-alias prefix.
+     *
+     * <p>Used for ORDER BY on UNION results, where column references must be bare names
+     * (or their output aliases) rather than {@code alias.column_name}.
+     */
+    private static String renderOrderExpressionUnqualified(SqlExpression<?> expression,
+                                                            Map<String, Object> params,
+                                                            AtomicInteger paramIdx) {
+        if (expression instanceof ColumnExpression<?> col) {
+            // Resolve to column name only (no table alias — ORDER BY column alias on UNION)
+            PropertyRef pr = col.getPropertyRef();
+            EntityMeta meta = EntityMetaReader.read(pr.ownerClass());
+            String colName = meta.getColumnName(pr.propertyName());
+            return colName != null ? colName : pr.propertyName();
+        } else if (expression instanceof LiteralExpression<?> lit) {
+            return lit.getSql();
+        } else if (expression instanceof FunctionExpression<?> fn) {
+            StringJoiner argJoiner = new StringJoiner(", ");
+            for (SqlExpression<?> arg : fn.getArgs()) {
+                argJoiner.add(renderOrderExpressionUnqualified(arg, params, paramIdx));
+            }
+            return fn.getFunctionName() + "(" + argJoiner + ")";
+        } else if (expression instanceof AliasedExpression<?> aliased) {
+            return renderOrderExpressionUnqualified(aliased.getInner(), params, paramIdx);
+        } else {
+            // Fallback for other expression types
+            return expression.toString();
+        }
     }
 
     /**
@@ -131,10 +180,17 @@ public final class SqlRenderer {
             sb.append(cols);
         }
 
-        // FROM clause (use tableNameOverride when spec was built via fromCte())
-        String fromTarget = spec.getTableNameOverride() != null
-                ? spec.getTableNameOverride()
-                : rootMeta.getTableName();
+        // FROM clause
+        // Priority: subqueryFrom > tableNameOverride > entity table name
+        String fromTarget;
+        if (spec.getSubqueryFrom() != null) {
+            String innerSql = buildSelectSqlUnchecked(spec.getSubqueryFrom(), params, paramIdx, false);
+            fromTarget = "(" + innerSql + ")";
+        } else if (spec.getTableNameOverride() != null) {
+            fromTarget = spec.getTableNameOverride();
+        } else {
+            fromTarget = rootMeta.getTableName();
+        }
         sb.append(" FROM ").append(fromTarget).append(" ").append(alias);
 
         // JOIN clauses
@@ -171,6 +227,10 @@ public final class SqlRenderer {
                     orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
                 }
                 sb.append(orderJoiner);
+            }
+            // FOR UPDATE is a top-level SELECT modifier; never emitted inside subqueries.
+            if (spec.isForUpdate()) {
+                sb.append(" FOR UPDATE");
             }
         }
 
@@ -214,10 +274,16 @@ public final class SqlRenderer {
 
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
-        // Honour tableNameOverride so that CTE-backed specs use the CTE name in FROM.
-        String fromTarget = spec.getTableNameOverride() != null
-                ? spec.getTableNameOverride()
-                : rootMeta.getTableName();
+        // Honour subqueryFrom > tableNameOverride > entity table name.
+        String fromTarget;
+        if (spec.getSubqueryFrom() != null) {
+            String innerSql = buildSelectSqlUnchecked(spec.getSubqueryFrom(), params, paramIdx, false);
+            fromTarget = "(" + innerSql + ")";
+        } else if (spec.getTableNameOverride() != null) {
+            fromTarget = spec.getTableNameOverride();
+        } else {
+            fromTarget = rootMeta.getTableName();
+        }
 
         // Prepend WITH clause when the spec has CTEs.
         String ctePrefix = buildCtePrefix(spec, params, paramIdx);
@@ -690,8 +756,14 @@ public final class SqlRenderer {
         for (Map.Entry<String, Object> entry : spec.getAssignments()) {
             String colName = meta.getColumnName(entry.getKey());
             if (colName == null) colName = entry.getKey();
-            String param = nextParam(paramIdx, params, entry.getValue());
-            setJoiner.add(colName + " = :" + param);
+            Object value = entry.getValue();
+            if (value instanceof SqlExpression<?> expr) {
+                // Expression assignment: SET col = <SQL expression>
+                setJoiner.add(colName + " = " + renderExpressionStandalone(expr, meta));
+            } else {
+                String param = nextParam(paramIdx, params, value);
+                setJoiner.add(colName + " = :" + param);
+            }
         }
         sb.append(setJoiner);
 
@@ -911,5 +983,40 @@ public final class SqlRenderer {
             case FULL -> "FULL OUTER JOIN";
             case CROSS -> "CROSS JOIN";
         };
+    }
+
+    /**
+     * Renders a {@link SqlExpression} in a standalone context (no table alias, no SelectSpec).
+     *
+     * <p>Used for UPDATE SET expression assignments where the RHS is a SQL expression rather
+     * than a bound parameter. Column references are rendered as bare column names (no alias
+     * prefix), which is correct for single-table UPDATE statements.
+     *
+     * <p>For complex multi-table expressions, callers should use {@link LiteralExpression} /
+     * {@code raw()} as the escape hatch.
+     */
+    private static String renderExpressionStandalone(SqlExpression<?> expression, EntityMeta meta) {
+        if (expression instanceof LiteralExpression<?> lit) {
+            return lit.getSql();
+        } else if (expression instanceof ColumnExpression<?> col) {
+            String propName = col.getPropertyRef().propertyName();
+            String colName = meta.getColumnName(propName);
+            return colName != null ? colName : propName;
+        } else if (expression instanceof FunctionExpression<?> fn) {
+            StringJoiner argJoiner = new StringJoiner(", ");
+            for (SqlExpression<?> arg : fn.getArgs()) {
+                argJoiner.add(renderExpressionStandalone(arg, meta));
+            }
+            return fn.getFunctionName() + "(" + argJoiner + ")";
+        } else if (expression instanceof CastExpression<?> cast) {
+            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta)
+                    + " AS " + cast.getTargetType() + ")";
+        } else if (expression instanceof AliasedExpression<?> aliased) {
+            return renderExpressionStandalone(aliased.getInner(), meta);
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported expression type in UPDATE SET: " + expression.getClass().getSimpleName()
+                    + ". Use LiteralExpression / lit() for complex expressions.");
+        }
     }
 }

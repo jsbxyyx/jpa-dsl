@@ -5,7 +5,9 @@ import io.github.jsbxyyx.jdbcdsl.entity.TOrder;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.count;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,7 +50,7 @@ class SqlRendererTest {
     void renderSelect_likeCondition() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.like(TUser::getUsername, "ali"))
+                .where(w -> w.like(TUser::getUsername, "%ali%"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -355,5 +357,130 @@ class SqlRendererTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
                 DeleteBuilder.from(TUser.class).build()
         );
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: LIKE raw pattern (no auto-% wrapping)
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void like_rawPattern_startsWith() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.like(TUser::getUsername, "ali%"))
+                .mapTo(UserDto.class);
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("LIKE :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ali%");
+    }
+
+    @Test
+    void like_rawPattern_endsWith() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.like(TUser::getUsername, "%ice"))
+                .mapTo(UserDto.class);
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getParams()).containsEntry("p1", "%ice");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: WhereBuilder.not()
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void whereBuilder_not_rendersNotClause() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.not(n -> n.eq(TUser::getStatus, "INACTIVE")))
+                .mapTo(UserDto.class);
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("NOT (");
+        assertThat(rendered.getSql()).contains("status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: UPDATE SET expression assignment
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void updateBuilder_setExpression_rendersLiteral() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .setExpr(TUser::getAge, lit("age + 1"))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .build();
+        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+        assertThat(rendered.getSql()).contains("SET age = age + 1");
+        assertThat(rendered.getSql()).contains("WHERE status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: Derived-table subquery as FROM
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void fromSubquery_rendersInlineSubquery() {
+        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> outer = SelectBuilder.fromSubquery(inner, "sub", TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(outer);
+        assertThat(rendered.getSql()).contains("FROM (SELECT");
+        assertThat(rendered.getSql()).contains(") sub");
+        assertThat(rendered.getSql()).contains("sub.id AS id");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: FOR UPDATE
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void forUpdate_appendsForUpdateClause() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .forUpdate()
+                .mapTo(UserDto.class);
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).endsWith("FOR UPDATE");
+    }
+
+    @Test
+    void forUpdate_notInSubquery() {
+        // FOR UPDATE must not appear inside a subquery rendered via buildSelectSql
+        SelectSpec<TUser, UserDto> inner = SelectBuilder.from(TUser.class)
+                .forUpdate()
+                .mapTo(UserDto.class);
+        // render as subquery (includeOrderBy=false path)
+        java.util.Map<String, Object> params = new java.util.LinkedHashMap<>();
+        java.util.concurrent.atomic.AtomicInteger idx = new java.util.concurrent.atomic.AtomicInteger(0);
+        String sql = SqlRenderer.buildSelectSql(inner, params, idx, false);
+        assertThat(sql).doesNotContain("FOR UPDATE");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: Union ORDER BY
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void unionSpec_orderBy_appendsOrderByClause() {
+        SelectSpec<TUser, UserDto> b1 = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> b2 = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "INACTIVE"))
+                .mapTo(UserDto.class);
+
+        UnionSpec<UserDto> union = UnionSpec.of(b1).unionAll(b2)
+                .orderBy(JSort.byAsc(TUser::getUsername))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderUnion(union);
+        assertThat(rendered.getSql()).contains("UNION ALL");
+        assertThat(rendered.getSql()).endsWith("ORDER BY username ASC");
     }
 }

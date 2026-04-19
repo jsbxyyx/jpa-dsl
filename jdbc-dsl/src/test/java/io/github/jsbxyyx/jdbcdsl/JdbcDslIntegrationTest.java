@@ -17,6 +17,7 @@ import org.springframework.test.context.jdbc.Sql;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,7 +74,7 @@ class JdbcDslIntegrationTest {
     void select_like_returnsMatching() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.like(TUser::getUsername, "ali"))
+                .where(w -> w.like(TUser::getUsername, "%ali%"))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
@@ -692,7 +693,7 @@ class JdbcDslIntegrationTest {
                 .select(TUser::getId, TUser::getUsername)
                 .where(w -> w
                         .eq(TUser::getStatus, "ACTIVE", false)
-                        .like(TUser::getUsername, "ali", false)
+                        .like(TUser::getUsername, "%ali%", false)
                         .gt(TUser::getAge, 50, false))
                 .mapTo(UserDto.class);
 
@@ -718,7 +719,7 @@ class JdbcDslIntegrationTest {
     void whereCondition_likeIgnoreCase_matchesCaseInsensitively() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.likeIgnoreCase(TUser::getUsername, "ALI"))
+                .where(w -> w.likeIgnoreCase(TUser::getUsername, "%ALI%"))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
@@ -732,7 +733,7 @@ class JdbcDslIntegrationTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
                 .where(w -> w
-                        .likeIgnoreCase(TUser::getUsername, "ALI", false)  // skipped
+                        .likeIgnoreCase(TUser::getUsername, "%ALI%", false)  // skipped
                         .eq(TUser::getStatus, "INACTIVE", true))           // applied
                 .mapTo(UserDto.class);
 
@@ -1044,5 +1045,123 @@ class JdbcDslIntegrationTest {
         assertThat(remaining).hasSize(2)
                 .extracting(TUser::getUsername)
                 .containsExactlyInAnyOrder("bob", "charlie");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: LIKE raw pattern (no auto-%% wrapping)
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void like_startsWith_returnsMatching() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.like(TUser::getUsername, "ali%"))
+                .mapTo(UserDto.class);
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
+    }
+
+    @Test
+    void like_endsWith_returnsMatching() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.like(TUser::getUsername, "%ice"))
+                .mapTo(UserDto.class);
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
+    }
+
+    @Test
+    void like_noWildcard_exactMatch() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.like(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+        List<UserDto> result = executor.select(spec);
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: WhereBuilder.not()
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void whereNot_excludesMatchingRows() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.not(n -> n.eq(TUser::getStatus, "INACTIVE")))
+                .mapTo(UserDto.class);
+        List<UserDto> result = executor.select(spec);
+        // bob is INACTIVE; alice and charlie are ACTIVE → 2 rows returned
+        assertThat(result).hasSize(2)
+                .extracting(UserDto::getUsername)
+                .containsExactlyInAnyOrder("alice", "charlie");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: UPDATE SET expression assignment
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void updateSet_expression_incrementsAge() {
+        // SET age = age + 10 WHERE username = 'alice'
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .setExpr(TUser::getAge, lit("age + 10"))
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        executor.executeUpdate(spec);
+
+        List<TUser> result = executor.select(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity());
+        assertThat(result).hasSize(1);
+        // alice's original age is 30 (from test data), after +10 should be 40
+        assertThat(result.get(0).getAge()).isEqualTo(40);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: Derived-table subquery as FROM
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void fromSubquery_filtersViaOuterQuery() {
+        // Inner: all ACTIVE users; outer: filter by username
+        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> outer = SelectBuilder.fromSubquery(inner, "sub", TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(outer);
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Feature: UNION ORDER BY
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void unionOrderBy_sortsDescending() {
+        SelectSpec<TUser, UserDto> active = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> inactive = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "INACTIVE"))
+                .mapTo(UserDto.class);
+
+        UnionSpec<UserDto> union = UnionSpec.of(active).unionAll(inactive)
+                .orderBy(JSort.byDesc(TUser::getUsername))
+                .build();
+
+        List<UserDto> result = executor.union(union);
+        assertThat(result).hasSize(3);
+        // Descending: charlie, bob, alice
+        assertThat(result.get(0).getUsername()).isEqualTo("charlie");
+        assertThat(result.get(result.size() - 1).getUsername()).isEqualTo("alice");
     }
 }

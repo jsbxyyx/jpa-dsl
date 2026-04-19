@@ -208,14 +208,14 @@ public final class WhereBuilder<T> {
 
     public WhereBuilder<T> like(SFunction<T, String> prop, String pattern, boolean condition) {
         if (condition) {
-            predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE, "%" + pattern + "%"));
+            predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE, pattern));
         }
         return this;
     }
 
     /** LIKE predicate with an arbitrary SQL expression on the left. */
     public WhereBuilder<T> like(SqlExpression<String> expression, String pattern) {
-        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE, "%" + pattern + "%"));
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE, pattern));
         return this;
     }
 
@@ -225,14 +225,14 @@ public final class WhereBuilder<T> {
 
     public WhereBuilder<T> likeIgnoreCase(SFunction<T, String> prop, String pattern, boolean condition) {
         if (condition) {
-            predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE_IC, "%" + pattern + "%"));
+            predicates.add(LeafPredicate.of(resolve(prop), alias, LeafPredicate.Op.LIKE_IC, pattern));
         }
         return this;
     }
 
     /** Case-insensitive LIKE predicate with an arbitrary SQL expression on the left. */
     public WhereBuilder<T> likeIgnoreCase(SqlExpression<String> expression, String pattern) {
-        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE_IC, "%" + pattern + "%"));
+        predicates.add(LeafPredicate.ofExpr(expression, LeafPredicate.Op.LIKE_IC, pattern));
         return this;
     }
 
@@ -511,6 +511,25 @@ public final class WhereBuilder<T> {
         nested.accept(sub);
         if (!sub.predicates.isEmpty()) {
             predicates.add(new OrPredicate(new ArrayList<>(sub.predicates)));
+        }
+        return this;
+    }
+
+    /**
+     * Adds a NOT group: the nested predicates are wrapped in {@code NOT (...)}.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * .where(w -> w.not(n -> n.eq(TUser::getStatus, "INACTIVE").like(TUser::getUsername, "%bot%")))
+     * // → WHERE NOT ((t.status = :p1 AND t.username LIKE :p2))
+     * }</pre>
+     */
+    public WhereBuilder<T> not(Consumer<WhereBuilder<T>> nested) {
+        WhereBuilder<T> sub = new WhereBuilder<>(entityClass, alias);
+        nested.accept(sub);
+        PredicateNode inner = sub.buildNode();
+        if (inner != null) {
+            predicates.add(new NotPredicate(inner));
         }
         return this;
     }
