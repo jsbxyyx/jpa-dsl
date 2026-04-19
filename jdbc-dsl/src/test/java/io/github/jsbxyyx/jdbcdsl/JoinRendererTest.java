@@ -8,6 +8,7 @@ import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countStar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -160,5 +161,70 @@ class JoinRendererTest {
                 .contains("u1.username AS username")
                 .contains("u2.status AS orderStatus")
                 .contains("LEFT JOIN t_user u2 ON u1.status = u2.status");
+    }
+
+    // ------------------------------------------------------------------ //
+    //  JOIN (SELECT ...) subquery join
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void renderSelect_leftJoinSubquery_generatesInlineSubquerySql() {
+        // LEFT JOIN (SELECT user_id AS userId, COUNT(*) AS orderCount FROM t_order o GROUP BY user_id) o
+        //   ON o.userId = t.id   (uses raw ON because subquery projects camelCase aliases)
+        SelectSpec<TOrder, TOrder> orderCount = SelectBuilder.from(TOrder.class, "o")
+                .select(col(TOrder::getUserId, "o"), countStar().as("orderCount"))
+                .groupBy(col(TOrder::getUserId, "o"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(TUser::getId, TUser::getUsername)
+                .leftJoinSubquery(orderCount, TOrder.class, "o",
+                        on -> on.raw("o.userId = t.id"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        String sql = rendered.getSql();
+
+        assertThat(sql).contains("LEFT JOIN (");
+        assertThat(sql).contains("FROM t_order o");
+        assertThat(sql).contains(") o ON o.userId = t.id");
+        assertThat(sql).contains("FROM t_user t");
+    }
+
+    @Test
+    void renderSelect_innerJoinSubquery_generatesInnerJoin() {
+        SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class, "o")
+                .where(w -> w.eq(TOrder::getStatus, "PAID"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(TUser::getId, TUser::getUsername)
+                .innerJoinSubquery(subq, TOrder.class, "o",
+                        on -> on.raw("o.userId = t.id"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        String sql = rendered.getSql();
+
+        assertThat(sql).contains("INNER JOIN (");
+        assertThat(sql).contains("o.userId = t.id");
+    }
+
+    @Test
+    void renderSelect_joinSubqueryWithRawOn_generatesRawCondition() {
+        SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class)
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(TUser::getId, TUser::getUsername)
+                .joinSubquery(subq, TOrder.class, "o", JoinType.LEFT,
+                        on -> on.raw("o.userId = t.id AND o.status = 'PAID'"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        String sql = rendered.getSql();
+
+        assertThat(sql).contains("LEFT JOIN (");
+        assertThat(sql).contains("o.userId = t.id AND o.status = 'PAID'");
     }
 }

@@ -223,6 +223,54 @@ public final class SelectBuilder<T> {
         return this;
     }
 
+    /**
+     * Adds a {@code JOIN (SELECT ...) alias ON ...} derived-table join.
+     *
+     * <p>The {@code entityClass} provides column-name resolution for ON-condition property
+     * references — it should match the shape of the subquery's projected columns.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * // JOIN (SELECT user_id, COUNT(*) AS order_count FROM t_order GROUP BY user_id) o
+     * //   ON o.user_id = t.id
+     * SelectSpec<TOrder, TOrder> orderCount = SelectBuilder.from(TOrder.class, "o")
+     *     .select(col(TOrder::getUserId), countStar().as("orderCount"))
+     *     .groupBy(TOrder::getUserId)
+     *     .mapToEntity();
+     *
+     * SelectBuilder.from(TUser.class)
+     *     .joinSubquery(orderCount, TOrder.class, "o", JoinType.LEFT,
+     *         on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+     *     .select(...)
+     * }</pre>
+     *
+     * @param subquery    the inner SELECT spec rendered as the JOIN target
+     * @param entityClass entity providing column-name resolution for ON conditions
+     * @param joinAlias   the SQL alias for the derived table
+     * @param type        the JOIN type (INNER, LEFT, RIGHT, FULL)
+     * @param onConsumer  configures the ON clause
+     */
+    public <J> SelectBuilder<T> joinSubquery(SelectSpec<?, ?> subquery, Class<J> entityClass,
+                                              String joinAlias, JoinType type,
+                                              Consumer<OnBuilder> onConsumer) {
+        OnBuilder ob = new OnBuilder();
+        onConsumer.accept(ob);
+        joins.add(JoinSpec.ofSubquery(subquery, entityClass, joinAlias, type, ob.getConditions()));
+        return this;
+    }
+
+    /** {@code LEFT JOIN (SELECT ...) alias ON ...} convenience overload. */
+    public <J> SelectBuilder<T> leftJoinSubquery(SelectSpec<?, ?> subquery, Class<J> entityClass,
+                                                  String joinAlias, Consumer<OnBuilder> onConsumer) {
+        return joinSubquery(subquery, entityClass, joinAlias, JoinType.LEFT, onConsumer);
+    }
+
+    /** {@code INNER JOIN (SELECT ...) alias ON ...} convenience overload. */
+    public <J> SelectBuilder<T> innerJoinSubquery(SelectSpec<?, ?> subquery, Class<J> entityClass,
+                                                   String joinAlias, Consumer<OnBuilder> onConsumer) {
+        return joinSubquery(subquery, entityClass, joinAlias, JoinType.INNER, onConsumer);
+    }
+
     /** Sets the ORDER BY clause. */
     public SelectBuilder<T> orderBy(JSort<T> sort) {
         this.sort = sort != null ? sort : JSort.unsorted();

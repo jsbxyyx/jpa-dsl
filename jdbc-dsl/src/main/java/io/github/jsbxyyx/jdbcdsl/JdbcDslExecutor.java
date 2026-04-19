@@ -307,6 +307,91 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Executes a batch of UPDATE statements described by the given {@link UpdateSpec} list.
+     *
+     * <p>Specs that produce the same SQL (same SET columns and WHERE structure) are grouped
+     * together and executed as a single {@link NamedParameterJdbcTemplate#batchUpdate} call.
+     * Specs that differ in SQL are collected into separate groups and executed in encounter order.
+     *
+     * <p>{@link org.springframework.data.annotation.LastModifiedDate} auto-fill is applied to
+     * each spec before rendering, exactly as in {@link #executeUpdate(UpdateSpec)}.
+     *
+     * <p>If {@code specs} is empty an empty {@code int[]} is returned immediately.
+     *
+     * @param specs the list of update specifications to execute
+     * @param <T>   entity type
+     * @return concatenated array of per-row affected counts in encounter order
+     */
+    public <T> int[] executeBatchUpdate(List<UpdateSpec<T>> specs) {
+        if (specs == null || specs.isEmpty()) {
+            return new int[0];
+        }
+        // Group by rendered SQL, preserving insertion order
+        LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
+        for (UpdateSpec<T> spec : specs) {
+            UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
+            RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
+            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
+                  .add(rendered.getParams());
+        }
+        List<int[]> results = new ArrayList<>();
+        for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
+            String sql = entry.getKey();
+            MapSqlParameterSource[] batchParams = entry.getValue().stream()
+                    .map(MapSqlParameterSource::new)
+                    .toArray(MapSqlParameterSource[]::new);
+            results.add(jdbc.batchUpdate(sql, batchParams));
+        }
+        int totalLen = results.stream().mapToInt(a -> a.length).sum();
+        int[] merged = new int[totalLen];
+        int offset = 0;
+        for (int[] arr : results) {
+            System.arraycopy(arr, 0, merged, offset, arr.length);
+            offset += arr.length;
+        }
+        return merged;
+    }
+
+    /**
+     * Executes a batch of DELETE statements described by the given {@link DeleteSpec} list.
+     *
+     * <p>Like {@link #executeBatchUpdate}, specs producing the same SQL are batched together.
+     *
+     * <p>If {@code specs} is empty an empty {@code int[]} is returned immediately.
+     *
+     * @param specs the list of delete specifications to execute
+     * @param <T>   entity type
+     * @return concatenated array of per-row affected counts in encounter order
+     */
+    public <T> int[] executeBatchDelete(List<DeleteSpec<T>> specs) {
+        if (specs == null || specs.isEmpty()) {
+            return new int[0];
+        }
+        LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
+        for (DeleteSpec<T> spec : specs) {
+            RenderedSql rendered = SqlRenderer.renderDelete(spec);
+            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
+                  .add(rendered.getParams());
+        }
+        List<int[]> results = new ArrayList<>();
+        for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
+            String sql = entry.getKey();
+            MapSqlParameterSource[] batchParams = entry.getValue().stream()
+                    .map(MapSqlParameterSource::new)
+                    .toArray(MapSqlParameterSource[]::new);
+            results.add(jdbc.batchUpdate(sql, batchParams));
+        }
+        int totalLen = results.stream().mapToInt(a -> a.length).sum();
+        int[] merged = new int[totalLen];
+        int offset = 0;
+        for (int[] arr : results) {
+            System.arraycopy(arr, 0, merged, offset, arr.length);
+            offset += arr.length;
+        }
+        return merged;
+    }
+
+    /**
      * 执行逻辑删除（软删除）：将实体中 {@link io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete}
      * 标注字段的值更新为 {@code deletedValue}，而不是真正删除行。
      *

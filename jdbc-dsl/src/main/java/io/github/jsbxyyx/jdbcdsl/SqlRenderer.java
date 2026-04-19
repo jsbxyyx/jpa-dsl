@@ -907,9 +907,19 @@ public final class SqlRenderer {
                                                    Map<String, Object> params,
                                                    AtomicInteger paramIdx) {
         for (JoinSpec join : spec.getJoins()) {
-            EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
-            sb.append(" ").append(joinTypeStr(join.getJoinType()))
-              .append(" ").append(joinMeta.getTableName()).append(" ").append(join.getAlias());
+            sb.append(" ").append(joinTypeStr(join.getJoinType())).append(" ");
+
+            if (join.getSubqueryJoin() != null) {
+                // Subquery join: JOIN (SELECT ...) alias
+                String innerSql = buildSelectSqlUnchecked(join.getSubqueryJoin(), params, paramIdx, false);
+                sb.append("(").append(innerSql).append(")");
+            } else {
+                // Entity join: JOIN t_table
+                EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
+                sb.append(joinMeta.getTableName());
+            }
+            sb.append(" ").append(join.getAlias());
+
             // CROSS JOIN has no ON clause
             if (join.getJoinType() != JoinType.CROSS && !join.getOnConditions().isEmpty()) {
                 sb.append(" ON ");
