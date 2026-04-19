@@ -1140,6 +1140,74 @@ class JdbcDslIntegrationTest {
     }
 
     // ------------------------------------------------------------------ //
+    //  Feature: Batch UPDATE / Batch DELETE
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void executeBatchUpdate_multipleSpecs_updatesAllRows() {
+        // Update alice status → INACTIVE, bob status → ACTIVE
+        UpdateSpec<TUser> spec1 = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        UpdateSpec<TUser> spec2 = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "ACTIVE")
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        int[] results = executor.executeBatchUpdate(List.of(spec1, spec2));
+        assertThat(results).hasSize(2);
+        assertThat(results).containsOnly(1);
+
+        // Verify
+        SelectSpec<TUser, TUser> alice = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity();
+        assertThat(executor.select(alice)).hasSize(1)
+                .extracting(TUser::getStatus).containsExactly("INACTIVE");
+
+        SelectSpec<TUser, TUser> bob = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity();
+        assertThat(executor.select(bob)).hasSize(1)
+                .extracting(TUser::getStatus).containsExactly("ACTIVE");
+    }
+
+    @Test
+    void executeBatchUpdate_emptyList_returnsEmptyArray() {
+        int[] results = executor.executeBatchUpdate(List.of());
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void executeBatchDelete_multipleSpecs_deletesMatchingRows() {
+        // Delete alice and bob, leave charlie
+        DeleteSpec<TUser> spec1 = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        DeleteSpec<TUser> spec2 = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        int[] results = executor.executeBatchDelete(List.of(spec1, spec2));
+        assertThat(results).hasSize(2);
+        assertThat(results).containsOnly(1);
+
+        // Only charlie should remain
+        SelectSpec<TUser, TUser> all = SelectBuilder.from(TUser.class).mapToEntity();
+        List<TUser> remaining = executor.select(all);
+        assertThat(remaining).hasSize(1)
+                .extracting(TUser::getUsername)
+                .containsExactly("charlie");
+    }
+
+    @Test
+    void executeBatchDelete_emptyList_returnsEmptyArray() {
+        int[] results = executor.executeBatchDelete(List.of());
+        assertThat(results).isEmpty();
+    }
+
+    // ------------------------------------------------------------------ //
     //  Feature: UNION ORDER BY
     // ------------------------------------------------------------------ //
 

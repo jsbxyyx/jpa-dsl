@@ -1,9 +1,11 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
+import io.github.jsbxyyx.jdbcdsl.predicate.RawPredicate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Builder for JOIN ON conditions.
@@ -26,6 +28,25 @@ public final class OnBuilder {
         PropertyRef leftRef = PropertyRefResolver.resolve(leftProp);
         PropertyRef rightRef = PropertyRefResolver.resolve(rightProp);
         conditions.add(new OnEqPredicate(leftRef, leftAlias, rightRef, rightAlias));
+        return this;
+    }
+
+    /**
+     * Adds a raw SQL ON condition (escape hatch for complex expressions).
+     *
+     * <p>Useful when joining subqueries whose projected aliases don't map to entity
+     * property names, or for multi-column / non-equality join conditions.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * .leftJoinSubquery(subSpec, TOrder.class, "o",
+     *     on -> on.raw("o.user_id = t.id AND o.status = 'ACTIVE'"))
+     * }</pre>
+     *
+     * <p><strong>Warning:</strong> never embed user input directly in {@code sql}.
+     */
+    public OnBuilder raw(String sql) {
+        conditions.add(new RawPredicate(sql, Map.of()));
         return this;
     }
 
