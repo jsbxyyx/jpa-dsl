@@ -32,6 +32,16 @@ public final class SelectSpec<T, R> {
      */
     private final String tableNameOverride;
 
+    /**
+     * When non-null, the FROM clause renders as a derived-table subquery:
+     * {@code FROM (SELECT ...) alias}.
+     * Takes precedence over {@link #tableNameOverride} and the entity's table name.
+     */
+    private final SelectSpec<?, ?> subqueryFrom;
+
+    /** When {@code true}, appends {@code FOR UPDATE} at the end of the SELECT SQL. */
+    private final boolean forUpdate;
+
     /** Full canonical constructor. */
     SelectSpec(Class<T> entityClass,
                String alias,
@@ -44,7 +54,9 @@ public final class SelectSpec<T, R> {
                List<SqlExpression<?>> groupByExpressions,
                PredicateNode having,
                List<CteDef> cteDefs,
-               String tableNameOverride) {
+               String tableNameOverride,
+               SelectSpec<?, ?> subqueryFrom,
+               boolean forUpdate) {
         this.entityClass = entityClass;
         this.alias = alias;
         this.distinct = distinct;
@@ -57,6 +69,8 @@ public final class SelectSpec<T, R> {
         this.having = having;
         this.cteDefs = List.copyOf(cteDefs);
         this.tableNameOverride = tableNameOverride;
+        this.subqueryFrom = subqueryFrom;
+        this.forUpdate = forUpdate;
     }
 
     public Class<T> getEntityClass() { return entityClass; }
@@ -78,4 +92,13 @@ public final class SelectSpec<T, R> {
      * {@code @Table} name should be used.
      */
     public String getTableNameOverride() { return tableNameOverride; }
+
+    /**
+     * Returns the derived-table subquery used in the FROM clause, or {@code null} when the
+     * FROM clause references a plain table or CTE name.
+     */
+    public SelectSpec<?, ?> getSubqueryFrom() { return subqueryFrom; }
+
+    /** Returns {@code true} if {@code FOR UPDATE} should be appended to the SELECT SQL. */
+    public boolean isForUpdate() { return forUpdate; }
 }

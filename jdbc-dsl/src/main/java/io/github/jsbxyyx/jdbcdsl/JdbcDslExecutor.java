@@ -843,7 +843,9 @@ public final class JdbcDslExecutor {
                     spec.getGroupByExpressions(),
                     spec.getHaving(),
                     spec.getCteDefs(),
-                    spec.getTableNameOverride());
+                    spec.getTableNameOverride(),
+                    spec.getSubqueryFrom(),
+                    spec.isForUpdate());
         }
         return spec;
     }
@@ -883,7 +885,8 @@ public final class JdbcDslExecutor {
                 spec.isDistinct(), spec.getSelectedExpressions(), combinedWhere,
                 spec.getJoins(), spec.getSort(), spec.getDtoClass(),
                 spec.getGroupByExpressions(), spec.getHaving(),
-                spec.getCteDefs(), spec.getTableNameOverride());
+                spec.getCteDefs(), spec.getTableNameOverride(),
+                spec.getSubqueryFrom(), spec.isForUpdate());
     }
 
     // ------------------------------------------------------------------ //

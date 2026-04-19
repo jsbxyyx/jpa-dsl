@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
 import java.util.AbstractMap;
@@ -66,6 +67,34 @@ public final class UpdateBuilder<T> {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
             assignments.add(new AbstractMap.SimpleImmutableEntry<>(ref.propertyName(), value));
         }
+        return this;
+    }
+
+    /**
+     * Adds a SET assignment where the right-hand side is a SQL expression.
+     *
+     * <p>Use this when the new value should be computed by the database rather than bound
+     * as a JDBC parameter. Examples:
+     * <pre>{@code
+     * import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+     *
+     * // SET age = age + 1
+     * .setExpr(TUser::getAge, lit("age + 1"))
+     *
+     * // SET score = ROUND(score * 1.1, 2)
+     * .setExpr(TUser::getScore, lit("ROUND(score * 1.1, 2)"))
+     * }</pre>
+     *
+     * <p><strong>Warning:</strong> never embed user-controlled data directly in a
+     * {@code LiteralExpression}. Use the value-based {@link #set(SFunction, Object)} overload
+     * and let JDBC bind user input as parameters.
+     *
+     * @param prop       a method reference identifying the property (and thus the column)
+     * @param expression the SQL expression used as the right-hand side of the SET clause
+     */
+    public UpdateBuilder<T> setExpr(SFunction<T, ?> prop, SqlExpression<?> expression) {
+        PropertyRef ref = PropertyRefResolver.resolve(prop);
+        assignments.add(new AbstractMap.SimpleImmutableEntry<>(ref.propertyName(), expression));
         return this;
     }
 

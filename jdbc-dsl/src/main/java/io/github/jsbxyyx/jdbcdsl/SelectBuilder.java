@@ -70,6 +70,8 @@ public final class SelectBuilder<T> {
     private PredicateNode having;
     private final List<CteDef> cteDefs = new ArrayList<>();
     private String tableNameOverride = null;
+    private SelectSpec<?, ?> subqueryFrom = null;
+    private boolean forUpdate = false;
 
     private SelectBuilder(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
@@ -118,6 +120,40 @@ public final class SelectBuilder<T> {
     public static <T> SelectBuilder<T> fromCte(String cteName, Class<T> entityClass, String alias) {
         SelectBuilder<T> b = new SelectBuilder<>(entityClass, alias);
         b.tableNameOverride = cteName;
+        return b;
+    }
+
+    /**
+     * Starts building a SELECT whose FROM clause is a derived-table subquery.
+     *
+     * <p>The generated SQL renders the inner query inline:
+     * <pre>{@code
+     * FROM (SELECT ...) alias
+     * }</pre>
+     *
+     * <p>The {@code entityClass} provides the column mappings used for type-safe property
+     * references in {@code select()}, {@code where()}, etc. It must match the shape of the
+     * subquery's projected columns.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * SelectSpec<TUser, UserDto> inner = SelectBuilder.from(TUser.class)
+     *     .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+     *     .mapToEntity();
+     *
+     * SelectSpec<TUser, UserDto> outer = SelectBuilder.fromSubquery(inner, "sub", TUser.class)
+     *     .select(TUser::getId, TUser::getUsername)
+     *     .mapTo(UserDto.class);
+     * // → SELECT sub.id AS id, sub.username AS username FROM (SELECT ...) sub
+     * }</pre>
+     *
+     * @param subquery    the inner SELECT spec rendered as the derived table
+     * @param alias       the SQL alias for the derived table
+     * @param entityClass entity providing the column mappings
+     */
+    public static <T> SelectBuilder<T> fromSubquery(SelectSpec<?, ?> subquery, String alias, Class<T> entityClass) {
+        SelectBuilder<T> b = new SelectBuilder<>(entityClass, alias);
+        b.subqueryFrom = subquery;
         return b;
     }
 
@@ -172,6 +208,12 @@ public final class SelectBuilder<T> {
         OnBuilder ob = new OnBuilder();
         onConsumer.accept(ob);
         joins.add(new JoinSpec(joinEntity, joinAlias, type, ob.getConditions()));
+        return this;
+    }
+
+    /** Appends {@code FOR UPDATE} to the generated SELECT SQL (row-level locking). */
+    public SelectBuilder<T> forUpdate() {
+        this.forUpdate = true;
         return this;
     }
 
@@ -249,7 +291,8 @@ public final class SelectBuilder<T> {
      */
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
         return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
-                dtoClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride);
+                dtoClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride,
+                subqueryFrom, forUpdate);
     }
 
     /**
@@ -267,6 +310,7 @@ public final class SelectBuilder<T> {
      */
     public SelectSpec<T, T> mapToEntity() {
         return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
-                entityClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride);
+                entityClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride,
+                subqueryFrom, forUpdate);
     }
 }

@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 /**
  * Specification for a {@code UNION} or {@code UNION ALL} query composed of multiple
@@ -40,9 +41,11 @@ public final class UnionSpec<R> {
     public record Branch<R>(SelectSpec<?, R> spec, UnionType unionType) {}
 
     private final List<Branch<R>> branches;
+    private final JSort<?> sort;
 
-    private UnionSpec(List<Branch<R>> branches) {
+    private UnionSpec(List<Branch<R>> branches, JSort<?> sort) {
         this.branches = List.copyOf(branches);
+        this.sort = sort != null ? sort : JSort.unsorted();
     }
 
     /** Starts a union with the given select as the first branch. */
@@ -56,12 +59,16 @@ public final class UnionSpec<R> {
     /** Returns the DTO class from the first branch. */
     public Class<R> getDtoClass() { return branches.get(0).spec().getDtoClass(); }
 
+    /** Returns the ORDER BY sort applied to the combined union result (may be unsorted). */
+    public JSort<?> getSort() { return sort; }
+
     // ------------------------------------------------------------------ //
 
     /** Fluent builder for {@link UnionSpec}. */
     public static final class Builder<R> {
 
         private final List<Branch<R>> branches = new ArrayList<>();
+        private JSort<?> sort = JSort.unsorted();
 
         private Builder(SelectSpec<?, R> first) {
             // The first branch's unionType is a placeholder (never rendered).
@@ -80,12 +87,27 @@ public final class UnionSpec<R> {
             return this;
         }
 
+        /**
+         * Specifies the ORDER BY clause applied to the combined union result.
+         *
+         * <p>The sort columns are referenced by their output alias (i.e. the property names
+         * projected by each branch). Example:
+         * <pre>{@code
+         * UnionSpec.of(branch1).unionAll(branch2).orderBy(JSort.byAsc(TUser::getName)).build()
+         * // → ... UNION ALL ... ORDER BY name ASC
+         * }</pre>
+         */
+        public Builder<R> orderBy(JSort<?> sort) {
+            this.sort = sort != null ? sort : JSort.unsorted();
+            return this;
+        }
+
         /** Builds the immutable {@link UnionSpec}. */
         public UnionSpec<R> build() {
             if (branches.size() < 2) {
                 throw new IllegalStateException("UnionSpec requires at least two SELECT branches");
             }
-            return new UnionSpec<>(branches);
+            return new UnionSpec<>(branches, sort);
         }
     }
 }
