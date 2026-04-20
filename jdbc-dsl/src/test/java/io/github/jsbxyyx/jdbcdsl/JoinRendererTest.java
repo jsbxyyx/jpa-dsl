@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countStar;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for JOIN clause rendering in {@link SqlRenderer}.
@@ -161,6 +162,45 @@ class JoinRendererTest {
                 .contains("u1.username AS username")
                 .contains("u2.status AS orderStatus")
                 .contains("LEFT JOIN t_user u2 ON u1.status = u2.status");
+    }
+
+    /**
+     * Bare {@code col(prop)} without an explicit alias is ambiguous when the same entity class
+     * appears as both root and join. Rendering must throw rather than silently pick the wrong alias.
+     */
+    @Test
+    void renderSelect_selfJoin_bareColumnRefThrowsAmbiguousError() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
+                // col(TUser::getUsername) — no explicit alias in a self-join context
+                .select(col(TUser::getUsername))
+                .join(TUser.class, "u2", JoinType.INNER,
+                        on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Ambiguous column reference")
+                .hasMessageContaining("TUser.username")
+                .hasMessageContaining("col(TUser::getUsername, \"<alias>\")");
+    }
+
+    /**
+     * The shorthand {@code .select(SFunction...)} also creates bare column expressions;
+     * it must fail with the same ambiguity error in a self-join context.
+     */
+    @Test
+    void renderSelect_selfJoin_selectShorthandThrowsAmbiguousError() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
+                // .select(SFunction...) shorthand — bare refs, no alias
+                .select(TUser::getUsername, TUser::getStatus)
+                .join(TUser.class, "u2", JoinType.INNER,
+                        on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Ambiguous column reference")
+                .hasMessageContaining("TUser.");
     }
 
     // ------------------------------------------------------------------ //
