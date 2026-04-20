@@ -2,6 +2,8 @@
 
 [![Java](https://img.shields.io/badge/Java-17+-blue)](https://www.java.com)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.0-green)](https://spring.io/projects/spring-boot)
+[![jdbc-dsl](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jdbc-dsl?label=jdbc-dsl)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jdbc-dsl)
+[![jpa-dsl](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jpa-dsl?label=jpa-dsl)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jpa-dsl)
 
 ## 模块说明
 
