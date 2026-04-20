@@ -774,7 +774,7 @@ public final class SqlRenderer {
             Object value = entry.getValue();
             if (value instanceof SqlExpression<?> expr) {
                 // Expression assignment: SET col = <SQL expression>
-                setJoiner.add(colName + " = " + renderExpressionStandalone(expr, meta));
+                setJoiner.add(colName + " = " + renderExpressionStandalone(expr, meta, params, paramIdx));
             } else {
                 String param = nextParam(paramIdx, params, value);
                 setJoiner.add(colName + " = :" + param);
@@ -1048,10 +1048,12 @@ public final class SqlRenderer {
      * than a bound parameter. Column references are rendered as bare column names (no alias
      * prefix), which is correct for single-table UPDATE statements.
      *
-     * <p>For complex multi-table expressions, callers should use {@link LiteralExpression} /
-     * {@code raw()} as the escape hatch.
+     * <p>{@link ScalarSubqueryExpression}s are fully supported: the inner SELECT is rendered
+     * inline and its parameters are merged into the shared {@code params} map.
      */
-    private static String renderExpressionStandalone(SqlExpression<?> expression, EntityMeta meta) {
+    private static String renderExpressionStandalone(SqlExpression<?> expression, EntityMeta meta,
+                                                      Map<String, Object> params,
+                                                      AtomicInteger paramIdx) {
         if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
         } else if (expression instanceof ColumnExpression<?> col) {
@@ -1061,18 +1063,20 @@ public final class SqlRenderer {
         } else if (expression instanceof FunctionExpression<?> fn) {
             StringJoiner argJoiner = new StringJoiner(", ");
             for (SqlExpression<?> arg : fn.getArgs()) {
-                argJoiner.add(renderExpressionStandalone(arg, meta));
+                argJoiner.add(renderExpressionStandalone(arg, meta, params, paramIdx));
             }
             return fn.getFunctionName() + "(" + argJoiner + ")";
         } else if (expression instanceof CastExpression<?> cast) {
-            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta)
+            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta, params, paramIdx)
                     + " AS " + cast.getTargetType() + ")";
         } else if (expression instanceof AliasedExpression<?> aliased) {
-            return renderExpressionStandalone(aliased.getInner(), meta);
+            return renderExpressionStandalone(aliased.getInner(), meta, params, paramIdx);
+        } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
+            // SET col = (SELECT ...) — render the subquery inline, sharing the param map
+            return "(" + renderSubquerySql(sub.getSubquery(), params, paramIdx) + ")";
         } else {
             throw new IllegalArgumentException(
-                    "Unsupported expression type in UPDATE SET: " + expression.getClass().getSimpleName()
-                    + ". Use LiteralExpression / lit() for complex expressions.");
+                    "Unsupported expression type in UPDATE SET: " + expression.getClass().getSimpleName());
         }
     }
 }
