@@ -24,47 +24,26 @@
 
 **仅使用 jdbc-dsl：**
 
-```xml
-<dependency>
-    <groupId>io.github.jsbxyyx</groupId>
-    <artifactId>jdbc-dsl</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-```
+[![jdbc-dsl](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jdbc-dsl?label=jdbc-dsl)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jdbc-dsl)
 
 **仅使用 jpa-dsl：**
 
-```xml
-<dependency>
-    <groupId>io.github.jsbxyyx</groupId>
-    <artifactId>jpa-dsl</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-```
+[![jpa-dsl](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jpa-dsl?label=jpa-dsl)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jpa-dsl)
 
 **同时使用两个模块：**
 
-```xml
-<dependency>
-    <groupId>io.github.jsbxyyx</groupId>
-    <artifactId>jdbc-dsl</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-<dependency>
-    <groupId>io.github.jsbxyyx</groupId>
-    <artifactId>jpa-dsl</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-```
+[![jdbc-dsl](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jdbc-dsl?label=jdbc-dsl)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jdbc-dsl)
+[![jpa-dsl](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jpa-dsl?label=jpa-dsl)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jpa-dsl)
+
 
 ### Gradle
 
 ```groovy
 // jdbc-dsl only
-implementation 'io.github.jsbxyyx:jdbc-dsl:1.0.0-SNAPSHOT'
+implementation 'io.github.jsbxyyx:jdbc-dsl:${jdbcdsl.version}'
 
 // jpa-dsl only
-implementation 'io.github.jsbxyyx:jpa-dsl:1.0.0-SNAPSHOT'
+implementation 'io.github.jsbxyyx:jpa-dsl:${jpadsl.version}'
 ```
 
 ---
