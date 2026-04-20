@@ -1004,6 +1004,23 @@ public final class SqlRenderer {
 
     private static <T, R> String resolveAliasForRef(SelectSpec<T, R> spec, PropertyRef pr) {
         if (pr.ownerClass().equals(spec.getEntityClass())) {
+            // Self-join guard: if the same entity class also appears as a non-subquery join,
+            // the column reference is ambiguous — there is no way to know which table alias
+            // the caller intended.  Fail fast with an actionable error message so the caller
+            // does not silently receive SQL that references the wrong table.
+            boolean selfJoinExists = spec.getJoins().stream()
+                    .anyMatch(j -> j.getSubqueryJoin() == null
+                            && pr.ownerClass().equals(j.getJoinEntityClass()));
+            if (selfJoinExists) {
+                String prop = pr.propertyName();
+                String getter = "get" + Character.toUpperCase(prop.charAt(0)) + prop.substring(1);
+                throw new IllegalStateException(
+                        "Ambiguous column reference '" + pr.ownerClass().getSimpleName() + "."
+                        + prop + "': the same entity class is used as both the root table ("
+                        + spec.getAlias() + ") and a joined table. "
+                        + "Use col(" + pr.ownerClass().getSimpleName() + "::" + getter
+                        + ", \"<alias>\") to specify the table alias explicitly.");
+            }
             return spec.getAlias();
         }
         for (JoinSpec join : spec.getJoins()) {
