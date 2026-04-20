@@ -9,6 +9,8 @@ import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.count;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.subquery;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -411,6 +413,32 @@ class SqlRendererTest {
         assertThat(rendered.getSql()).contains("SET age = age + 1");
         assertThat(rendered.getSql()).contains("WHERE status = :p1");
         assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
+    }
+
+    @Test
+    void updateBuilder_setExpr_scalarSubquery_rendersInlineAndMergesParams() {
+        // UPDATE t_user SET age = (SELECT MAX(o.amount) FROM t_order o WHERE o.user_id = :p1)
+        // WHERE t_user.id = :p2
+        SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class, "o")
+                .select(max(TOrder::getAmount))
+                .where(w -> w.eq(TOrder::getUserId, "o", 42L))
+                .mapToEntity();
+
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .setExpr(TUser::getAge, subquery(subq))
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+        String sql = rendered.getSql();
+
+        // SET clause must contain an inline scalar subquery
+        assertThat(sql).contains("SET age = (SELECT");
+        assertThat(sql).contains("MAX(o.amount)");
+        assertThat(sql).contains("FROM t_order o");
+        // Subquery WHERE parameter and outer WHERE parameter must both be present
+        assertThat(rendered.getParams()).containsValue(42L);
+        assertThat(rendered.getParams()).containsValue(1L);
     }
 
     // ------------------------------------------------------------------ //
