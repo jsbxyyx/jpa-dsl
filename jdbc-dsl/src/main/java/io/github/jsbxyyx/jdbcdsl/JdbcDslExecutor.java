@@ -599,6 +599,103 @@ public final class JdbcDslExecutor {
         }
     }
 
+    // ------------------------------------------------------------------ //
+    //  RETURNING: INSERT / UPDATE / DELETE returning rows
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Executes an INSERT and returns the inserted row's values for the specified columns.
+     *
+     * <p>Uses a {@code RETURNING col1, col2, …} clause (PostgreSQL / H2).
+     * MySQL does not support this; use {@link #save(Object)} and read the generated key instead.
+     *
+     * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
+     * {@link org.springframework.data.annotation.LastModifiedDate} are auto-filled before INSERT.
+     *
+     * @param entity         the entity to insert
+     * @param returningProps property references whose DB column values should be returned
+     * @param resultClass    JavaBean class to map each returned row into
+     * @return the list of returned rows (typically one row for a single-row INSERT)
+     */
+    @SafeVarargs
+    public final <T, R> List<R> saveReturning(T entity, Class<R> resultClass,
+                                               SFunction<T, ?>... returningProps) {
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+        injectInsertTimestamps(entity, meta);
+        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
+        List<String> returningCols = resolveColumnNames(entityClass, meta, returningProps);
+        RenderedSql rendered = SqlRenderer.renderInsertReturning(
+                InsertSpec.of(entityClass), meta, colValues, returningCols);
+        RowMapper<R> mapper = buildBeanRowMapper(resultClass);
+        return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
+    }
+
+    /**
+     * Executes an UPDATE described by the given {@link UpdateSpec} and returns the modified
+     * rows' values for the specified columns.
+     *
+     * <p>Uses a {@code RETURNING col1, col2, …} clause (PostgreSQL / H2).
+     * MySQL does not support RETURNING; use {@link #executeUpdate(UpdateSpec)} instead.
+     *
+     * <p>{@link org.springframework.data.annotation.LastModifiedDate} auto-fill is applied
+     * exactly as in {@link #executeUpdate(UpdateSpec)}.
+     *
+     * @param spec           the update specification
+     * @param returningProps property references whose DB column values should be returned
+     * @param resultClass    JavaBean class to map each returned row into
+     * @return the list of returned rows (one per affected row)
+     */
+    @SafeVarargs
+    public final <T, R> List<R> executeUpdateReturning(UpdateSpec<T> spec, Class<R> resultClass,
+                                                        SFunction<T, ?>... returningProps) {
+        UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
+        RenderedSql rendered = SqlRenderer.renderUpdateReturning(effectiveSpec, returningCols);
+        RowMapper<R> mapper = buildBeanRowMapper(resultClass);
+        return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
+    }
+
+    /**
+     * Executes a DELETE described by the given {@link DeleteSpec} and returns the deleted
+     * rows' values for the specified columns.
+     *
+     * <p>Uses a {@code RETURNING col1, col2, …} clause (PostgreSQL / H2).
+     * MySQL does not support RETURNING; use {@link #executeDelete(DeleteSpec)} instead.
+     *
+     * @param spec           the delete specification
+     * @param returningProps property references whose DB column values should be returned
+     * @param resultClass    JavaBean class to map each returned row into
+     * @return the list of returned rows (one per deleted row)
+     */
+    @SafeVarargs
+    public final <T, R> List<R> executeDeleteReturning(DeleteSpec<T> spec, Class<R> resultClass,
+                                                        SFunction<T, ?>... returningProps) {
+        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
+        RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, returningCols);
+        RowMapper<R> mapper = buildBeanRowMapper(resultClass);
+        return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
+    }
+
+    /**
+     * Resolves an array of property method references to their DB column names, using entity
+     * metadata for the mapping.
+     */
+    @SafeVarargs
+    private static <T> List<String> resolveColumnNames(Class<T> entityClass, EntityMeta meta,
+                                                        SFunction<T, ?>... props) {
+        List<String> cols = new ArrayList<>();
+        for (SFunction<T, ?> prop : props) {
+            PropertyRef ref = PropertyRefResolver.resolve(prop);
+            String colName = meta.getColumnName(ref.propertyName());
+            cols.add(colName != null ? colName : ref.propertyName());
+        }
+        return cols;
+    }
+
     /**
      * Builds an ordered map of {@code columnName → value} for the given entity by reading
      * property values via getter methods (falling back to field access).
@@ -930,7 +1027,7 @@ public final class JdbcDslExecutor {
                     spec.getCteDefs(),
                     spec.getTableNameOverride(),
                     spec.getSubqueryFrom(),
-                    spec.isForUpdate());
+                    spec.getLockMode());
         }
         return spec;
     }
@@ -971,7 +1068,7 @@ public final class JdbcDslExecutor {
                 spec.getJoins(), spec.getSort(), spec.getDtoClass(),
                 spec.getGroupByExpressions(), spec.getHaving(),
                 spec.getCteDefs(), spec.getTableNameOverride(),
-                spec.getSubqueryFrom(), spec.isForUpdate());
+                spec.getSubqueryFrom(), spec.getLockMode());
     }
 
     // ------------------------------------------------------------------ //

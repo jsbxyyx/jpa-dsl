@@ -65,10 +65,14 @@ public final class SqlServerDialect implements Dialect {
             insValJoiner.add("s." + col);
         }
 
+        String matchedClause = spec.isDoNothing()
+                ? ""
+                : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
+
         String sql = "MERGE INTO " + meta.getTableName() + " AS t"
                 + " USING (SELECT " + usingValJoiner + ") AS s (" + usingAliasJoiner + ")"
                 + " ON " + onJoiner
-                + " WHEN MATCHED THEN UPDATE SET " + updateJoiner
+                + matchedClause
                 + " WHEN NOT MATCHED THEN INSERT (" + insColJoiner + ") VALUES (" + insValJoiner + ");";
         return new RenderedSql(sql, params);
     }

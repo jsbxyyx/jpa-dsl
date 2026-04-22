@@ -53,6 +53,6 @@ public final class FunctionExpression<V> implements SqlExpression<V> {
      * Wraps this function with an empty OVER clause: {@code FUNC(...) OVER ()}.
      */
     public WindowExpression<V> over() {
-        return new WindowExpression<>(this, List.of(), List.of());
+        return new WindowExpression<>(this, List.of(), List.of(), null, null, null);
     }
 }

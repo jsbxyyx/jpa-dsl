@@ -73,6 +73,6 @@ public final class AggregateExpression<V> implements SqlExpression<V> {
      * Computes the aggregate over the entire result set.
      */
     public WindowExpression<V> over() {
-        return new WindowExpression<>(this, List.of(), List.of());
+        return new WindowExpression<>(this, List.of(), List.of(), null, null, null);
     }
 }

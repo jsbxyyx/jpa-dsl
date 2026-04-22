@@ -34,7 +34,15 @@ public final class UnionSpec<R> {
         /** {@code UNION} — eliminates duplicate rows. */
         UNION,
         /** {@code UNION ALL} — preserves all rows including duplicates. */
-        UNION_ALL
+        UNION_ALL,
+        /** {@code INTERSECT} — returns rows common to both queries, eliminates duplicates. */
+        INTERSECT,
+        /** {@code INTERSECT ALL} — returns rows common to both queries, preserving duplicates. */
+        INTERSECT_ALL,
+        /** {@code EXCEPT} — returns rows from the left query not in the right query, eliminates duplicates. */
+        EXCEPT,
+        /** {@code EXCEPT ALL} — returns rows from the left query not in the right query, preserving duplicates. */
+        EXCEPT_ALL
     }
 
     /** A single branch in the union query. */
@@ -84,6 +92,30 @@ public final class UnionSpec<R> {
         /** Appends a {@code UNION ALL} (preserving duplicates) branch. */
         public Builder<R> unionAll(SelectSpec<?, R> next) {
             branches.add(new Branch<>(next, UnionType.UNION_ALL));
+            return this;
+        }
+
+        /** Appends an {@code INTERSECT} (rows common to both, deduplicating) branch. */
+        public Builder<R> intersect(SelectSpec<?, R> next) {
+            branches.add(new Branch<>(next, UnionType.INTERSECT));
+            return this;
+        }
+
+        /** Appends an {@code INTERSECT ALL} (rows common to both, preserving duplicates) branch. */
+        public Builder<R> intersectAll(SelectSpec<?, R> next) {
+            branches.add(new Branch<>(next, UnionType.INTERSECT_ALL));
+            return this;
+        }
+
+        /** Appends an {@code EXCEPT} (rows in left but not right, deduplicating) branch. */
+        public Builder<R> except(SelectSpec<?, R> next) {
+            branches.add(new Branch<>(next, UnionType.EXCEPT));
+            return this;
+        }
+
+        /** Appends an {@code EXCEPT ALL} (rows in left but not right, preserving duplicates) branch. */
+        public Builder<R> exceptAll(SelectSpec<?, R> next) {
+            branches.add(new Branch<>(next, UnionType.EXCEPT_ALL));
             return this;
         }
 
