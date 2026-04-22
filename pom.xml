@@ -38,10 +38,11 @@
     <modules>
         <module>jdbc-dsl</module>
         <module>jpa-dsl</module>
+        <module>jdbc-ast</module>
     </modules>
 
     <properties>
-        <revision>1.0.0-SNAPSHOT</revision>
+        <revision>2.0.2</revision>
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
