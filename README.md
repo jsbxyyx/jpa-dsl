@@ -1,4 +1,4 @@
-# jpa-dsl & jdbc-dsl — Spring Data DSL SDK
+# jpa-dsl & jdbc-dsl & jdbc-ast — Spring Data DSL SDK
 
 [![Java](https://img.shields.io/badge/Java-17+-blue)](https://www.java.com)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.0-green)](https://spring.io/projects/spring-boot)
@@ -7,14 +7,15 @@
 
 ## 模块说明
 
-本仓库是一个**多模块 Maven 项目**，包含两个独立的 DSL 模块：
+本仓库是一个**多模块 Maven 项目**，包含三个独立的 DSL 模块：
 
 | 模块 | artifactId | 包名 | 说明 |
 |------|-----------|------|------|
 | `jdbc-dsl` | `io.github.jsbxyyx:jdbc-dsl` | `io.github.jsbxyyx.jdbcdsl` | 基于 Spring `NamedParameterJdbcTemplate` 的类型安全 JDBC DSL |
 | `jpa-dsl` | `io.github.jsbxyyx:jpa-dsl` | `io.github.jsbxyyx.jpadsl` | 基于 Spring Data JPA Specification 的流式查询 DSL |
+| `jdbc-ast` | `io.github.jsbxyyx:jdbc-ast` | `io.github.jsbxyyx.jdbcast` | 编译期类型安全的 SQL AST 构建器，与 `NamedParameterJdbcTemplate` 直接结合使用 |
 
-两个模块**完全独立**，可以单独引入，也可以同时使用。
+三个模块**完全独立**，可以单独引入，也可以同时使用。
 
 ---
 
@@ -861,4 +862,520 @@ executor.setTimeProvider(() -> fixedTime);
 
 - `@CreatedDate`：`created_at`
 - `@LastModifiedDate`：`updated_at`
+
+---
+
+## jdbc-ast — SQL AST 构建器
+
+`jdbc-ast` 是一个全新的轻量级模块，提供基于 **Java 17 sealed 接口 + record** 的不可变 SQL AST（抽象语法树），将其渲染为 `NamedParameterJdbcTemplate` 可直接使用的命名参数 SQL。
+
+### 设计原则
+
+- **编译期类型安全**：列引用通过 `SFunction` 方法引用（`User::getId`）绑定，类型参数 `Expr<V>` 在编译期约束比较操作两端类型一致。
+- **不可变 AST**：所有节点均为 `record`，构建后不可修改，线程安全，可复用。
+- **零运行时依赖**：`jakarta.persistence-api` 和 `spring-jdbc` 均为 `optional`，按需引入。
+- **可扩展方言**：`AnsiSqlRenderer` 的 `renderLimitOffset` 等关键方法为 `protected`，子类可覆盖实现数据库特定语法。
+
+### 依赖引入
+
+```xml
+<dependency>
+    <groupId>io.github.jsbxyyx</groupId>
+    <artifactId>jdbc-ast</artifactId>
+    <version>${jdbc-ast.version}</version>
+</dependency>
+```
+
+### 快速开始
+
+#### 1. 定义实体
+
+```java
+@Table(name = "t_user")
+public class TUser {
+    @Id @Column(name = "id")       private Long    id;
+    @Column(name = "username")     private String  username;
+    @Column(name = "status")       private String  status;
+    @Column(name = "age")          private Integer age;
+
+    public Long    getId()       { return id; }
+    public String  getUsername() { return username; }
+    public String  getStatus()   { return status; }
+    public Integer getAge()      { return age; }
+}
+```
+
+#### 2. Spring Boot 配置
+
+```java
+@Bean
+JdbcAstExecutor jdbcAstExecutor(NamedParameterJdbcTemplate template) {
+    return new JdbcAstExecutor(template,
+            new AnsiSqlRenderer(JpaMetaResolver.INSTANCE));
+}
+```
+
+#### 3. 基本用法
+
+```java
+TableRef<TUser> u = TableRef.of(TUser.class, "u");
+
+// SELECT
+List<TUser> list = executor.query(
+    SQL.from(u).select(u.star())
+       .where(u.col(TUser::getStatus).eq("ACTIVE"))
+       .orderBy(u.col(TUser::getAge).desc())
+       .limit(20).build(),
+    TUser.class);
+
+// INSERT
+int rows = executor.insert(
+    SQL.insertInto(TUser.class)
+       .set(TUser::getUsername, "alice")
+       .set(TUser::getStatus, "ACTIVE")
+       .build());
+
+// UPDATE
+int rows = executor.update(
+    SQL.update(TUser.class)
+       .set(TUser::getStatus, "INACTIVE")
+       .where(u.col(TUser::getId).eq(1L))
+       .build());
+
+// DELETE
+int rows = executor.delete(
+    SQL.deleteFrom(TUser.class)
+       .where(u.col(TUser::getStatus).eq("DELETED"))
+       .build());
+```
+
+---
+
+### SELECT 完整特性
+
+#### 基础查询
+
+```java
+TableRef<TUser> u = TableRef.of(TUser.class, "u");
+
+SQL.from(u)
+   .distinct()                                          // DISTINCT
+   .select(u.col(TUser::getId),
+           u.col(TUser::getUsername).as("name"))        // 列别名
+   .where(u.col(TUser::getStatus).eq("ACTIVE"))
+   .orderBy(u.col(TUser::getAge).desc(),
+            u.col(TUser::getUsername).asc())
+   .limit(10).offset(20)                               // 分页
+   .build();
+// → SELECT DISTINCT u.id, u.username AS name FROM t_user u
+//   WHERE u.status = :p1 ORDER BY u.age DESC, u.username ASC
+//   LIMIT :p2 OFFSET :p3
+```
+
+#### JOIN
+
+```java
+TableRef<TUser>  u = TableRef.of(TUser.class,  "u");
+TableRef<TOrder> o = TableRef.of(TOrder.class, "o");
+
+SQL.from(o)
+   .select(o.col(TOrder::getId), u.col(TUser::getUsername))
+   .join(u).on(o.col(TOrder::getUserId).eq(u.col(TUser::getId)))    // INNER JOIN
+   .leftJoin(u).on(...)                                              // LEFT JOIN
+   .rightJoin(u).on(...)                                             // RIGHT JOIN
+   .fullJoin(u).on(...)                                              // FULL JOIN
+   .crossJoin(u)                                                     // CROSS JOIN
+   .build();
+```
+
+#### GROUP BY / HAVING
+
+```java
+SQL.from(u)
+   .select(u.col(TUser::getStatus), SQL.count(u.col(TUser::getId)).as("cnt"))
+   .groupBy(u.col(TUser::getStatus))
+   .having(h -> h.gte(SQL.count(u.col(TUser::getId)), 10L))
+   .build();
+// → SELECT u.status, COUNT(u.id) AS cnt FROM t_user u
+//   GROUP BY u.status HAVING COUNT(u.id) >= :p1
+```
+
+#### 集合操作
+
+```java
+SelectStatement q1 = SQL.from(u).select(u.col(TUser::getId)).build();
+SelectStatement q2 = SQL.from(u).select(u.col(TUser::getId)).where(...).build();
+
+q1.union(q2)        // UNION（去重）
+q1.unionAll(q2)     // UNION ALL
+q1.intersect(q2)    // INTERSECT
+q1.except(q2)       // EXCEPT
+```
+
+#### FOR UPDATE（悲观锁）
+
+```java
+SQL.from(u).select(u.star()).where(...)
+   .forUpdate()                              // FOR UPDATE
+   .forUpdate(LockMode.UPDATE_NOWAIT)        // FOR UPDATE NOWAIT
+   .forUpdate(LockMode.UPDATE_SKIP_LOCKED)   // FOR UPDATE SKIP LOCKED
+   .forUpdate(LockMode.SHARE)               // FOR SHARE
+   .build();
+```
+
+#### CTE（公共表表达式 WITH）
+
+```java
+TableRef<TUser> u = TableRef.of(TUser.class, "u");
+SelectStatement cteQuery = SQL.from(u).select(u.star())
+        .where(u.col(TUser::getStatus).eq("ACTIVE")).build();
+
+CteDef activeCte = new CteDef("active_users", cteQuery);
+
+SQL.from(u).select(u.star())
+   .with(activeCte)
+   .build();
+// → WITH active_users AS (SELECT u.* FROM t_user u WHERE u.status = :p1)
+//   SELECT u.* FROM t_user u
+```
+
+#### 子查询
+
+```java
+// IN 子查询
+SubqueryExpr<Long> subq = SQL.subquery(
+    SQL.from(o).select(o.col(TOrder::getUserId)).build());
+
+SQL.from(u).select(u.star())
+   .where(u.col(TUser::getId).in(subq))
+   .build();
+
+// EXISTS
+SQL.from(u).select(u.star())
+   .where(w -> w.exists(
+       SQL.from(o).select(o.star())
+          .where(o.col(TOrder::getUserId).eq(u.col(TUser::getId)))
+          .build()))
+   .build();
+```
+
+---
+
+### ConditionBuilder（动态 WHERE）
+
+`ConditionBuilder` 是 jdbc-ast 的动态条件构建器，支持 `boolean when` 参数按需跳过条件，以及嵌套 `and`/`or`/`not` 分组。
+
+```java
+String  status  = request.getStatus();   // 可能为 null
+Integer minAge  = request.getMinAge();   // 可能为 null
+String  keyword = request.getKeyword();  // 可能为 null
+
+SelectStatement stmt = SQL.from(u)
+    .select(u.star())
+    .where(w -> w
+        .eq  (u.col(TUser::getStatus), status,  status  != null)  // null 时跳过
+        .gte (u.col(TUser::getAge),    minAge,  minAge  != null)
+        .like(u.col(TUser::getUsername), keyword, keyword != null)
+    )
+    .build();
+```
+
+#### 嵌套 OR / AND / NOT 分组
+
+```java
+.where(w -> w
+    .eq(u.col(TUser::getStatus), "ACTIVE")
+    .or(sub -> sub                                          // OR 嵌套
+            .eq(u.col(TUser::getAge), 18)
+            .eq(u.col(TUser::getAge), 21))
+)
+// → WHERE (u.status = :p1) AND ((u.age = :p2) OR (u.age = :p3))
+
+.where(w -> w
+    .and(sub -> sub                                         // AND 嵌套
+            .gte(u.col(TUser::getAge), 18)
+            .lte(u.col(TUser::getAge), 65))
+)
+// → WHERE (u.age >= :p1) AND (u.age <= :p2)
+
+.where(w -> w
+    .not(sub -> sub.eq(u.col(TUser::getStatus), "DELETED")) // NOT 嵌套
+)
+// → WHERE NOT (u.status = :p1)
+```
+
+#### ConditionBuilder 完整 API
+
+| 方法 | 说明 |
+|------|------|
+| `eq(col, value)` / `eq(col, value, when)` | 等于 `=` |
+| `ne(col, value)` / `ne(col, value, when)` | 不等于 `<>` |
+| `gt / gte / lt / lte(col, value[, when])` | 比较 `> >= < <=` |
+| `eqCol / neCol / gtCol / gteCol / ltCol / lteCol(left, right)` | 列与列比较 |
+| `like(col, pattern[, when])` | `LIKE` |
+| `notLike(col, pattern[, when])` | `NOT LIKE` |
+| `isNull(col[, when])` | `IS NULL` |
+| `isNotNull(col[, when])` | `IS NOT NULL` |
+| `in(col, Collection[, when])` / `in(col, values...)` | `IN (...)` |
+| `notIn(col, Collection[, when])` / `notIn(col, values...)` | `NOT IN (...)` |
+| `between(col, lo, hi[, when])` | `BETWEEN ... AND ...` |
+| `notBetween(col, lo, hi[, when])` | `NOT BETWEEN ... AND ...` |
+| `exists(subquery)` | `EXISTS (SELECT ...)` |
+| `notExists(subquery)` | `NOT EXISTS (SELECT ...)` |
+| `raw(sql[, params][, when])` | 原生 SQL 片段 |
+| `and(Consumer<ConditionBuilder>)` | 嵌套 AND 分组 |
+| `or(Consumer<ConditionBuilder>)` | 嵌套 OR 分组 |
+| `not(Consumer<ConditionBuilder>)` | 嵌套 NOT 分组 |
+| `condition(Condition[, when])` | 直接追加预构建条件 |
+
+> `when=false` 时该条件被完全跳过；多个条件默认以 AND 组合。
+
+---
+
+### 聚合 & 窗口函数
+
+```java
+import static io.github.jsbxyyx.jdbcast.builder.SQL.*;
+
+// 聚合函数
+countStar()                              // COUNT(*)
+count(u.col(TUser::getId))              // COUNT(id)
+countDistinct(u.col(TUser::getStatus))  // COUNT(DISTINCT status)
+sum(u.col(TUser::getAge))              // SUM(age)
+avg(u.col(TUser::getAge))              // AVG(age)
+min(u.col(TUser::getAge))              // MIN(age)
+max(u.col(TUser::getAge))              // MAX(age)
+
+// 窗口函数
+rowNumber().over(w -> w
+    .partitionBy(u.col(TUser::getStatus))
+    .orderBy(u.col(TUser::getAge).desc()))
+// → ROW_NUMBER() OVER (PARTITION BY u.status ORDER BY u.age DESC)
+
+sum(u.col(TUser::getAge)).over(w -> w
+    .partitionBy(u.col(TUser::getStatus))
+    .rowsBetween(FrameBound.UNBOUNDED_PRECEDING, FrameBound.CURRENT_ROW))
+// → SUM(u.age) OVER (PARTITION BY u.status ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+
+rank()       // RANK()
+denseRank()  // DENSE_RANK()
+lag(u.col(TUser::getAge), val(1))    // LAG(u.age, :p1)
+lead(u.col(TUser::getAge), val(1))   // LEAD(u.age, :p1)
+firstValue(u.col(TUser::getAge))     // FIRST_VALUE(u.age)
+lastValue(u.col(TUser::getAge))      // LAST_VALUE(u.age)
+```
+
+### CASE WHEN
+
+```java
+import static io.github.jsbxyyx.jdbcast.builder.SQL.*;
+
+// Searched CASE（条件式）
+Expr<String> label = CaseExpr.<String>searched()
+    .when(u.col(TUser::getAge).lt(18),  val("未成年"))
+    .when(u.col(TUser::getAge).gte(60), val("老年"))
+    .orElse(val("成年"))
+    .build();
+// → CASE WHEN u.age < :p1 THEN :p2 WHEN u.age >= :p3 THEN :p4 ELSE :p5 END
+
+// Simple CASE（等值式）
+Expr<String> label2 = CaseExpr.<String>simple(u.col(TUser::getStatus))
+    .when(val("ACTIVE"),   val("激活"))
+    .when(val("INACTIVE"), val("停用"))
+    .orElse(val("未知"))
+    .build();
+// → CASE u.status WHEN :p1 THEN :p2 WHEN :p3 THEN :p4 ELSE :p5 END
+```
+
+### 其他表达式
+
+```java
+// CAST
+cast(u.col(TUser::getAge), "VARCHAR")     // → CAST(u.age AS VARCHAR)
+
+// 自定义函数
+fn("DATE_FORMAT", u.col(TUser::getCreatedAt), val("%Y-%m"))  // → DATE_FORMAT(u.created_at, :p1)
+
+// 标量子查询（SELECT 列中）
+subquery(SQL.from(o).select(SQL.countStar()).where(...).build())
+
+// 原生表达式（逃生舱）
+raw("COALESCE(u.age, 0)")
+raw("u.age + :delta", Map.of("delta", 5))
+```
+
+---
+
+### INSERT / UPDATE / DELETE
+
+#### INSERT
+
+```java
+// 显式列赋值
+executor.insert(
+    SQL.insertInto(TUser.class)
+       .set(TUser::getUsername, "alice")
+       .set(TUser::getStatus, "ACTIVE")
+       .build());
+
+// 获取自增主键
+Long id = executor.insertAndGetKey(
+    SQL.insertInto(TUser.class)
+       .set(TUser::getUsername, "bob")
+       .build(), Long.class);
+
+// 实体对象插入（反射所有字段）
+executor.insert(new TUser("carol", "ACTIVE"));
+Long id2 = executor.insertAndGetKey(new TUser("dave", "ACTIVE"), Long.class);
+```
+
+#### UPDATE
+
+```java
+executor.update(
+    SQL.update(TUser.class)
+       .set(TUser::getStatus, "INACTIVE")
+       .setExpr(TUser::getAge, raw("age + 1"))  // 表达式赋值
+       .where(w -> w
+           .eq(u.col(TUser::getId), 1L)
+           .ne(u.col(TUser::getStatus), "DELETED"))
+       .build());
+```
+
+#### DELETE
+
+```java
+executor.delete(
+    SQL.deleteFrom(TUser.class)
+       .where(w -> w.eq(u.col(TUser::getStatus), "DELETED"))
+       .build());
+```
+
+#### RETURNING（PostgreSQL）
+
+```java
+SQL.insertInto(TUser.class)
+   .set(TUser::getUsername, "alice")
+   .returning("id", "created_at")
+   .build();
+// → INSERT INTO t_user (username) VALUES (:p1) RETURNING id, created_at
+```
+
+---
+
+### MetaResolver — 元数据解析策略
+
+| 实现类 | 表名解析 | 列名解析 |
+|--------|---------|---------|
+| `JpaMetaResolver` | `@Table(name)` → 简单类名 | `@Column(name)` → Java 属性名 |
+| `SpringDataRelationalMetaResolver` | `@Table(value)` → JPA `@Table(name)` → snake_case | `@Column(value)` → JPA `@Column(name)` → snake_case |
+
+两种实现均使用 `ConcurrentHashMap` 二级缓存（表名 + 列名），避免重复反射。
+
+```java
+// JPA 注解（@Table/@Column）
+AnsiSqlRenderer renderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE);
+
+// Spring Data JDBC + snake_case 默认命名
+AnsiSqlRenderer renderer = new AnsiSqlRenderer(SpringDataRelationalMetaResolver.INSTANCE);
+
+// 自定义 MetaResolver
+AnsiSqlRenderer renderer = new AnsiSqlRenderer(new MetaResolver() {
+    public String tableName(Class<?> cls) { return "t_" + cls.getSimpleName().toLowerCase(); }
+    public String columnName(SFunction<?,?> getter) { /* ... */ }
+});
+```
+
+---
+
+### JdbcAstExecutor API
+
+| 方法 | 说明 |
+|------|------|
+| `query(stmt, Class<T>)` | SELECT → `List<T>`，使用 `BeanPropertyRowMapper` |
+| `query(stmt, RowMapper<T>)` | SELECT → `List<T>`，自定义 RowMapper |
+| `queryOne(stmt, Class<T>)` | SELECT → `Optional<T>`，超过 1 行抛出异常 |
+| `queryOne(stmt, RowMapper<T>)` | SELECT → `Optional<T>`，自定义 RowMapper |
+| `queryForObject(stmt, Class<T>)` | SELECT → 单个标量值（`COUNT(*)`、`MAX` 等） |
+| `queryForList(stmt)` | SELECT → `List<Map<String, Object>>` |
+| `insert(InsertStatement)` | 显式列赋值 INSERT，返回影响行数 |
+| `insertAndGetKey(InsertStatement, Class<K>)` | INSERT 并返回自增主键 |
+| `insert(Object entity)` | 实体对象 INSERT（反射所有字段） |
+| `insertAndGetKey(Object entity, Class<K>)` | 实体对象 INSERT 并返回自增主键 |
+| `update(UpdateStatement)` | UPDATE，返回影响行数 |
+| `delete(DeleteStatement)` | DELETE，返回影响行数 |
+| `getJdbcTemplate()` | 获取底层 `NamedParameterJdbcTemplate` |
+
+---
+
+### 包结构
+
+```
+jdbc-ast/
+└── src/main/java/io/github/jsbxyyx/jdbcast/
+    ├── SFunction.java                # 可序列化方法引用函数接口
+    ├── PropertyRef.java              # 字段引用（ownerClass + propertyName）
+    ├── PropertyRefResolver.java      # SFunction → PropertyRef 解析（含缓存）
+    ├── LockMode.java                 # FOR UPDATE 锁模式枚举
+    ├── builder/
+    │   ├── SQL.java                  # 静态入口（from/insertInto/update/deleteFrom/函数工厂）
+    │   ├── SelectBuilder.java        # SELECT 流式构建器
+    │   ├── InsertBuilder.java        # INSERT 流式构建器
+    │   ├── UpdateBuilder.java        # UPDATE 流式构建器
+    │   ├── DeleteBuilder.java        # DELETE 流式构建器
+    │   ├── JoinBuilder.java          # JOIN ON 构建器
+    │   └── ConditionBuilder.java     # 动态 WHERE/HAVING 条件构建器
+    ├── clause/
+    │   ├── TableRef.java             # 类型安全表引用（含 col()/star()）
+    │   ├── ColumnAssignment.java     # SET 子句赋值
+    │   ├── CteDef.java               # CTE 定义（WITH name AS (query)）
+    │   ├── JoinClause.java           # JOIN 子句
+    │   ├── JoinType.java             # INNER / LEFT / RIGHT / FULL / CROSS
+    │   ├── OrderItem.java            # ORDER BY 项（含 NULLS FIRST/LAST）
+    │   ├── SetOp.java / SetOpType.java # UNION / INTERSECT / EXCEPT
+    │   ├── FrameBound.java           # 窗口帧边界
+    │   └── FrameType.java            # ROWS / RANGE / GROUPS
+    ├── condition/
+    │   ├── Condition.java            # sealed 条件接口（含 and/or/not 默认方法）
+    │   ├── CompareCondition.java     # = <> > >= < <=
+    │   ├── AndCondition.java         # AND 组合
+    │   ├── OrCondition.java          # OR 组合
+    │   ├── NotCondition.java         # NOT 取反
+    │   ├── InCondition.java          # IN / NOT IN
+    │   ├── BetweenCondition.java     # BETWEEN / NOT BETWEEN
+    │   ├── LikeCondition.java        # LIKE / NOT LIKE
+    │   ├── NullCondition.java        # IS NULL / IS NOT NULL
+    │   ├── ExistsCondition.java      # EXISTS / NOT EXISTS
+    │   ├── RawCondition.java         # 原生 SQL 条件
+    │   └── Op.java                   # 操作符枚举
+    ├── expr/
+    │   ├── Expr.java                 # sealed 表达式接口（含 eq/as/asc 等默认方法）
+    │   ├── ColExpr.java              # 列引用（方法引用 + 表别名）
+    │   ├── LiteralExpr.java          # 字面量（绑定参数）
+    │   ├── AliasedExpr.java          # expr AS alias
+    │   ├── StarExpr.java             # * / table.*
+    │   ├── AggExpr.java              # 聚合 / 窗口函数（含 over() 构建器）
+    │   ├── WindowExpr.java           # OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE)
+    │   ├── CaseExpr.java             # CASE WHEN ... THEN ... ELSE ... END
+    │   ├── CastExpr.java             # CAST(expr AS type)
+    │   ├── FunctionExpr.java         # 自定义函数调用
+    │   ├── SubqueryExpr.java         # 标量子查询
+    │   └── RawExpr.java              # 原生 SQL 表达式
+    ├── stmt/
+    │   ├── SelectStatement.java      # SELECT AST 节点（含 union/intersect/except）
+    │   ├── InsertStatement.java      # INSERT AST 节点
+    │   ├── UpdateStatement.java      # UPDATE AST 节点
+    │   └── DeleteStatement.java      # DELETE AST 节点
+    ├── renderer/
+    │   ├── SqlRenderer.java          # 渲染器接口
+    │   ├── AnsiSqlRenderer.java      # ANSI SQL 渲染器（可继承覆盖方言方法）
+    │   ├── RenderContext.java        # 命名参数上下文（:p1, :p2, ...）
+    │   ├── RenderedSql.java          # 渲染结果（sql + params Map）
+    │   └── MetaResolver.java         # 元数据解析接口
+    ├── meta/
+    │   ├── JpaMetaResolver.java      # JPA @Table/@Column 解析（含缓存）
+    │   └── SpringDataRelationalMetaResolver.java  # Spring Data JDBC + snake_case
+    └── spring/
+        └── JdbcAstExecutor.java      # Spring NamedParameterJdbcTemplate 执行器
+```
 
