@@ -35,16 +35,86 @@ import java.util.function.Consumer;
  */
 public final class WindowExpression<V> implements SqlExpression<V> {
 
+    /**
+     * The frame unit keyword: ROWS counts physical rows; RANGE counts logical rows (peers
+     * sharing the same ORDER BY value); GROUPS counts peer groups (SQL:2011, supported by
+     * PostgreSQL 11+, H2, SQLite 3.28+).
+     */
+    public enum FrameType { ROWS, RANGE, GROUPS }
+
+    /**
+     * A single boundary of the window frame ({@code ROWS}/{@code RANGE} BETWEEN … AND …).
+     *
+     * <p>Factory methods:
+     * <pre>{@code
+     * FrameBound.unboundedPreceding()    // UNBOUNDED PRECEDING
+     * FrameBound.preceding(3)            // 3 PRECEDING
+     * FrameBound.currentRow()            // CURRENT ROW
+     * FrameBound.following(2)            // 2 FOLLOWING
+     * FrameBound.unboundedFollowing()    // UNBOUNDED FOLLOWING
+     * }</pre>
+     */
+    public static final class FrameBound {
+        /** The kind of this boundary. */
+        public enum Kind {
+            UNBOUNDED_PRECEDING, PRECEDING, CURRENT_ROW, FOLLOWING, UNBOUNDED_FOLLOWING
+        }
+        private final Kind kind;
+        private final long offset;
+
+        private FrameBound(Kind kind, long offset) {
+            this.kind = kind;
+            this.offset = offset;
+        }
+
+        /** {@code UNBOUNDED PRECEDING} — from the very first row of the partition. */
+        public static FrameBound unboundedPreceding() { return new FrameBound(Kind.UNBOUNDED_PRECEDING, 0); }
+        /** {@code n PRECEDING} — {@code n} rows before the current row. */
+        public static FrameBound preceding(long n) { return new FrameBound(Kind.PRECEDING, n); }
+        /** {@code CURRENT ROW}. */
+        public static FrameBound currentRow() { return new FrameBound(Kind.CURRENT_ROW, 0); }
+        /** {@code n FOLLOWING} — {@code n} rows after the current row. */
+        public static FrameBound following(long n) { return new FrameBound(Kind.FOLLOWING, n); }
+        /** {@code UNBOUNDED FOLLOWING} — up to the very last row of the partition. */
+        public static FrameBound unboundedFollowing() { return new FrameBound(Kind.UNBOUNDED_FOLLOWING, 0); }
+
+        public Kind getKind() { return kind; }
+        public long getOffset() { return offset; }
+
+        /** Returns the SQL fragment for this boundary (e.g. {@code "3 PRECEDING"}). */
+        public String toSql() {
+            return switch (kind) {
+                case UNBOUNDED_PRECEDING -> "UNBOUNDED PRECEDING";
+                case PRECEDING -> offset + " PRECEDING";
+                case CURRENT_ROW -> "CURRENT ROW";
+                case FOLLOWING -> offset + " FOLLOWING";
+                case UNBOUNDED_FOLLOWING -> "UNBOUNDED FOLLOWING";
+            };
+        }
+    }
+
     private final SqlExpression<V> function;
     private final List<SqlExpression<?>> partitionBy;
     private final List<JOrder<?>> orderBy;
+    /** Frame type (ROWS/RANGE/GROUPS), or {@code null} when no explicit frame is set. */
+    private final FrameType frameType;
+    /** Start boundary of the frame, or {@code null} when no explicit frame is set. */
+    private final FrameBound frameStart;
+    /** End boundary of the frame, or {@code null} when no explicit frame is set. */
+    private final FrameBound frameEnd;
 
     WindowExpression(SqlExpression<V> function,
                      List<SqlExpression<?>> partitionBy,
-                     List<JOrder<?>> orderBy) {
+                     List<JOrder<?>> orderBy,
+                     FrameType frameType,
+                     FrameBound frameStart,
+                     FrameBound frameEnd) {
         this.function = function;
         this.partitionBy = Collections.unmodifiableList(new ArrayList<>(partitionBy));
         this.orderBy = Collections.unmodifiableList(new ArrayList<>(orderBy));
+        this.frameType = frameType;
+        this.frameStart = frameStart;
+        this.frameEnd = frameEnd;
     }
 
     /** Returns the base function or aggregate expression (the part before OVER). */
@@ -55,6 +125,15 @@ public final class WindowExpression<V> implements SqlExpression<V> {
 
     /** Returns the ORDER BY directives within the OVER clause (may be empty). */
     public List<JOrder<?>> getOrderBy() { return orderBy; }
+
+    /** Returns the frame type (ROWS/RANGE/GROUPS), or {@code null} when no frame is specified. */
+    public FrameType getFrameType() { return frameType; }
+
+    /** Returns the frame start boundary, or {@code null} when no frame is specified. */
+    public FrameBound getFrameStart() { return frameStart; }
+
+    /** Returns the frame end boundary, or {@code null} when no frame is specified. */
+    public FrameBound getFrameEnd() { return frameEnd; }
 
     // ------------------------------------------------------------------ //
     //  Builder
@@ -70,6 +149,9 @@ public final class WindowExpression<V> implements SqlExpression<V> {
         private final SqlExpression<V> function;
         private final List<SqlExpression<?>> partitionBy = new ArrayList<>();
         private final List<JOrder<?>> orderBy = new ArrayList<>();
+        private FrameType frameType = null;
+        private FrameBound frameStart = null;
+        private FrameBound frameEnd = null;
 
         Builder(SqlExpression<V> function) {
             this.function = function;
@@ -106,9 +188,61 @@ public final class WindowExpression<V> implements SqlExpression<V> {
             return this;
         }
 
+        /**
+         * Specifies a {@code ROWS BETWEEN start AND end} frame clause.
+         *
+         * <p>Example — running total from the beginning of the partition to the current row:
+         * <pre>{@code
+         * sum(TOrder::getAmount).over(w -> w
+         *     .partitionBy(TOrder::getUserId)
+         *     .orderBy(JOrder.asc(TOrder::getId))
+         *     .rowsBetween(FrameBound.unboundedPreceding(), FrameBound.currentRow())
+         * ).as("runningTotal")
+         * }</pre>
+         *
+         * @param start the start boundary
+         * @param end   the end boundary
+         */
+        public Builder<V> rowsBetween(FrameBound start, FrameBound end) {
+            this.frameType = FrameType.ROWS;
+            this.frameStart = start;
+            this.frameEnd = end;
+            return this;
+        }
+
+        /**
+         * Specifies a {@code RANGE BETWEEN start AND end} frame clause.
+         *
+         * <p>RANGE uses logical boundaries based on the ORDER BY value rather than physical row counts.
+         *
+         * @param start the start boundary
+         * @param end   the end boundary
+         */
+        public Builder<V> rangeBetween(FrameBound start, FrameBound end) {
+            this.frameType = FrameType.RANGE;
+            this.frameStart = start;
+            this.frameEnd = end;
+            return this;
+        }
+
+        /**
+         * Specifies a {@code GROUPS BETWEEN start AND end} frame clause (SQL:2011).
+         *
+         * <p>Supported by PostgreSQL 11+, H2 2.x, SQLite 3.28+.
+         *
+         * @param start the start boundary
+         * @param end   the end boundary
+         */
+        public Builder<V> groupsBetween(FrameBound start, FrameBound end) {
+            this.frameType = FrameType.GROUPS;
+            this.frameStart = start;
+            this.frameEnd = end;
+            return this;
+        }
+
         /** Builds the {@link WindowExpression}. */
         public WindowExpression<V> build() {
-            return new WindowExpression<>(function, partitionBy, orderBy);
+            return new WindowExpression<>(function, partitionBy, orderBy, frameType, frameStart, frameEnd);
         }
     }
 }

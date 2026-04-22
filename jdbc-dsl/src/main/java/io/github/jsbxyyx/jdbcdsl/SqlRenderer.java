@@ -69,8 +69,14 @@ public final class SqlRenderer {
         for (int i = 0; i < branches.size(); i++) {
             UnionSpec.Branch<R> branch = branches.get(i);
             if (i > 0) {
-                String op = branch.unionType() == UnionSpec.UnionType.UNION_ALL
-                        ? " UNION ALL " : " UNION ";
+                String op = switch (branch.unionType()) {
+                    case UNION_ALL -> " UNION ALL ";
+                    case INTERSECT -> " INTERSECT ";
+                    case INTERSECT_ALL -> " INTERSECT ALL ";
+                    case EXCEPT -> " EXCEPT ";
+                    case EXCEPT_ALL -> " EXCEPT ALL ";
+                    default -> " UNION ";
+                };
                 sb.append(op);
             }
             sb.append(buildSelectSqlUnchecked(branch.spec(), params, paramIdx, false));
@@ -230,9 +236,15 @@ public final class SqlRenderer {
                 }
                 sb.append(orderJoiner);
             }
-            // FOR UPDATE is a top-level SELECT modifier; never emitted inside subqueries.
-            if (spec.isForUpdate()) {
-                sb.append(" FOR UPDATE");
+            // Locking clause is a top-level SELECT modifier; never emitted inside subqueries.
+            if (spec.getLockMode() != null) {
+                String lockSql = switch (spec.getLockMode()) {
+                    case UPDATE -> " FOR UPDATE";
+                    case UPDATE_NOWAIT -> " FOR UPDATE NOWAIT";
+                    case UPDATE_SKIP_LOCKED -> " FOR UPDATE SKIP LOCKED";
+                    case SHARE -> " FOR SHARE";
+                };
+                sb.append(lockSql);
             }
         }
 
@@ -493,6 +505,19 @@ public final class SqlRenderer {
             over.append("ORDER BY ").append(oj);
         }
 
+        // Frame clause: ROWS/RANGE/GROUPS BETWEEN start AND end
+        if (win.getFrameType() != null && win.getFrameStart() != null) {
+            if (over.length() > 0) over.append(" ");
+            String frameTypeStr = win.getFrameType().name(); // ROWS, RANGE, or GROUPS
+            String startSql = win.getFrameStart().toSql();
+            if (win.getFrameEnd() != null) {
+                over.append(frameTypeStr).append(" BETWEEN ").append(startSql)
+                        .append(" AND ").append(win.getFrameEnd().toSql());
+            } else {
+                over.append(frameTypeStr).append(" ").append(startSql);
+            }
+        }
+
         return funcSql + " OVER (" + over + ")";
     }
 
@@ -749,6 +774,72 @@ public final class SqlRenderer {
         String sql = "INSERT INTO " + meta.getTableName()
                 + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
         return new RenderedSql(sql, params);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  RETURNING / OUTPUT rendering helpers
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Appends a {@code RETURNING col1, col2, …} clause to an INSERT statement, enabling
+     * the database to return the inserted row's values.
+     *
+     * <p>Supported by PostgreSQL and H2. Not supported by MySQL or standard SQL Server.
+     * For SQL Server use {@code OUTPUT inserted.col1, …} via raw SQL instead.
+     *
+     * @param spec           the insert specification
+     * @param meta           entity metadata
+     * @param colValues      column-to-value map (same as passed to {@link #renderInsert})
+     * @param returningCols  column names to return (use the DB column name, not the property name)
+     * @return the rendered INSERT … RETURNING SQL and its parameters
+     */
+    public static <T> RenderedSql renderInsertReturning(InsertSpec<T> spec, EntityMeta meta,
+                                                         java.util.LinkedHashMap<String, Object> colValues,
+                                                         List<String> returningCols) {
+        RenderedSql base = renderInsert(spec, meta, colValues);
+        if (returningCols == null || returningCols.isEmpty()) {
+            return base;
+        }
+        String sql = base.getSql() + " RETURNING " + String.join(", ", returningCols);
+        return new RenderedSql(sql, base.getParams());
+    }
+
+    /**
+     * Appends a {@code RETURNING col1, col2, …} clause to an UPDATE statement, enabling
+     * the database to return the modified row's values.
+     *
+     * <p>Supported by PostgreSQL and H2. Not supported by MySQL.
+     *
+     * @param spec          the update specification
+     * @param returningCols column names to return (use the DB column name, not the property name)
+     * @return the rendered UPDATE … RETURNING SQL and its parameters
+     */
+    public static <T> RenderedSql renderUpdateReturning(UpdateSpec<T> spec, List<String> returningCols) {
+        RenderedSql base = renderUpdate(spec);
+        if (returningCols == null || returningCols.isEmpty()) {
+            return base;
+        }
+        String sql = base.getSql() + " RETURNING " + String.join(", ", returningCols);
+        return new RenderedSql(sql, base.getParams());
+    }
+
+    /**
+     * Appends a {@code RETURNING col1, col2, …} clause to a DELETE statement, enabling
+     * the database to return the deleted row's values.
+     *
+     * <p>Supported by PostgreSQL and H2. Not supported by MySQL.
+     *
+     * @param spec          the delete specification
+     * @param returningCols column names to return (use the DB column name, not the property name)
+     * @return the rendered DELETE … RETURNING SQL and its parameters
+     */
+    public static <T> RenderedSql renderDeleteReturning(DeleteSpec<T> spec, List<String> returningCols) {
+        RenderedSql base = renderDelete(spec);
+        if (returningCols == null || returningCols.isEmpty()) {
+            return base;
+        }
+        String sql = base.getSql() + " RETURNING " + String.join(", ", returningCols);
+        return new RenderedSql(sql, base.getParams());
     }
 
     // ------------------------------------------------------------------ //

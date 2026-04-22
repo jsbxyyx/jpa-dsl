@@ -26,11 +26,25 @@ public final class UpsertSpec<T> {
      * Empty list means "all non-conflict columns" (resolved at render time).
      */
     private final List<String> updateColumns;
+    /**
+     * When {@code true}, the conflict action is "do nothing" — duplicates are silently skipped
+     * without updating the existing row.
+     *
+     * <p>SQL syntax per dialect:
+     * <ul>
+     *   <li>PostgreSQL: {@code ON CONFLICT [(target)] DO NOTHING}</li>
+     *   <li>MySQL: {@code INSERT IGNORE INTO …}</li>
+     *   <li>H2 / Oracle / SQL Server: MERGE with only a WHEN NOT MATCHED INSERT branch</li>
+     * </ul>
+     */
+    private final boolean doNothing;
 
-    UpsertSpec(Class<T> entityClass, List<String> conflictColumns, List<String> updateColumns) {
+    UpsertSpec(Class<T> entityClass, List<String> conflictColumns, List<String> updateColumns,
+               boolean doNothing) {
         this.entityClass = entityClass;
         this.conflictColumns = List.copyOf(conflictColumns);
         this.updateColumns = List.copyOf(updateColumns);
+        this.doNothing = doNothing;
     }
 
     public Class<T> getEntityClass() { return entityClass; }
@@ -44,4 +58,9 @@ public final class UpsertSpec<T> {
      * {@link io.github.jsbxyyx.jdbcdsl.dialect.Dialect#resolveUpdateColumns}).
      */
     public List<String> getUpdateColumns() { return updateColumns; }
+
+    /**
+     * Returns {@code true} when the conflict action is "do nothing" (skip duplicates silently).
+     */
+    public boolean isDoNothing() { return doNothing; }
 }

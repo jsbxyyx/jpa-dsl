@@ -39,8 +39,12 @@ public final class SelectSpec<T, R> {
      */
     private final SelectSpec<?, ?> subqueryFrom;
 
-    /** When {@code true}, appends {@code FOR UPDATE} at the end of the SELECT SQL. */
-    private final boolean forUpdate;
+    /**
+     * Row-level locking mode appended at the end of the SELECT SQL, or {@code null} for no locking.
+     *
+     * @see LockMode
+     */
+    private final LockMode lockMode;
 
     /** Full canonical constructor. */
     SelectSpec(Class<T> entityClass,
@@ -56,7 +60,7 @@ public final class SelectSpec<T, R> {
                List<CteDef> cteDefs,
                String tableNameOverride,
                SelectSpec<?, ?> subqueryFrom,
-               boolean forUpdate) {
+               LockMode lockMode) {
         this.entityClass = entityClass;
         this.alias = alias;
         this.distinct = distinct;
@@ -70,7 +74,7 @@ public final class SelectSpec<T, R> {
         this.cteDefs = List.copyOf(cteDefs);
         this.tableNameOverride = tableNameOverride;
         this.subqueryFrom = subqueryFrom;
-        this.forUpdate = forUpdate;
+        this.lockMode = lockMode;
     }
 
     public Class<T> getEntityClass() { return entityClass; }
@@ -99,6 +103,13 @@ public final class SelectSpec<T, R> {
      */
     public SelectSpec<?, ?> getSubqueryFrom() { return subqueryFrom; }
 
-    /** Returns {@code true} if {@code FOR UPDATE} should be appended to the SELECT SQL. */
-    public boolean isForUpdate() { return forUpdate; }
+    /**
+     * Returns the row-level locking mode, or {@code null} when no locking is requested.
+     *
+     * @see LockMode
+     */
+    public LockMode getLockMode() { return lockMode; }
+
+    /** Returns {@code true} if any row-level lock should be appended to the SELECT SQL. */
+    public boolean isForUpdate() { return lockMode != null; }
 }

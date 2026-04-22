@@ -34,6 +34,7 @@ public final class UpsertBuilder<T> {
     private final Class<T> entityClass;
     private final List<String> conflictColumns = new ArrayList<>();
     private final List<String> updateColumns = new ArrayList<>();
+    private boolean doNothing = false;
 
     private UpsertBuilder(Class<T> entityClass) {
         this.entityClass = entityClass;
@@ -91,7 +92,25 @@ public final class UpsertBuilder<T> {
         return this;
     }
 
+    /**
+     * Marks the conflict action as "do nothing" — duplicate rows are silently skipped
+     * without updating the existing row.
+     *
+     * <p>SQL syntax per dialect:
+     * <ul>
+     *   <li>PostgreSQL: {@code INSERT … ON CONFLICT [(target)] DO NOTHING}</li>
+     *   <li>MySQL: {@code INSERT IGNORE INTO …}</li>
+     *   <li>H2 / Oracle / SQL Server: MERGE with only a WHEN NOT MATCHED INSERT branch</li>
+     * </ul>
+     *
+     * <p>When this is set, any columns added via {@link #doUpdate} are ignored at render time.
+     */
+    public UpsertBuilder<T> doNothing() {
+        this.doNothing = true;
+        return this;
+    }
+
     public UpsertSpec<T> build() {
-        return new UpsertSpec<>(entityClass, conflictColumns, updateColumns);
+        return new UpsertSpec<>(entityClass, conflictColumns, updateColumns, doNothing);
     }
 }

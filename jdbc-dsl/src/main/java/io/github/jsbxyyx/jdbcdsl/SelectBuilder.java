@@ -71,7 +71,7 @@ public final class SelectBuilder<T> {
     private final List<CteDef> cteDefs = new ArrayList<>();
     private String tableNameOverride = null;
     private SelectSpec<?, ?> subqueryFrom = null;
-    private boolean forUpdate = false;
+    private LockMode lockMode = null;
 
     private SelectBuilder(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
@@ -211,10 +211,33 @@ public final class SelectBuilder<T> {
         return this;
     }
 
-    /** Appends {@code FOR UPDATE} to the generated SELECT SQL (row-level locking). */
-    public SelectBuilder<T> forUpdate() {
-        this.forUpdate = true;
+    /**
+     * Appends a row-level locking clause to the generated SELECT SQL.
+     *
+     * <p>The exact SQL keyword depends on the {@link LockMode}:
+     * <ul>
+     *   <li>{@link LockMode#UPDATE} → {@code FOR UPDATE}</li>
+     *   <li>{@link LockMode#UPDATE_NOWAIT} → {@code FOR UPDATE NOWAIT}</li>
+     *   <li>{@link LockMode#UPDATE_SKIP_LOCKED} → {@code FOR UPDATE SKIP LOCKED}</li>
+     *   <li>{@link LockMode#SHARE} → {@code FOR SHARE}</li>
+     * </ul>
+     *
+     * <p>Not all databases support all modes. Check your database documentation.
+     *
+     * @param mode the row-level locking mode
+     */
+    public SelectBuilder<T> forUpdate(LockMode mode) {
+        this.lockMode = mode;
         return this;
+    }
+
+    /**
+     * Appends {@code FOR UPDATE} to the generated SELECT SQL (exclusive row-level locking).
+     *
+     * <p>Shorthand for {@code forUpdate(LockMode.UPDATE)}.
+     */
+    public SelectBuilder<T> forUpdate() {
+        return forUpdate(LockMode.UPDATE);
     }
 
     /** Adds a CROSS JOIN clause (no ON condition required). */
@@ -340,7 +363,7 @@ public final class SelectBuilder<T> {
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
         return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
                 dtoClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride,
-                subqueryFrom, forUpdate);
+                subqueryFrom, lockMode);
     }
 
     /**
@@ -359,6 +382,6 @@ public final class SelectBuilder<T> {
     public SelectSpec<T, T> mapToEntity() {
         return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
                 entityClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride,
-                subqueryFrom, forUpdate);
+                subqueryFrom, lockMode);
     }
 }

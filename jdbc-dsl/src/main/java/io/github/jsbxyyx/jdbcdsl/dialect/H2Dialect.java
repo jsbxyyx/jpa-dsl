@@ -78,10 +78,14 @@ public final class H2Dialect implements Dialect {
             insValJoiner.add("s." + col);
         }
 
+        String matchedClause = spec.isDoNothing()
+                ? ""
+                : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
+
         String sql = "MERGE INTO " + meta.getTableName() + " t"
                 + " USING (VALUES(" + valJoiner + ")) AS s(" + aliasJoiner + ")"
                 + " ON (" + onJoiner + ")"
-                + " WHEN MATCHED THEN UPDATE SET " + updateJoiner
+                + matchedClause
                 + " WHEN NOT MATCHED THEN INSERT (" + insColJoiner + ") VALUES (" + insValJoiner + ")";
         return new RenderedSql(sql, params);
     }

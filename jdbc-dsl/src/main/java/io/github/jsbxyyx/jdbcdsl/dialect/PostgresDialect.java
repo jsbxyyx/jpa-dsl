@@ -33,13 +33,13 @@ public final class PostgresDialect implements Dialect {
     }
 
     /**
-     * Shared render logic for PostgreSQL / H2: {@code INSERT … ON CONFLICT … DO UPDATE SET …}
+     * Shared render logic for PostgreSQL: {@code INSERT … ON CONFLICT … DO UPDATE SET …}
+     * or {@code INSERT … ON CONFLICT [(target)] DO NOTHING} when {@code spec.isDoNothing()}.
      */
     static RenderedSql renderOnConflict(UpsertSpec<?> spec, EntityMeta meta,
                                          LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
         List<String> conflictCols = spec.getConflictColumns();
-        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
 
         StringJoiner colJoiner = new StringJoiner(", ");
         StringJoiner valJoiner = new StringJoiner(", ");
@@ -53,14 +53,21 @@ public final class PostgresDialect implements Dialect {
                 ? ""
                 : " (" + String.join(", ", conflictCols) + ")";
 
-        StringJoiner updateJoiner = new StringJoiner(", ");
-        for (String col : updateCols) {
-            updateJoiner.add(col + " = EXCLUDED." + col);
+        String conflictAction;
+        if (spec.isDoNothing()) {
+            conflictAction = " DO NOTHING";
+        } else {
+            List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
+            StringJoiner updateJoiner = new StringJoiner(", ");
+            for (String col : updateCols) {
+                updateJoiner.add(col + " = EXCLUDED." + col);
+            }
+            conflictAction = " DO UPDATE SET " + updateJoiner;
         }
 
         String sql = "INSERT INTO " + meta.getTableName()
                 + " (" + colJoiner + ") VALUES (" + valJoiner + ")"
-                + " ON CONFLICT" + conflictTarget + " DO UPDATE SET " + updateJoiner;
+                + " ON CONFLICT" + conflictTarget + conflictAction;
         return new RenderedSql(sql, params);
     }
 }

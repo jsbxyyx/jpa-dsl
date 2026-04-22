@@ -82,10 +82,14 @@ public final class OracleDialect implements Dialect {
             insValJoiner.add("s." + col);
         }
 
+        String matchedClause = spec.isDoNothing()
+                ? ""
+                : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
+
         String sql = "MERGE INTO " + meta.getTableName() + " t"
                 + " USING (SELECT " + usingJoiner + " FROM DUAL) s"
                 + " ON (" + onJoiner + ")"
-                + " WHEN MATCHED THEN UPDATE SET " + updateJoiner
+                + matchedClause
                 + " WHEN NOT MATCHED THEN INSERT (" + insColJoiner + ") VALUES (" + insValJoiner + ")";
         return new RenderedSql(sql, params);
     }
