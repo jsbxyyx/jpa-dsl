@@ -8,6 +8,8 @@ import io.github.jsbxyyx.jdbcast.condition.ExistsCondition;
 import io.github.jsbxyyx.jdbcast.meta.JpaMetaResolver;
 import io.github.jsbxyyx.jdbcast.renderer.AnsiSqlRenderer;
 import io.github.jsbxyyx.jdbcast.renderer.RenderedSql;
+import io.github.jsbxyyx.jdbcast.renderer.dialect.LimitOffsetDialect;
+import io.github.jsbxyyx.jdbcast.renderer.dialect.OffsetFetchDialect;
 import io.github.jsbxyyx.jdbcast.stmt.DeleteStatement;
 import io.github.jsbxyyx.jdbcast.stmt.InsertStatement;
 import io.github.jsbxyyx.jdbcast.stmt.SelectStatement;
@@ -837,61 +839,103 @@ class AnsiSqlRendererTest {
     }
 
     // ================================================================== //
-    //  Pagination helpers (deriveCountStatement / withPage)
+    //  PaginationDialect — LimitOffsetDialect (default)
     // ================================================================== //
 
     @Test
-    void page_limitOffset() {
-        SelectStatement stmt = SQL.from(u)
-                .select(u.star())
+    void limitOffset_defaultDialect_limitAndOffset() {
+        SelectStatement stmt = SQL.from(u).select(u.star())
                 .where(w -> w.eq(u.col(User::getStatus), "ACTIVE"))
-                .orderBy(u.col(User::getAge).desc())
-                .limit(20).offset(0)
+                .orderBy(u.col(User::getId).asc())
+                .limit(20).offset(40)
                 .build();
 
-        RenderedSql r = renderer.render(stmt);
+        RenderedSql r = renderer.render(stmt);  // renderer uses LimitOffsetDialect by default
         assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.age DESC LIMIT :p2 OFFSET :p3");
-        assertThat(r.params()).containsEntry("p2", 20L).containsEntry("p3", 0L);
+                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC LIMIT :p2 OFFSET :p3");
+        assertThat(r.params()).containsEntry("p2", 20L).containsEntry("p3", 40L);
     }
 
     @Test
-    void page_convenienceMethod() {
-        // .page(pageNumber, pageSize) → LIMIT pageSize OFFSET pageNumber*pageSize
-        SelectStatement stmt = SQL.from(u)
-                .select(u.star())
-                .orderBy(u.col(User::getId).asc())
-                .page(2, 10)   // page 2, size 10 → OFFSET 20
-                .build();
-
+    void limitOffset_limitOnly() {
+        SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).build();
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u ORDER BY u.id ASC LIMIT :p1 OFFSET :p2");
+        assertThat(r.sql()).endsWith("LIMIT :p1");
+        assertThat(r.sql()).doesNotContain("OFFSET");
+    }
+
+    @Test
+    void limitOffset_offsetOnly() {
+        SelectStatement stmt = SQL.from(u).select(u.star()).offset(5).build();
+        RenderedSql r = renderer.render(stmt);
+        assertThat(r.sql()).endsWith("OFFSET :p1");
+        assertThat(r.sql()).doesNotContain("LIMIT");
+    }
+
+    @Test
+    void limitOffset_page_convenience() {
+        // .page(2, 10) → LIMIT 10 OFFSET 20
+        SelectStatement stmt = SQL.from(u).select(u.star()).page(2, 10).build();
+        RenderedSql r = renderer.render(stmt);
+        assertThat(r.sql()).endsWith("LIMIT :p1 OFFSET :p2");
         assertThat(r.params()).containsEntry("p1", 10L).containsEntry("p2", 20L);
     }
 
+    // ================================================================== //
+    //  PaginationDialect — OffsetFetchDialect (SQL Server / Oracle / DB2)
+    // ================================================================== //
+
     @Test
-    void deriveCountStatement_stripsOrderByLimitOffset() {
-        // Simulate what JdbcAstExecutor.deriveCountStatement does:
-        // reconstruct the statement with COUNT(*), no ORDER BY, no LIMIT/OFFSET
-        SelectStatement base = SQL.from(u)
-                .select(u.star())
+    void offsetFetch_limitAndOffset() {
+        AnsiSqlRenderer sqlServerRenderer =
+                new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
+
+        SelectStatement stmt = SQL.from(u).select(u.star())
                 .where(w -> w.eq(u.col(User::getStatus), "ACTIVE"))
-                .orderBy(u.col(User::getAge).desc())
+                .orderBy(u.col(User::getId).asc())
+                .limit(20).offset(40)
                 .build();
 
-        // Manually construct the count statement (mirrors the private helper)
-        SelectStatement countStmt = new SelectStatement(
-                base.with(), false,
-                java.util.List.of(SQL.countStar()),
-                base.from(), base.joins(), base.where(),
-                java.util.Collections.emptyList(), null,
-                java.util.Collections.emptyList(), null, null, null, null);
-
-        RenderedSql r = renderer.render(countStmt);
+        RenderedSql r = sqlServerRenderer.render(stmt);
         assertThat(r.sql()).isEqualTo(
-                "SELECT COUNT(*) FROM t_user u WHERE u.status = :p1");
-        assertThat(r.params()).hasSize(1).containsEntry("p1", "ACTIVE");
-        assertThat(r.sql()).doesNotContain("ORDER BY").doesNotContain("LIMIT").doesNotContain("OFFSET");
+                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC"
+                + " OFFSET :p2 ROWS FETCH NEXT :p3 ROWS ONLY");
+        assertThat(r.params()).containsEntry("p2", 40L).containsEntry("p3", 20L);
+    }
+
+    @Test
+    void offsetFetch_limitOnly_prepends_offset0() {
+        AnsiSqlRenderer sqlServerRenderer =
+                new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
+
+        SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).build();
+        RenderedSql r = sqlServerRenderer.render(stmt);
+        assertThat(r.sql()).endsWith("OFFSET 0 ROWS FETCH NEXT :p1 ROWS ONLY");
+    }
+
+    @Test
+    void offsetFetch_offsetOnly() {
+        AnsiSqlRenderer sqlServerRenderer =
+                new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
+
+        SelectStatement stmt = SQL.from(u).select(u.star()).offset(5).build();
+        RenderedSql r = sqlServerRenderer.render(stmt);
+        assertThat(r.sql()).endsWith("OFFSET :p1 ROWS");
+        assertThat(r.sql()).doesNotContain("FETCH NEXT");
+    }
+
+    @Test
+    void customDialect_lambda() {
+        // Custom dialect: SAP HANA / Sybase IQ style
+        AnsiSqlRenderer customRenderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE,
+                (sb, limit, offset, ctx) -> {
+                    if (offset != null) sb.append(" START AT ").append(ctx.addParam(offset + 1));
+                    if (limit  != null) sb.append(" LIMIT ").append(ctx.addParam(limit));
+                });
+
+        SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).offset(20).build();
+        RenderedSql r = customRenderer.render(stmt);
+        assertThat(r.sql()).endsWith("START AT :p1 LIMIT :p2");
+        assertThat(r.params()).containsEntry("p1", 21L).containsEntry("p2", 10L);
     }
 }

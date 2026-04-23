@@ -166,32 +166,36 @@ public class JdbcAstExecutor {
     // ================================================================== //
 
     /**
-     * Executes a paginated SELECT and returns a {@link PageResult} containing the current-page
-     * rows and the total row count.
+     * Executes a paginated SELECT and returns a {@link PageResult} with the current-page rows
+     * and total row count.
      *
      * <p>Pass the base query <em>without</em> LIMIT / OFFSET — this method applies them
-     * automatically based on {@code pageNumber} and {@code pageSize}.
+     * automatically. The count query is auto-derived by replacing {@code SELECT} with
+     * {@code COUNT(*)} and stripping ORDER BY / LIMIT / OFFSET / lock hints.
+     * For queries with GROUP BY or DISTINCT, use the explicit-count overload.
      *
-     * <p>The count query is derived automatically by replacing the SELECT list with
-     * {@code COUNT(*)} and stripping ORDER BY, LIMIT, OFFSET, and lock hints.
-     * For queries with GROUP BY, provide an explicit count statement via
-     * {@link #queryPage(SelectStatement, SelectStatement, RowMapper, long, int)}.
+     * <p>The pagination clause in the generated SQL is rendered by the {@link
+     * io.github.jsbxyyx.jdbcast.renderer.PaginationDialect} configured on the renderer:
+     * <ul>
+     *   <li>{@link io.github.jsbxyyx.jdbcast.renderer.dialect.LimitOffsetDialect} (default) —
+     *       {@code LIMIT :n OFFSET :m} (MySQL, PostgreSQL, H2, SQLite)</li>
+     *   <li>{@link io.github.jsbxyyx.jdbcast.renderer.dialect.OffsetFetchDialect} —
+     *       {@code OFFSET :m ROWS FETCH NEXT :n ROWS ONLY} (SQL Server, Oracle 12c+, DB2)</li>
+     * </ul>
      *
      * <pre>{@code
-     * TableRef<TUser> u = TableRef.of(TUser.class, "u");
+     * // SQL Server setup:
+     * JdbcAstExecutor executor = new JdbcAstExecutor(template,
+     *     new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE));
      *
      * PageResult<TUser> page = executor.queryPage(
      *     SQL.from(u).select(u.star())
      *        .where(w -> w.eq(u.col(TUser::getStatus), "ACTIVE"))
      *        .orderBy(u.col(TUser::getAge).desc()),
      *     TUser.class, 0, 20);
-     *
-     * // page.content()   → List<TUser> (current page)
-     * // page.total()     → total matching rows
-     * // page.totalPages()→ total pages
      * }</pre>
      *
-     * @param baseStmt   the base SELECT statement (no LIMIT/OFFSET)
+     * @param baseStmt   the base SELECT (no LIMIT/OFFSET)
      * @param rowType    the row type to map to via {@link BeanPropertyRowMapper}
      * @param pageNumber zero-based page number
      * @param pageSize   number of rows per page
@@ -208,39 +212,31 @@ public class JdbcAstExecutor {
      */
     public <T> PageResult<T> queryPage(SelectStatement baseStmt, RowMapper<T> rowMapper,
                                        long pageNumber, int pageSize) {
-        SelectStatement countStmt = deriveCountStatement(baseStmt);
-        return queryPage(baseStmt, countStmt, rowMapper, pageNumber, pageSize);
+        return queryPage(baseStmt, deriveCountStatement(baseStmt), rowMapper, pageNumber, pageSize);
     }
 
     /**
      * Executes a paginated SELECT with an explicit count statement.
      *
-     * <p>Use this overload for queries involving GROUP BY, DISTINCT, or any case where
-     * the auto-derived count is incorrect.
+     * <p>Use this overload for queries involving GROUP BY, DISTINCT, or when the
+     * auto-derived count is insufficient.
      *
      * <pre>{@code
-     * TableRef<TUser> u = TableRef.of(TUser.class, "u");
-     *
-     * // Manual count query for GROUP BY
      * SelectStatement countStmt = SQL.from(u)
      *     .select(SQL.countStar())
      *     .where(w -> w.eq(u.col(TUser::getStatus), "ACTIVE"))
      *     .build();
      *
-     * PageResult<UserStatusCount> page = executor.queryPage(
-     *     baseStmt, countStmt, rowMapper, 0, 20);
+     * PageResult<TUser> page = executor.queryPage(baseStmt, countStmt, rowMapper, 0, 20);
      * }</pre>
      */
     public <T> PageResult<T> queryPage(SelectStatement baseStmt, SelectStatement countStmt,
                                        RowMapper<T> rowMapper, long pageNumber, int pageSize) {
-        // Count
         RenderedSql cr = renderer.render(countStmt);
         Long total = jdbcTemplate.queryForObject(cr.sql(), cr.params(), Long.class);
         if (total == null || total == 0) {
             return new PageResult<>(Collections.emptyList(), 0L, pageNumber, pageSize);
         }
-
-        // Data — apply LIMIT / OFFSET
         SelectStatement pageStmt = withPage(baseStmt, pageNumber, pageSize);
         RenderedSql dr = renderer.render(pageStmt);
         List<T> content = jdbcTemplate.query(dr.sql(), dr.params(), rowMapper);
@@ -251,36 +247,20 @@ public class JdbcAstExecutor {
     //  Pagination helpers
     // ------------------------------------------------------------------ //
 
-    /**
-     * Derives a {@code COUNT(*)} statement from the given SELECT by replacing
-     * the SELECT list, clearing ORDER BY / LIMIT / OFFSET / lock hints.
-     * GROUP BY and HAVING are also cleared — this is correct for non-grouped queries.
-     * For GROUP BY queries, supply an explicit count statement.
-     */
     private static SelectStatement deriveCountStatement(SelectStatement s) {
         return new SelectStatement(
-                s.with(),
-                false,                                            // no DISTINCT
-                List.of(AggExpr.of("COUNT", StarExpr.ALL)),      // SELECT COUNT(*)
-                s.from(),
-                s.joins(),
-                s.where(),
-                Collections.emptyList(),                          // no GROUP BY
-                null,                                             // no HAVING
-                Collections.emptyList(),                          // no ORDER BY
-                null,                                             // no LIMIT
-                null,                                             // no OFFSET
-                null,                                             // no lock
-                null);                                            // no SET OP
+                s.with(), false,
+                List.of(AggExpr.of("COUNT", StarExpr.ALL)),
+                s.from(), s.joins(), s.where(),
+                Collections.emptyList(), null,
+                Collections.emptyList(), null, null, null, null);
     }
 
-    /** Returns a new {@link SelectStatement} with LIMIT/OFFSET applied for the given page. */
     private static SelectStatement withPage(SelectStatement s, long pageNumber, int pageSize) {
         return new SelectStatement(
                 s.with(), s.distinct(), s.select(), s.from(), s.joins(),
                 s.where(), s.groupBy(), s.having(), s.orderBy(),
-                (long) pageSize,
-                pageNumber * pageSize,
+                (long) pageSize, pageNumber * pageSize,
                 s.lockMode(), s.setOp());
     }
 
