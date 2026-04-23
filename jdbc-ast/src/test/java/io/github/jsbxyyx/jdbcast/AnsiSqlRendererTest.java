@@ -835,4 +835,63 @@ class AnsiSqlRendererTest {
                 "SELECT u.status, COUNT(u.id) AS cnt FROM t_user u GROUP BY u.status HAVING COUNT(u.id) > :p1");
         assertThat(r.params()).containsEntry("p1", 5L);
     }
+
+    // ================================================================== //
+    //  Pagination helpers (deriveCountStatement / withPage)
+    // ================================================================== //
+
+    @Test
+    void page_limitOffset() {
+        SelectStatement stmt = SQL.from(u)
+                .select(u.star())
+                .where(w -> w.eq(u.col(User::getStatus), "ACTIVE"))
+                .orderBy(u.col(User::getAge).desc())
+                .limit(20).offset(0)
+                .build();
+
+        RenderedSql r = renderer.render(stmt);
+        assertThat(r.sql()).isEqualTo(
+                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.age DESC LIMIT :p2 OFFSET :p3");
+        assertThat(r.params()).containsEntry("p2", 20L).containsEntry("p3", 0L);
+    }
+
+    @Test
+    void page_convenienceMethod() {
+        // .page(pageNumber, pageSize) → LIMIT pageSize OFFSET pageNumber*pageSize
+        SelectStatement stmt = SQL.from(u)
+                .select(u.star())
+                .orderBy(u.col(User::getId).asc())
+                .page(2, 10)   // page 2, size 10 → OFFSET 20
+                .build();
+
+        RenderedSql r = renderer.render(stmt);
+        assertThat(r.sql()).isEqualTo(
+                "SELECT u.* FROM t_user u ORDER BY u.id ASC LIMIT :p1 OFFSET :p2");
+        assertThat(r.params()).containsEntry("p1", 10L).containsEntry("p2", 20L);
+    }
+
+    @Test
+    void deriveCountStatement_stripsOrderByLimitOffset() {
+        // Simulate what JdbcAstExecutor.deriveCountStatement does:
+        // reconstruct the statement with COUNT(*), no ORDER BY, no LIMIT/OFFSET
+        SelectStatement base = SQL.from(u)
+                .select(u.star())
+                .where(w -> w.eq(u.col(User::getStatus), "ACTIVE"))
+                .orderBy(u.col(User::getAge).desc())
+                .build();
+
+        // Manually construct the count statement (mirrors the private helper)
+        SelectStatement countStmt = new SelectStatement(
+                base.with(), false,
+                java.util.List.of(SQL.countStar()),
+                base.from(), base.joins(), base.where(),
+                java.util.Collections.emptyList(), null,
+                java.util.Collections.emptyList(), null, null, null, null);
+
+        RenderedSql r = renderer.render(countStmt);
+        assertThat(r.sql()).isEqualTo(
+                "SELECT COUNT(*) FROM t_user u WHERE u.status = :p1");
+        assertThat(r.params()).hasSize(1).containsEntry("p1", "ACTIVE");
+        assertThat(r.sql()).doesNotContain("ORDER BY").doesNotContain("LIMIT").doesNotContain("OFFSET");
+    }
 }
