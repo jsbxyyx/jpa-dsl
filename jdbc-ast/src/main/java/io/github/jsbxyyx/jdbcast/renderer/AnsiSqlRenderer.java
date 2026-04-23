@@ -32,26 +32,62 @@ import io.github.jsbxyyx.jdbcast.stmt.InsertStatement;
 import io.github.jsbxyyx.jdbcast.stmt.SelectStatement;
 import io.github.jsbxyyx.jdbcast.stmt.UpdateStatement;
 
+import io.github.jsbxyyx.jdbcast.renderer.dialect.LimitOffsetDialect;
+
 import java.util.List;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
  * ANSI SQL renderer — converts the SQL AST to a named-parameter SQL string.
  *
- * <p>Override individual {@code render*} methods in dialect subclasses to handle
- * database-specific syntax (pagination, locking, UPSERT, etc.).
+ * <p>Pagination syntax is delegated to a pluggable {@link PaginationDialect} SPI.
+ * Pass the appropriate dialect for your database:
+ *
+ * <pre>{@code
+ * // MySQL / PostgreSQL / H2 / SQLite (default)
+ * new AnsiSqlRenderer(meta, LimitOffsetDialect.INSTANCE);
+ *
+ * // SQL Server / Oracle 12c+ / DB2
+ * new AnsiSqlRenderer(meta, OffsetFetchDialect.INSTANCE);
+ *
+ * // Custom dialect (lambda)
+ * new AnsiSqlRenderer(meta, (sb, limit, offset, ctx) -> { ... });
+ * }</pre>
+ *
+ * <p>Other database-specific syntax (locking clauses, UPSERT, etc.) can be handled
+ * by overriding the relevant {@code render*} methods in a subclass.
  */
 public class AnsiSqlRenderer implements SqlRenderer {
 
-    protected final MetaResolver meta;
+    protected final MetaResolver     meta;
+    protected final PaginationDialect paginationDialect;
 
+    /**
+     * Creates a renderer with the default {@link LimitOffsetDialect}
+     * ({@code LIMIT :n OFFSET :m} — MySQL, PostgreSQL, H2, SQLite).
+     */
     public AnsiSqlRenderer(MetaResolver meta) {
-        this.meta = meta;
+        this(meta, LimitOffsetDialect.INSTANCE);
+    }
+
+    /**
+     * Creates a renderer with an explicit {@link PaginationDialect}.
+     *
+     * @param meta             table / column name resolver
+     * @param paginationDialect dialect that renders the LIMIT / OFFSET clause
+     */
+    public AnsiSqlRenderer(MetaResolver meta, PaginationDialect paginationDialect) {
+        this.meta              = Objects.requireNonNull(meta,              "meta");
+        this.paginationDialect = Objects.requireNonNull(paginationDialect, "paginationDialect");
     }
 
     /** Returns the {@link MetaResolver} used by this renderer. */
     public MetaResolver getMetaResolver() { return meta; }
+
+    /** Returns the {@link PaginationDialect} used by this renderer. */
+    public PaginationDialect getPaginationDialect() { return paginationDialect; }
 
     // ================================================================== //
     //  Public render entry points
@@ -169,10 +205,16 @@ public class AnsiSqlRenderer implements SqlRenderer {
         return sb.toString();
     }
 
-    /** Override in dialect subclasses for database-specific LIMIT/OFFSET syntax. */
+    /**
+     * Delegates to {@link PaginationDialect#renderPage} when limit or offset is present.
+     * Override in a subclass only when the entire pagination strategy needs replacing
+     * (e.g. legacy Oracle ROWNUM wrapping); for standard databases, prefer supplying
+     * a {@link PaginationDialect} to the constructor.
+     */
     protected void renderLimitOffset(StringBuilder sb, Long limit, Long offset, RenderContext ctx) {
-        if (limit  != null) sb.append(" LIMIT ").append(ctx.addParam(limit));
-        if (offset != null) sb.append(" OFFSET ").append(ctx.addParam(offset));
+        if (limit != null || offset != null) {
+            paginationDialect.renderPage(sb, limit, offset, ctx);
+        }
     }
 
     // ================================================================== //
