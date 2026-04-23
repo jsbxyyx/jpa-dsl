@@ -1,0 +1,3 @@
+# Register custom DialectProvider implementations here, one fully-qualified class name per line.
+# Example:
+# com.example.myapp.FooDialectProvider
