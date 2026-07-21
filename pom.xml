@@ -137,7 +137,7 @@
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>flatten-maven-plugin</artifactId>
-                        <version>1.6.0</version>
+                        <version>1.7.3</version>
                         <executions>
                             <execution>
                                 <id>flatten</id>
@@ -146,7 +146,8 @@
                                     <goal>flatten</goal>
                                 </goals>
                                 <configuration>
-                                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                                    <flattenMode>ossrh</flattenMode>
+                                    <flattenDependencyMode>inherited</flattenDependencyMode>
                                     <updatePomFile>true</updatePomFile>
                                 </configuration>
                             </execution>
@@ -200,16 +201,17 @@
                         </executions>
                     </plugin>
 
-                    <!-- Central Portal 发布插件（你已有） -->
+                    <!-- Central Portal 发布插件 -->
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.4.0</version>
+                        <version>0.11.0</version>
                         <extensions>true</extensions>
                         <configuration>
-                            <!-- ./mvnw -s ~/.m2/settings.xml -Prelease clean verify -DskipTests central-publishing:publish -->
+                            <!-- ./mvnw -s $HOME/.m2/settings.xml -Prelease clean deploy -DskipTests -->
+                            <!-- .\mvnw.cmd -s %USERPROFILE%\.m2\settings.xml -Prelease clean deploy -DskipTests -->
                             <publishingServerId>io.github.jsbxyyx</publishingServerId>
-                            <tokenAuth>true</tokenAuth>
+                            <!-- Authentication is configured through Maven settings.xml server credentials. -->
                         </configuration>
                     </plugin>
                 </plugins>
