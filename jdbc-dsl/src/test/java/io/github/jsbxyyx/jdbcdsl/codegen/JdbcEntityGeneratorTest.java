@@ -170,7 +170,7 @@ class JdbcEntityGeneratorTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void repository_generated_containsRequiredImportsAndMethods() throws Exception {
+    void repository_generated_bindsEntityAndIdToGenericBaseRepository() throws Exception {
         JdbcEntityGenerator.builder()
                 .dataSource(dataSource)
                 .entityPackage("com.example.entity")
@@ -184,42 +184,17 @@ class JdbcEntityGeneratorTest {
         String content = readFile(repoFile);
         assertThat(content).contains("package com.example.repository;");
         assertThat(content).contains("import com.example.entity.StockAll;");
-        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.DeleteSpec;");
-        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.InsertSpec;");
         assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;");
-        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JPageable;");
-        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.SelectSpec;");
-        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.UpdateSpec;");
+        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslRepository;");
+        assertThat(content).contains("import org.springframework.beans.factory.annotation.Autowired;");
         assertThat(content).contains("import org.springframework.stereotype.Repository;");
         assertThat(content).contains("@Repository");
-        assertThat(content).contains("public class StockAllRepository {");
-        // Methods
-        assertThat(content).contains("public void save(StockAll entity)");
-        assertThat(content).contains("public void save(InsertSpec<StockAll> spec, StockAll entity)");
-        assertThat(content).contains("public void saveNonNull(StockAll entity)");
-        assertThat(content).contains("public int updateById(StockAll entity)");
-        assertThat(content).contains("public int update(UpdateSpec<StockAll> spec)");
-        assertThat(content).contains("public int deleteById(Long id)");
-        assertThat(content).contains("public int delete(DeleteSpec<StockAll> spec)");
-        assertThat(content).contains("public <R> List<R> list(SelectSpec<StockAll, R> spec)");
-        assertThat(content).contains("public <R> List<R> list(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
-        assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec)");
-        assertThat(content).contains("public <R> R findOne(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
-        assertThat(content).contains("public <R> Page<R> page(SelectSpec<StockAll, R> spec, JPageable<StockAll> pageable)");
-        // Delegates to executor (no hard-coded SQL)
-        assertThat(content).contains("jdbcDslExecutor.save(entity)");
-        assertThat(content).contains("jdbcDslExecutor.save(spec, entity)");
-        assertThat(content).contains("jdbcDslExecutor.saveNonNull(entity)");
-        assertThat(content).contains("jdbcDslExecutor.updateById(entity)");
-        assertThat(content).contains("jdbcDslExecutor.deleteById(StockAll.class, id)");
-        assertThat(content).contains("jdbcDslExecutor.executeUpdate(spec)");
-        assertThat(content).contains("jdbcDslExecutor.executeDelete(spec)");
-        assertThat(content).contains("jdbcDslExecutor.select(spec)");
-        assertThat(content).contains("jdbcDslExecutor.select(spec, pageable)");
-        assertThat(content).contains("jdbcDslExecutor.findOne(spec)");
-        assertThat(content).contains("jdbcDslExecutor.findOne(spec, pageable)");
-        assertThat(content).contains("jdbcDslExecutor.selectPage(spec, pageable)");
-        // No hard-coded table/column names in SQL strings
+        assertThat(content).contains(
+                "public class StockAllRepository extends JdbcDslRepository<StockAll, Long> {");
+        assertThat(content).contains("public StockAllRepository(JdbcDslExecutor jdbcDslExecutor)");
+        assertThat(content).contains("@Autowired");
+        assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
+        assertThat(content).doesNotContain("public void save(StockAll entity)");
         assertThat(content).doesNotContain("INSERT INTO");
         assertThat(content).doesNotContain("UPDATE stock_all");
         assertThat(content).doesNotContain("DELETE FROM");
@@ -295,7 +270,9 @@ class JdbcEntityGeneratorTest {
         assertThat(repoFile).exists();
         String content = readFile(repoFile);
         assertThat(content).contains("import com.example.entity.Item;");
-        assertThat(content).contains("public class ItemRepository {");
+        assertThat(content).contains(
+                "public class ItemRepository extends JdbcDslRepository<Item, Long> {");
+        assertThat(content).contains("super(Item.class, jdbcDslExecutor);");
     }
 
     // -------------------------------------------------------------------------
@@ -303,14 +280,11 @@ class JdbcEntityGeneratorTest {
     // -------------------------------------------------------------------------
 
     /**
-     * The generated repository must delegate save/updateById/deleteById to
-     * {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor}. No SQL strings, getter calls, or
-     * addValue calls should appear in the generated source — those details are handled by the
-     * executor using entity metadata at runtime.
+     * Repository generation must not duplicate field-specific access or SQL. Those details are
+     * resolved by the generic base repository and executor at runtime.
      */
     @Test
-    void repository_getterNamesUseCamelCaseFieldName() throws Exception {
-        // stock_all has stock_code, stock_name columns → fields stockCode, stockName
+    void repository_containsNoFieldSpecificAccessOrSql() throws Exception {
         JdbcEntityGenerator.builder()
                 .dataSource(dataSource)
                 .entityPackage("com.example.entity")
@@ -322,11 +296,8 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
 
-        // Repository delegates to executor — no hard-coded getter calls or addValue calls
-        assertThat(content).contains("jdbcDslExecutor.save(entity)");
-        assertThat(content).contains("jdbcDslExecutor.updateById(entity)");
-        assertThat(content).contains("jdbcDslExecutor.deleteById(StockAll.class, id)");
-        // No hardcoded SQL or column strings
+        assertThat(content).contains("extends JdbcDslRepository<StockAll, Long>");
+        assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
         assertThat(content).doesNotContain("getStockCode()");
         assertThat(content).doesNotContain("getStockName()");
         assertThat(content).doesNotContain("addValue(\"stockCode\"");
@@ -337,10 +308,8 @@ class JdbcEntityGeneratorTest {
     }
 
     /**
-     * The generated repository delegates to {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor},
-     * which uses entity annotations at runtime to decide whether to include the PK in INSERT.
-     * For a non-auto-increment PK the executor will include it; the generated source only needs
-     * to contain the correct executor delegation calls.
+     * A non-auto-increment primary key must still produce the correct repository identifier type.
+     * Insert details remain in the shared executor rather than the generated subclass.
      */
     @Test
     void repository_nonAutoIncrementPk_isIncludedInInsert() throws Exception {
@@ -368,10 +337,8 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/TUserRepository.java");
         String content = readFile(repoFile);
 
-        // Repository delegates to executor — no hard-coded SQL
-        assertThat(content).contains("jdbcDslExecutor.save(entity)");
-        assertThat(content).contains("jdbcDslExecutor.updateById(entity)");
-        assertThat(content).contains("jdbcDslExecutor.deleteById(TUser.class, id)");
+        assertThat(content).contains("extends JdbcDslRepository<TUser, Long>");
+        assertThat(content).contains("super(TUser.class, jdbcDslExecutor);");
         // No hard-coded SQL strings
         assertThat(content).doesNotContain("INSERT INTO");
         assertThat(content).doesNotContain("UPDATE t_user");
@@ -381,9 +348,8 @@ class JdbcEntityGeneratorTest {
     }
 
     /**
-     * The generated repository delegates to {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor},
-     * which uses entity annotations at runtime. For an IDENTITY pk the executor handles the
-     * KeyHolder internally; the generated source must not contain any KeyHolder or hardcoded SQL.
+     * For an IDENTITY primary key, generated repository code remains a thin type binding;
+     * generated-key handling stays inside the shared executor.
      */
     @Test
     void repository_autoIncrementPk_isExcludedFromInsertAndUsesKeyHolder() throws Exception {
@@ -399,8 +365,8 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
 
-        // Repository delegates to executor — executor handles IDENTITY pk and KeyHolder
-        assertThat(content).contains("jdbcDslExecutor.save(entity)");
+        assertThat(content).contains("extends JdbcDslRepository<StockAll, Long>");
+        assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
         // No hardcoded INSERT, no KeyHolder in generated source
         assertThat(content).doesNotContain("INSERT INTO");
         assertThat(content).doesNotContain("GeneratedKeyHolder");
@@ -591,12 +557,11 @@ class JdbcEntityGeneratorTest {
     }
 
     /**
-     * In the repository, module imports (io.github.jsbxyyx.*) must appear before
-     * other imports (org.springframework.*) with a blank line between them, and
-     * java.util.List must appear after a blank line that follows the other-imports block.
+     * In the repository, module imports must appear before Spring imports with a blank line
+     * between the groups. The thin subclass must not need collection imports.
      */
     @Test
-    void repository_importOrdering_javaListAfterBlankLine() throws Exception {
+    void repository_importOrdering_moduleBeforeSpring() throws Exception {
         JdbcEntityGenerator.builder()
                 .dataSource(dataSource)
                 .entityPackage("com.example.entity")
@@ -615,10 +580,7 @@ class JdbcEntityGeneratorTest {
         // There must be a blank line between the last module import and the first org.springframework import
         assertThat(content.substring(modulePos, springPos)).contains("\n\n");
 
-        int listPos = content.indexOf("import java.util.List;");
-        assertThat(listPos).isGreaterThan(-1);
-        // There must be an empty line immediately before import java.util.List
-        assertThat(content.substring(0, listPos)).endsWith("\n\n");
+        assertThat(content).doesNotContain("import java.util.List;");
     }
 
     // -------------------------------------------------------------------------

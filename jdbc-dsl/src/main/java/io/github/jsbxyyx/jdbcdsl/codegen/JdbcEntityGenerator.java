@@ -31,18 +31,9 @@ import java.util.logging.Logger;
  * {@code @Column}, {@code @Id}) so that {@link io.github.jsbxyyx.jdbcdsl.EntityMetaReader}
  * can resolve column mappings at runtime.
  *
- * <p>Generated repositories are concrete {@code @Repository} classes (not interfaces)
- * that inject {@link io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor} and expose:
- * <ul>
- *   <li>{@code save(entity)} – INSERT</li>
- *   <li>{@code updateById(entity)} – UPDATE by {@code @Id}</li>
- *   <li>{@code update(UpdateSpec)} – UPDATE by builder</li>
- *   <li>{@code deleteById(id)} – DELETE by {@code @Id}</li>
- *   <li>{@code delete(DeleteSpec)} – DELETE by builder</li>
- *   <li>{@code list(SelectSpec)} – SELECT list</li>
- *   <li>{@code findOne(SelectSpec)} – SELECT with LIMIT 1, returns first or null</li>
- *   <li>{@code page(SelectSpec, JPageable)} – paginated SELECT</li>
- * </ul>
+ * <p>Generated repositories are thin concrete {@code @Repository} classes that bind an entity
+ * and identifier type to {@link io.github.jsbxyyx.jdbcdsl.JdbcDslRepository}. Common CRUD,
+ * query, and type-safe builder operations are inherited from the generic base repository.
  *
  * <p>Usage (Builder API):
  * <pre>{@code
@@ -498,182 +489,24 @@ public final class JdbcEntityGenerator {
             w.println();
             Set<String> repoImports = new LinkedHashSet<>();
             repoImports.add(entityPackage + "." + entityClassName);
-            repoImports.add("io.github.jsbxyyx.jdbcdsl.DeleteSpec");
-            repoImports.add("io.github.jsbxyyx.jdbcdsl.InsertSpec");
             repoImports.add("io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor");
-            repoImports.add("io.github.jsbxyyx.jdbcdsl.JPageable");
-            repoImports.add("io.github.jsbxyyx.jdbcdsl.SelectSpec");
-            repoImports.add("io.github.jsbxyyx.jdbcdsl.UpdateSpec");
+            repoImports.add("io.github.jsbxyyx.jdbcdsl.JdbcDslRepository");
             repoImports.add("org.springframework.beans.factory.annotation.Autowired");
-            repoImports.add("org.springframework.data.domain.Page");
             repoImports.add("org.springframework.stereotype.Repository");
-            repoImports.add("java.util.List");
             writeImports(w, repoImports);
             w.println();
             w.println("/**");
-            w.println(" * Auto-generated JDBC repository for table: " + lowerTable);
+            w.println(" * JDBC repository binding for table: " + lowerTable + ".");
+            w.println(" * Common CRUD, query, and builder operations are inherited from JdbcDslRepository.");
             w.println(" */");
             w.println("@Repository");
-            w.println("public class " + repositoryClassName + " {");
+            w.println("public class " + repositoryClassName + " extends JdbcDslRepository<"
+                    + entityClassName + ", " + pkJavaType + "> {");
             w.println();
             w.println("    @Autowired");
-            w.println("    private JdbcDslExecutor jdbcDslExecutor;");
-            w.println();
-
-            // save(entity) - INSERT all columns
-            w.println("    /**");
-            w.println("     * Inserts a new " + entityClassName + " (all columns, IDENTITY pk excluded).");
-            w.println("     *");
-            w.println("     * @param entity the entity to insert");
-            w.println("     */");
-            w.println("    public void save(" + entityClassName + " entity) {");
-            w.println("        jdbcDslExecutor.save(entity);");
+            w.println("    public " + repositoryClassName + "(JdbcDslExecutor jdbcDslExecutor) {");
+            w.println("        super(" + entityClassName + ".class, jdbcDslExecutor);");
             w.println("    }");
-            w.println();
-
-            // save(InsertSpec, entity) - INSERT with explicit spec
-            w.println("    /**");
-            w.println("     * Inserts a new " + entityClassName + " using the columns from the given spec.");
-            w.println("     * If the spec has no columns, all entity columns are inserted.");
-            w.println("     *");
-            w.println("     * @param spec   the insert specification");
-            w.println("     * @param entity the entity to insert");
-            w.println("     */");
-            w.println("    public void save(InsertSpec<" + entityClassName + "> spec, " + entityClassName + " entity) {");
-            w.println("        jdbcDslExecutor.save(spec, entity);");
-            w.println("    }");
-            w.println();
-
-            // saveNonNull(entity) - INSERT non-null columns only
-            w.println("    /**");
-            w.println("     * Inserts a new " + entityClassName + " using only non-null columns.");
-            w.println("     *");
-            w.println("     * @param entity the entity to insert");
-            w.println("     */");
-            w.println("    public void saveNonNull(" + entityClassName + " entity) {");
-            w.println("        jdbcDslExecutor.saveNonNull(entity);");
-            w.println("    }");
-            w.println();
-
-            // updateById(entity) - UPDATE by @Id
-            w.println("    /**");
-            w.println("     * Updates an existing " + entityClassName + " by its primary key.");
-            w.println("     *");
-            w.println("     * @param entity the entity to update (must have a non-null primary key)");
-            w.println("     * @return the number of rows affected");
-            w.println("     */");
-            w.println("    public int updateById(" + entityClassName + " entity) {");
-            w.println("        return jdbcDslExecutor.updateById(entity);");
-            w.println("    }");
-            w.println();
-
-            // update(UpdateSpec) - UPDATE by builder
-            w.println("    /**");
-            w.println("     * Executes an UPDATE described by the given {@link UpdateSpec}.");
-            w.println("     *");
-            w.println("     * @param spec the update specification");
-            w.println("     * @return the number of rows affected");
-            w.println("     */");
-            w.println("    public int update(UpdateSpec<" + entityClassName + "> spec) {");
-            w.println("        return jdbcDslExecutor.executeUpdate(spec);");
-            w.println("    }");
-            w.println();
-
-            // deleteById(id) - DELETE by @Id
-            w.println("    /**");
-            w.println("     * Deletes a " + entityClassName + " by its primary key.");
-            w.println("     *");
-            w.println("     * @param id the primary key of the entity to delete");
-            w.println("     * @return the number of rows affected");
-            w.println("     */");
-            w.println("    public int deleteById(" + pkJavaType + " id) {");
-            w.println("        return jdbcDslExecutor.deleteById(" + entityClassName + ".class, id);");
-            w.println("    }");
-            w.println();
-
-            // delete(DeleteSpec) - DELETE by builder
-            w.println("    /**");
-            w.println("     * Executes a DELETE described by the given {@link DeleteSpec}.");
-            w.println("     *");
-            w.println("     * @param spec the delete specification");
-            w.println("     * @return the number of rows affected");
-            w.println("     */");
-            w.println("    public int delete(DeleteSpec<" + entityClassName + "> spec) {");
-            w.println("        return jdbcDslExecutor.executeDelete(spec);");
-            w.println("    }");
-            w.println();
-
-            // list(SelectSpec) - SELECT list
-            w.println("    /**");
-            w.println("     * Executes a SELECT and returns a list of results.");
-            w.println("     *");
-            w.println("     * @param spec the select specification");
-            w.println("     * @return list of results");
-            w.println("     */");
-            w.println("    public <R> List<R> list(SelectSpec<" + entityClassName + ", R> spec) {");
-            w.println("        return jdbcDslExecutor.select(spec);");
-            w.println("    }");
-            w.println();
-
-            // list(SelectSpec, JPageable) - paginated SELECT without count
-            w.println("    /**");
-            w.println("     * Executes a paginated SELECT (applying sort, offset, and limit from");
-            w.println("     * {@code pageable}) and returns matching rows as a list. No COUNT is executed.");
-            w.println("     *");
-            w.println("     * @param spec     the select specification");
-            w.println("     * @param pageable the pagination parameters");
-            w.println("     * @return list of results for the requested page");
-            w.println("     */");
-            w.println("    public <R> List<R> list(SelectSpec<" + entityClassName + ", R> spec,"
-                    + " JPageable<" + entityClassName + "> pageable) {");
-            w.println("        return jdbcDslExecutor.select(spec, pageable);");
-            w.println("    }");
-            w.println();
-
-            // findOne(SelectSpec) - SELECT LIMIT 1
-            w.println("    /**");
-            w.println("     * Executes a SELECT with LIMIT 1 and returns the first matching result,");
-            w.println("     * or {@code null} if no rows match.");
-            w.println("     *");
-            w.println("     * @param spec the select specification");
-            w.println("     * @return the first matching result, or {@code null}");
-            w.println("     */");
-            w.println("    public <R> R findOne(SelectSpec<" + entityClassName + ", R> spec) {");
-            w.println("        return jdbcDslExecutor.findOne(spec);");
-            w.println("    }");
-            w.println();
-
-            // findOne(SelectSpec, JPageable) - SELECT LIMIT 1 with sort from pageable
-            w.println("    /**");
-            w.println("     * Executes a SELECT with LIMIT 1 (using the sort from {@code pageable}) and");
-            w.println("     * returns the first matching result, or {@code null} if no rows match.");
-            w.println("     * No COUNT is executed.");
-            w.println("     *");
-            w.println("     * @param spec     the select specification");
-            w.println("     * @param pageable the pagination parameters (only sort is applied;");
-            w.println("     *                 offset and size from pageable are ignored)");
-            w.println("     * @return the first matching result, or {@code null}");
-            w.println("     */");
-            w.println("    public <R> R findOne(SelectSpec<" + entityClassName + ", R> spec,"
-                    + " JPageable<" + entityClassName + "> pageable) {");
-            w.println("        return jdbcDslExecutor.findOne(spec, pageable);");
-            w.println("    }");
-            w.println();
-
-            // page(SelectSpec, JPageable) - paginated SELECT
-            w.println("    /**");
-            w.println("     * Executes a paginated SELECT and returns a Spring {@link Page}.");
-            w.println("     *");
-            w.println("     * @param spec     the select specification");
-            w.println("     * @param pageable the pagination parameters");
-            w.println("     * @return a page of results");
-            w.println("     */");
-            w.println("    public <R> Page<R> page(SelectSpec<" + entityClassName + ", R> spec,"
-                    + " JPageable<" + entityClassName + "> pageable) {");
-            w.println("        return jdbcDslExecutor.selectPage(spec, pageable);");
-            w.println("    }");
-            w.println();
-
             w.println("}");
         }
         LOG.log(Level.INFO, "JDBC repository file written: {0}", file.getAbsolutePath());
