@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.concurrent.atomic.AtomicInteger;
+
 
 /**
  * Renders a {@link SelectSpec} into a parameterized {@link RenderedSql}.
@@ -60,8 +60,7 @@ public final class SqlRenderer {
      * are rendered without a table-alias prefix (matching the output column aliases).
      */
     public static <R> RenderedSql renderUnion(UnionSpec<R> spec) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        AtomicInteger paramIdx = new AtomicInteger(0);
+        RenderContext ctx = new RenderContext();
 
         List<UnionSpec.Branch<R>> branches = spec.getBranches();
         StringBuilder sb = new StringBuilder();
@@ -79,7 +78,7 @@ public final class SqlRenderer {
                 };
                 sb.append(op);
             }
-            sb.append(buildSelectSqlUnchecked(branch.spec(), params, paramIdx, false));
+            sb.append(buildSelectSqlUnchecked(branch.spec(), ctx, false));
         }
 
         // Append ORDER BY on the combined union result when a sort is specified.
@@ -88,7 +87,7 @@ public final class SqlRenderer {
             sb.append(" ORDER BY ");
             StringJoiner orderJoiner = new StringJoiner(", ");
             for (JOrder<?> order : sort.getOrders()) {
-                String colExpr = renderOrderExpressionUnqualified(order.getExpression(), params, paramIdx);
+                String colExpr = renderOrderExpressionUnqualified(order.getExpression(), ctx);
                 String nullHandling = switch (order.getNullHandling()) {
                     case NULLS_FIRST -> " NULLS FIRST";
                     case NULLS_LAST -> " NULLS LAST";
@@ -99,7 +98,7 @@ public final class SqlRenderer {
             sb.append(orderJoiner);
         }
 
-        return new RenderedSql(sb.toString(), params);
+        return new RenderedSql(sb.toString(), ctx.getParams());
     }
 
     /**
@@ -109,8 +108,7 @@ public final class SqlRenderer {
      * (or their output aliases) rather than {@code alias.column_name}.
      */
     private static String renderOrderExpressionUnqualified(SqlExpression<?> expression,
-                                                            Map<String, Object> params,
-                                                            AtomicInteger paramIdx) {
+                                                            RenderContext ctx) {
         if (expression instanceof ColumnExpression<?> col) {
             // Resolve to column name only (no table alias — ORDER BY column alias on UNION)
             PropertyRef pr = col.getPropertyRef();
@@ -122,11 +120,11 @@ public final class SqlRenderer {
         } else if (expression instanceof FunctionExpression<?> fn) {
             StringJoiner argJoiner = new StringJoiner(", ");
             for (SqlExpression<?> arg : fn.getArgs()) {
-                argJoiner.add(renderOrderExpressionUnqualified(arg, params, paramIdx));
+                argJoiner.add(renderOrderExpressionUnqualified(arg, ctx));
             }
             return fn.getFunctionName() + "(" + argJoiner + ")";
         } else if (expression instanceof AliasedExpression<?> aliased) {
-            return renderOrderExpressionUnqualified(aliased.getInner(), params, paramIdx);
+            return renderOrderExpressionUnqualified(aliased.getInner(), ctx);
         } else {
             // Fallback for other expression types
             return expression.toString();
@@ -137,9 +135,8 @@ public final class SqlRenderer {
      * Renders the SELECT query for a {@link SelectSpec}.
      */
     public static <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        AtomicInteger paramIdx = new AtomicInteger(0);
-        return new RenderedSql(buildSelectSql(spec, params, paramIdx, true), params);
+        RenderContext ctx = new RenderContext();
+        return new RenderedSql(buildSelectSql(spec, ctx, true), ctx.getParams());
     }
 
     /**
@@ -151,8 +148,7 @@ public final class SqlRenderer {
      *                       inside a subquery in SQL-92)
      */
     static <T, R> String buildSelectSql(SelectSpec<T, R> spec,
-                                         Map<String, Object> params,
-                                         AtomicInteger paramIdx,
+                                         RenderContext ctx,
                                          boolean includeOrderBy) {
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
@@ -165,7 +161,7 @@ public final class SqlRenderer {
             sb.append("WITH ");
             StringJoiner cteJoiner = new StringJoiner(", ");
             for (CteDef cte : cteDefs) {
-                String body = buildSelectSqlUnchecked(cte.body(), params, paramIdx, false);
+                String body = buildSelectSqlUnchecked(cte.body(), ctx, false);
                 cteJoiner.add(cte.name() + " AS (" + body + ")");
             }
             sb.append(cteJoiner).append(" ");
@@ -183,7 +179,7 @@ public final class SqlRenderer {
         } else {
             StringJoiner cols = new StringJoiner(", ");
             for (SqlExpression<?> expr : exprs) {
-                cols.add(renderSelectItem(expr, spec, params, paramIdx));
+                cols.add(renderSelectItem(expr, spec, ctx));
             }
             sb.append(cols);
         }
@@ -192,7 +188,7 @@ public final class SqlRenderer {
         // Priority: subqueryFrom > tableNameOverride > entity table name
         String fromTarget;
         if (spec.getSubqueryFrom() != null) {
-            String innerSql = buildSelectSqlUnchecked(spec.getSubqueryFrom(), params, paramIdx, false);
+            String innerSql = buildSelectSqlUnchecked(spec.getSubqueryFrom(), ctx, false);
             fromTarget = "(" + innerSql + ")";
         } else if (spec.getTableNameOverride() != null) {
             fromTarget = spec.getTableNameOverride();
@@ -202,16 +198,16 @@ public final class SqlRenderer {
         sb.append(" FROM ").append(fromTarget).append(" ").append(alias);
 
         // JOIN clauses
-        appendJoinClauses(sb, spec, params, paramIdx);
+        appendJoinClauses(sb, spec, ctx);
 
         // WHERE clause
-        appendWhereClause(sb, spec, params, paramIdx);
+        appendWhereClause(sb, spec, ctx);
 
         // GROUP BY clause
-        appendGroupByClause(sb, spec, params, paramIdx);
+        appendGroupByClause(sb, spec, ctx);
 
         // HAVING clause
-        appendHavingClause(sb, spec, params, paramIdx);
+        appendHavingClause(sb, spec, ctx);
 
         // ORDER BY clause (omitted inside subqueries)
         if (includeOrderBy) {
@@ -225,7 +221,7 @@ public final class SqlRenderer {
                         String rendered = renderColumnExpression(colExprNode, spec);
                         colExpr = "LOWER(" + rendered + ")";
                     } else {
-                        colExpr = renderExpression(order.getExpression(), spec, params, paramIdx);
+                        colExpr = renderExpression(order.getExpression(), spec, ctx);
                     }
                     String nullHandling = switch (order.getNullHandling()) {
                         case NULLS_FIRST -> " NULLS FIRST";
@@ -258,17 +254,15 @@ public final class SqlRenderer {
      */
     @SuppressWarnings("unchecked")
     static String renderSubquerySql(SelectSpec<?, ?> spec,
-                                     Map<String, Object> params,
-                                     AtomicInteger paramIdx) {
-        return buildSelectSql((SelectSpec<Object, Object>) spec, params, paramIdx, false);
+                                     RenderContext ctx) {
+        return buildSelectSql((SelectSpec<Object, Object>) spec, ctx, false);
     }
 
     @SuppressWarnings("unchecked")
     private static String buildSelectSqlUnchecked(SelectSpec<?, ?> spec,
-                                                   Map<String, Object> params,
-                                                   AtomicInteger paramIdx,
+                                                   RenderContext ctx,
                                                    boolean includeOrderBy) {
-        return buildSelectSql((SelectSpec<Object, Object>) spec, params, paramIdx, includeOrderBy);
+        return buildSelectSql((SelectSpec<Object, Object>) spec, ctx, includeOrderBy);
     }
 
     /**
@@ -283,15 +277,14 @@ public final class SqlRenderer {
      * </ul>
      */
     public static <T, R> RenderedSql renderCount(SelectSpec<T, R> spec) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        AtomicInteger paramIdx = new AtomicInteger(0);
+        RenderContext ctx = new RenderContext();
 
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
         // Honour subqueryFrom > tableNameOverride > entity table name.
         String fromTarget;
         if (spec.getSubqueryFrom() != null) {
-            String innerSql = buildSelectSqlUnchecked(spec.getSubqueryFrom(), params, paramIdx, false);
+            String innerSql = buildSelectSqlUnchecked(spec.getSubqueryFrom(), ctx, false);
             fromTarget = "(" + innerSql + ")";
         } else if (spec.getTableNameOverride() != null) {
             fromTarget = spec.getTableNameOverride();
@@ -300,7 +293,7 @@ public final class SqlRenderer {
         }
 
         // Prepend WITH clause when the spec has CTEs.
-        String ctePrefix = buildCtePrefix(spec, params, paramIdx);
+        String ctePrefix = buildCtePrefix(spec, ctx);
 
         boolean hasJoins = !spec.getJoins().isEmpty();
         boolean hasGroupBy = !spec.getGroupByExpressions().isEmpty();
@@ -309,11 +302,11 @@ public final class SqlRenderer {
             // Wrap the grouped query as a derived table and count its rows.
             StringBuilder inner = new StringBuilder("SELECT 1")
                     .append(" FROM ").append(fromTarget).append(" ").append(alias);
-            appendJoinClauses(inner, spec, params, paramIdx);
-            appendWhereClause(inner, spec, params, paramIdx);
-            appendGroupByClause(inner, spec, params, paramIdx);
-            appendHavingClause(inner, spec, params, paramIdx);
-            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
+            appendJoinClauses(inner, spec, ctx);
+            appendWhereClause(inner, spec, ctx);
+            appendGroupByClause(inner, spec, ctx);
+            appendHavingClause(inner, spec, ctx);
+            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", ctx.getParams());
         }
 
         if (hasJoins) {
@@ -324,34 +317,33 @@ public final class SqlRenderer {
                 StringBuilder sb = new StringBuilder("SELECT COUNT(DISTINCT ")
                         .append(alias).append(".").append(pkCol).append(")")
                         .append(" FROM ").append(fromTarget).append(" ").append(alias);
-                appendJoinClauses(sb, spec, params, paramIdx);
-                appendWhereClause(sb, spec, params, paramIdx);
-                return new RenderedSql(ctePrefix + sb, params);
+                appendJoinClauses(sb, spec, ctx);
+                appendWhereClause(sb, spec, ctx);
+                return new RenderedSql(ctePrefix + sb, ctx.getParams());
             }
             // No PK available: fall back to subquery.
             StringBuilder inner = new StringBuilder("SELECT 1")
                     .append(" FROM ").append(fromTarget).append(" ").append(alias);
-            appendJoinClauses(inner, spec, params, paramIdx);
-            appendWhereClause(inner, spec, params, paramIdx);
-            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", params);
+            appendJoinClauses(inner, spec, ctx);
+            appendWhereClause(inner, spec, ctx);
+            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", ctx.getParams());
         }
 
         // Simple case: no JOINs, no GROUP BY.
         StringBuilder sb = new StringBuilder("SELECT COUNT(*)")
                 .append(" FROM ").append(fromTarget).append(" ").append(alias);
-        appendWhereClause(sb, spec, params, paramIdx);
-        return new RenderedSql(ctePrefix + sb, params);
+        appendWhereClause(sb, spec, ctx);
+        return new RenderedSql(ctePrefix + sb, ctx.getParams());
     }
 
     /** Builds the {@code WITH cte1 AS (...), cte2 AS (...) } prefix string (empty string when no CTEs). */
     private static <T, R> String buildCtePrefix(SelectSpec<T, R> spec,
-                                                 Map<String, Object> params,
-                                                 AtomicInteger paramIdx) {
+                                                 RenderContext ctx) {
         List<CteDef> cteDefs = spec.getCteDefs();
         if (cteDefs.isEmpty()) return "";
         StringJoiner cteJoiner = new StringJoiner(", ");
         for (CteDef cte : cteDefs) {
-            String body = buildSelectSqlUnchecked(cte.body(), params, paramIdx, false);
+            String body = buildSelectSqlUnchecked(cte.body(), ctx, false);
             cteJoiner.add(cte.name() + " AS (" + body + ")");
         }
         return "WITH " + cteJoiner + " ";
@@ -371,10 +363,9 @@ public final class SqlRenderer {
      */
     private static <T, R> String renderSelectItem(SqlExpression<?> expr,
                                                    SelectSpec<T, R> spec,
-                                                   Map<String, Object> params,
-                                                   AtomicInteger paramIdx) {
+                                                   RenderContext ctx) {
         if (expr instanceof AliasedExpression<?> aliased) {
-            return renderExpression(aliased.getInner(), spec, params, paramIdx)
+            return renderExpression(aliased.getInner(), spec, ctx)
                     + " AS " + aliased.getAlias();
         } else if (expr instanceof ColumnExpression<?> col) {
             String sql = renderColumnExpression(col, spec);
@@ -382,7 +373,7 @@ public final class SqlRenderer {
             return sql + " AS " + propName;
         } else {
             // Function / aggregate / literal: no alias; mapper relies on JDBC columnLabel.
-            return renderExpression(expr, spec, params, paramIdx);
+            return renderExpression(expr, spec, ctx);
         }
     }
 
@@ -397,28 +388,27 @@ public final class SqlRenderer {
      */
     static <T, R> String renderExpression(SqlExpression<?> expression,
                                           SelectSpec<T, R> spec,
-                                          Map<String, Object> params,
-                                          AtomicInteger paramIdx) {
+                                          RenderContext ctx) {
         if (expression instanceof AliasedExpression<?> aliased) {
             // In non-SELECT contexts (WHERE / ORDER BY / HAVING), render the inner expression.
-            return renderExpression(aliased.getInner(), spec, params, paramIdx);
+            return renderExpression(aliased.getInner(), spec, ctx);
         } else if (expression instanceof ColumnExpression<?> col) {
             return renderColumnExpression(col, spec);
         } else if (expression instanceof FunctionExpression<?> fn) {
-            return renderFunctionExpression(fn, spec, params, paramIdx);
+            return renderFunctionExpression(fn, spec, ctx);
         } else if (expression instanceof AggregateExpression<?> agg) {
-            return renderAggregateExpression(agg, spec, params, paramIdx);
+            return renderAggregateExpression(agg, spec, ctx);
         } else if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
         } else if (expression instanceof CastExpression<?> cast) {
-            String inner = renderExpression(cast.getInner(), spec, params, paramIdx);
+            String inner = renderExpression(cast.getInner(), spec, ctx);
             return "CAST(" + inner + " AS " + cast.getTargetType() + ")";
         } else if (expression instanceof CaseExpression<?> caseExpr) {
-            return renderCaseExpression(caseExpr, spec, params, paramIdx);
+            return renderCaseExpression(caseExpr, spec, ctx);
         } else if (expression instanceof WindowExpression<?> win) {
-            return renderWindowExpression(win, spec, params, paramIdx);
+            return renderWindowExpression(win, spec, ctx);
         } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
-            return renderScalarSubqueryExpression(sub, params, paramIdx);
+            return renderScalarSubqueryExpression(sub, ctx);
         } else {
             throw new IllegalArgumentException("Unknown SqlExpression type: " + expression.getClass());
         }
@@ -435,22 +425,20 @@ public final class SqlRenderer {
 
     private static <T, R> String renderFunctionExpression(FunctionExpression<?> fn,
                                                            SelectSpec<T, R> spec,
-                                                           Map<String, Object> params,
-                                                           AtomicInteger paramIdx) {
+                                                           RenderContext ctx) {
         StringJoiner argJoiner = new StringJoiner(", ");
         for (SqlExpression<?> arg : fn.getArgs()) {
-            argJoiner.add(renderExpression(arg, spec, params, paramIdx));
+            argJoiner.add(renderExpression(arg, spec, ctx));
         }
         return fn.getFunctionName() + "(" + argJoiner + ")";
     }
 
     private static <T, R> String renderAggregateExpression(AggregateExpression<?> agg,
                                                             SelectSpec<T, R> spec,
-                                                            Map<String, Object> params,
-                                                            AtomicInteger paramIdx) {
+                                                            RenderContext ctx) {
         StringJoiner argJoiner = new StringJoiner(", ");
         for (SqlExpression<?> arg : agg.getArgs()) {
-            argJoiner.add(renderExpression(arg, spec, params, paramIdx));
+            argJoiner.add(renderExpression(arg, spec, ctx));
         }
         String inner = agg.isDistinct() ? "DISTINCT " + argJoiner : argJoiner.toString();
         return agg.getFunctionName() + "(" + inner + ")";
@@ -458,15 +446,14 @@ public final class SqlRenderer {
 
     private static <T, R> String renderCaseExpression(CaseExpression<?> expr,
                                                        SelectSpec<T, R> spec,
-                                                       Map<String, Object> params,
-                                                       AtomicInteger paramIdx) {
+                                                       RenderContext ctx) {
         StringBuilder sb = new StringBuilder("CASE");
         for (CaseExpression.WhenClause when : expr.getWhenClauses()) {
-            sb.append(" WHEN ").append(renderPredicate(when.condition(), spec, params, paramIdx));
-            sb.append(" THEN ").append(renderExpression(when.result(), spec, params, paramIdx));
+            sb.append(" WHEN ").append(renderPredicate(when.condition(), spec, ctx));
+            sb.append(" THEN ").append(renderExpression(when.result(), spec, ctx));
         }
         if (expr.getElseExpr() != null) {
-            sb.append(" ELSE ").append(renderExpression(expr.getElseExpr(), spec, params, paramIdx));
+            sb.append(" ELSE ").append(renderExpression(expr.getElseExpr(), spec, ctx));
         }
         sb.append(" END");
         return sb.toString();
@@ -474,9 +461,8 @@ public final class SqlRenderer {
 
     private static <T, R> String renderWindowExpression(WindowExpression<?> win,
                                                           SelectSpec<T, R> spec,
-                                                          Map<String, Object> params,
-                                                          AtomicInteger paramIdx) {
-        String funcSql = renderExpression(win.getFunction(), spec, params, paramIdx);
+                                                          RenderContext ctx) {
+        String funcSql = renderExpression(win.getFunction(), spec, ctx);
 
         StringBuilder over = new StringBuilder();
 
@@ -484,7 +470,7 @@ public final class SqlRenderer {
         if (!partitionBy.isEmpty()) {
             StringJoiner pj = new StringJoiner(", ");
             for (SqlExpression<?> expr : partitionBy) {
-                pj.add(renderExpression(expr, spec, params, paramIdx));
+                pj.add(renderExpression(expr, spec, ctx));
             }
             over.append("PARTITION BY ").append(pj);
         }
@@ -494,7 +480,7 @@ public final class SqlRenderer {
             if (over.length() > 0) over.append(" ");
             StringJoiner oj = new StringJoiner(", ");
             for (JOrder<?> order : orderBy) {
-                String colExpr = renderExpression(order.getExpression(), spec, params, paramIdx);
+                String colExpr = renderExpression(order.getExpression(), spec, ctx);
                 String nullHandling = switch (order.getNullHandling()) {
                     case NULLS_FIRST -> " NULLS FIRST";
                     case NULLS_LAST -> " NULLS LAST";
@@ -522,9 +508,8 @@ public final class SqlRenderer {
     }
 
     private static String renderScalarSubqueryExpression(ScalarSubqueryExpression<?> sub,
-                                                          Map<String, Object> params,
-                                                          AtomicInteger paramIdx) {
-        String inner = renderSubquerySql(sub.getSubquery(), params, paramIdx);
+                                                          RenderContext ctx) {
+        String inner = renderSubquerySql(sub.getSubquery(), ctx);
         return "(" + inner + ")";
     }
 
@@ -534,26 +519,25 @@ public final class SqlRenderer {
 
     private static <T, R> String renderPredicate(PredicateNode node,
                                                    SelectSpec<T, R> spec,
-                                                   Map<String, Object> params,
-                                                   AtomicInteger paramIdx) {
+                                                   RenderContext ctx) {
         if (node instanceof LeafPredicate leaf) {
-            return renderLeaf(leaf, spec, params, paramIdx);
+            return renderLeaf(leaf, spec, ctx);
         } else if (node instanceof AndPredicate and) {
-            return renderAnd(and, spec, params, paramIdx);
+            return renderAnd(and, spec, ctx);
         } else if (node instanceof OrPredicate or) {
-            return renderOr(or, spec, params, paramIdx);
+            return renderOr(or, spec, ctx);
         } else if (node instanceof NotPredicate not) {
-            return "NOT (" + renderPredicate(not.getChild(), spec, params, paramIdx) + ")";
+            return "NOT (" + renderPredicate(not.getChild(), spec, ctx) + ")";
         } else if (node instanceof OnEqPredicate onEq) {
             return renderOnEqAsWhere(onEq, spec);
         } else if (node instanceof InSubqueryPredicate inSub) {
-            return renderInSubquery(inSub, spec, params, paramIdx);
+            return renderInSubquery(inSub, spec, ctx);
         } else if (node instanceof ExistsPredicate exists) {
-            return renderExists(exists, params, paramIdx);
+            return renderExists(exists, ctx);
         } else if (node instanceof ScalarSubqueryPredicate scalar) {
-            return renderScalarSubquery(scalar, spec, params, paramIdx);
+            return renderScalarSubquery(scalar, spec, ctx);
         } else if (node instanceof RawPredicate raw) {
-            return renderRawPredicate(raw, params);
+            return renderRawPredicate(raw, ctx);
         } else {
             throw new IllegalArgumentException("Unknown predicate node type: " + node.getClass());
         }
@@ -561,27 +545,24 @@ public final class SqlRenderer {
 
     private static <T, R> String renderInSubquery(InSubqueryPredicate node,
                                                     SelectSpec<T, R> spec,
-                                                    Map<String, Object> params,
-                                                    AtomicInteger paramIdx) {
-        String lhs = renderExpression(node.getLhs(), spec, params, paramIdx);
-        String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
+                                                    RenderContext ctx) {
+        String lhs = renderExpression(node.getLhs(), spec, ctx);
+        String inner = renderSubquerySql(node.getSubquery(), ctx);
         String op = node.isNegated() ? " NOT IN (" : " IN (";
         return lhs + op + inner + ")";
     }
 
     private static String renderExists(ExistsPredicate node,
-                                        Map<String, Object> params,
-                                        AtomicInteger paramIdx) {
-        String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
+                                        RenderContext ctx) {
+        String inner = renderSubquerySql(node.getSubquery(), ctx);
         String prefix = node.isNegated() ? "NOT EXISTS (" : "EXISTS (";
         return prefix + inner + ")";
     }
 
     private static <T, R> String renderScalarSubquery(ScalarSubqueryPredicate node,
                                                         SelectSpec<T, R> spec,
-                                                        Map<String, Object> params,
-                                                        AtomicInteger paramIdx) {
-        String lhs = renderExpression(node.getLhs(), spec, params, paramIdx);
+                                                        RenderContext ctx) {
+        String lhs = renderExpression(node.getLhs(), spec, ctx);
         String op = switch (node.getOp()) {
             case EQ -> " = ";
             case NE -> " <> ";
@@ -590,66 +571,65 @@ public final class SqlRenderer {
             case LT -> " < ";
             case LTE -> " <= ";
         };
-        String inner = renderSubquerySql(node.getSubquery(), params, paramIdx);
+        String inner = renderSubquerySql(node.getSubquery(), ctx);
         return lhs + op + "(" + inner + ")";
     }
 
-    private static String renderRawPredicate(RawPredicate node, Map<String, Object> params) {
+    private static String renderRawPredicate(RawPredicate node, RenderContext ctx) {
         // Merge any user-supplied parameters into the shared parameter map.
-        params.putAll(node.getParams());
+        ctx.getParams().putAll(node.getParams());
         return node.getSql();
     }
 
     private static <T, R> String renderLeaf(LeafPredicate leaf,
                                              SelectSpec<T, R> spec,
-                                             Map<String, Object> params,
-                                             AtomicInteger paramIdx) {
-        String lhs = renderExpression(leaf.getExpression(), spec, params, paramIdx);
+                                             RenderContext ctx) {
+        String lhs = renderExpression(leaf.getExpression(), spec, ctx);
 
         return switch (leaf.getOp()) {
             case EQ -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " = :" + p;
             }
             case NE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " <> :" + p;
             }
             case GT -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " > :" + p;
             }
             case GTE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " >= :" + p;
             }
             case LT -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " < :" + p;
             }
             case LTE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " <= :" + p;
             }
             case LIKE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " LIKE :" + p;
             }
             case LIKE_IC -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield "LOWER(" + lhs + ") LIKE LOWER(:" + p + ")";
             }
             case IN -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " IN (:" + p + ")";
             }
             case NOT_IN -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " NOT IN (:" + p + ")";
             }
             case BETWEEN -> {
-                String p1 = nextParam(paramIdx, params, leaf.getValue());
-                String p2 = nextParam(paramIdx, params, leaf.getValue2());
+                String p1 = ctx.nextParam(leaf.getValue());
+                String p2 = ctx.nextParam(leaf.getValue2());
                 yield lhs + " BETWEEN :" + p1 + " AND :" + p2;
             }
             case IS_NULL -> lhs + " IS NULL";
@@ -659,35 +639,32 @@ public final class SqlRenderer {
 
     private static <T, R> String renderAnd(AndPredicate and,
                                             SelectSpec<T, R> spec,
-                                            Map<String, Object> params,
-                                            AtomicInteger paramIdx) {
+                                            RenderContext ctx) {
         StringJoiner joiner = new StringJoiner(" AND ", "(", ")");
         for (PredicateNode child : and.getChildren()) {
-            joiner.add(renderPredicate(child, spec, params, paramIdx));
+            joiner.add(renderPredicate(child, spec, ctx));
         }
         return joiner.toString();
     }
 
     private static <T, R> String renderOr(OrPredicate or,
                                            SelectSpec<T, R> spec,
-                                           Map<String, Object> params,
-                                           AtomicInteger paramIdx) {
+                                           RenderContext ctx) {
         StringJoiner joiner = new StringJoiner(" OR ", "(", ")");
         for (PredicateNode child : or.getChildren()) {
-            joiner.add(renderPredicate(child, spec, params, paramIdx));
+            joiner.add(renderPredicate(child, spec, ctx));
         }
         return joiner.toString();
     }
 
     private static <T, R> String renderOnCondition(PredicateNode cond,
                                                     SelectSpec<T, R> spec,
-                                                    Map<String, Object> params,
-                                                    AtomicInteger paramIdx,
+                                                    RenderContext ctx,
                                                     Set<String> subqueryAliases) {
         if (cond instanceof OnEqPredicate onEq) {
             return renderOnEq(onEq, subqueryAliases);
         }
-        return renderPredicate(cond, spec, params, paramIdx);
+        return renderPredicate(cond, spec, ctx);
     }
 
     /**
@@ -852,8 +829,7 @@ public final class SqlRenderer {
      * <p>Example output: {@code UPDATE t_user SET status = :p1, age = :p2 WHERE id = :p3}
      */
     public static <T> RenderedSql renderUpdate(UpdateSpec<T> spec) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        AtomicInteger paramIdx = new AtomicInteger(0);
+        RenderContext ctx = new RenderContext();
 
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         StringBuilder sb = new StringBuilder("UPDATE ").append(meta.getTableName()).append(" SET ");
@@ -865,9 +841,9 @@ public final class SqlRenderer {
             Object value = entry.getValue();
             if (value instanceof SqlExpression<?> expr) {
                 // Expression assignment: SET col = <SQL expression>
-                setJoiner.add(colName + " = " + renderExpressionStandalone(expr, meta, params, paramIdx));
+                setJoiner.add(colName + " = " + renderExpressionStandalone(expr, meta, ctx));
             } else {
-                String param = nextParam(paramIdx, params, value);
+                String param = ctx.nextParam(value);
                 setJoiner.add(colName + " = :" + param);
             }
         }
@@ -875,10 +851,10 @@ public final class SqlRenderer {
 
         if (spec.getWhere() != null) {
             sb.append(" WHERE ");
-            sb.append(renderPredicateStandalone(spec.getWhere(), meta, params, paramIdx));
+            sb.append(renderPredicateStandalone(spec.getWhere(), meta, ctx));
         }
 
-        return new RenderedSql(sb.toString(), params);
+        return new RenderedSql(sb.toString(), ctx.getParams());
     }
 
     /**
@@ -887,18 +863,17 @@ public final class SqlRenderer {
      * <p>Example output: {@code DELETE FROM t_user WHERE status = :p1}
      */
     public static <T> RenderedSql renderDelete(DeleteSpec<T> spec) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        AtomicInteger paramIdx = new AtomicInteger(0);
+        RenderContext ctx = new RenderContext();
 
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         StringBuilder sb = new StringBuilder("DELETE FROM ").append(meta.getTableName());
 
         if (spec.getWhere() != null) {
             sb.append(" WHERE ");
-            sb.append(renderPredicateStandalone(spec.getWhere(), meta, params, paramIdx));
+            sb.append(renderPredicateStandalone(spec.getWhere(), meta, ctx));
         }
 
-        return new RenderedSql(sb.toString(), params);
+        return new RenderedSql(sb.toString(), ctx.getParams());
     }
 
     /**
@@ -907,26 +882,25 @@ public final class SqlRenderer {
      */
     private static String renderPredicateStandalone(PredicateNode node,
                                                      EntityMeta meta,
-                                                     Map<String, Object> params,
-                                                     AtomicInteger paramIdx) {
+                                                     RenderContext ctx) {
         if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf) {
-            return renderLeafStandalone(leaf, meta, params, paramIdx);
+            return renderLeafStandalone(leaf, meta, ctx);
         } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate and) {
             StringJoiner joiner = new StringJoiner(" AND ", "(", ")");
             for (PredicateNode child : and.getChildren()) {
-                joiner.add(renderPredicateStandalone(child, meta, params, paramIdx));
+                joiner.add(renderPredicateStandalone(child, meta, ctx));
             }
             return joiner.toString();
         } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate or) {
             StringJoiner joiner = new StringJoiner(" OR ", "(", ")");
             for (PredicateNode child : or.getChildren()) {
-                joiner.add(renderPredicateStandalone(child, meta, params, paramIdx));
+                joiner.add(renderPredicateStandalone(child, meta, ctx));
             }
             return joiner.toString();
         } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate not) {
-            return "NOT (" + renderPredicateStandalone(not.getChild(), meta, params, paramIdx) + ")";
+            return "NOT (" + renderPredicateStandalone(not.getChild(), meta, ctx) + ")";
         } else if (node instanceof RawPredicate raw) {
-            return renderRawPredicate(raw, params);
+            return renderRawPredicate(raw, ctx);
         } else {
             throw new IllegalArgumentException("Unsupported predicate node type: " + node.getClass());
         }
@@ -934,8 +908,7 @@ public final class SqlRenderer {
 
     private static String renderLeafStandalone(io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf,
                                                 EntityMeta meta,
-                                                Map<String, Object> params,
-                                                AtomicInteger paramIdx) {
+                                                RenderContext ctx) {
         // Resolve LHS: if the expression is a ColumnExpression, resolve its column name from meta
         String lhs;
         io.github.jsbxyyx.jdbcdsl.expr.SqlExpression<?> expr = leaf.getExpression();
@@ -951,48 +924,48 @@ public final class SqlRenderer {
 
         return switch (leaf.getOp()) {
             case EQ -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " = :" + p;
             }
             case NE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " <> :" + p;
             }
             case GT -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " > :" + p;
             }
             case GTE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " >= :" + p;
             }
             case LT -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " < :" + p;
             }
             case LTE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " <= :" + p;
             }
             case LIKE -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " LIKE :" + p;
             }
             case LIKE_IC -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield "LOWER(" + lhs + ") LIKE LOWER(:" + p + ")";
             }
             case IN -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " IN (:" + p + ")";
             }
             case NOT_IN -> {
-                String p = nextParam(paramIdx, params, leaf.getValue());
+                String p = ctx.nextParam(leaf.getValue());
                 yield lhs + " NOT IN (:" + p + ")";
             }
             case BETWEEN -> {
-                String p1 = nextParam(paramIdx, params, leaf.getValue());
-                String p2 = nextParam(paramIdx, params, leaf.getValue2());
+                String p1 = ctx.nextParam(leaf.getValue());
+                String p2 = ctx.nextParam(leaf.getValue2());
                 yield lhs + " BETWEEN :" + p1 + " AND :" + p2;
             }
             case IS_NULL -> lhs + " IS NULL";
@@ -1010,8 +983,7 @@ public final class SqlRenderer {
 
     private static <T, R> void appendJoinClauses(StringBuilder sb,
                                                    SelectSpec<T, R> spec,
-                                                   Map<String, Object> params,
-                                                   AtomicInteger paramIdx) {
+                                                   RenderContext ctx) {
         // Collect aliases that refer to subqueries (derived tables), including the spec's
         // own FROM if it is a subquery.  ON-condition column references for these aliases
         // use camelCase property names (the aliases projected by the inner SELECT) rather
@@ -1031,7 +1003,7 @@ public final class SqlRenderer {
 
             if (join.getSubqueryJoin() != null) {
                 // Subquery join: JOIN (SELECT ...) alias
-                String innerSql = buildSelectSqlUnchecked(join.getSubqueryJoin(), params, paramIdx, false);
+                String innerSql = buildSelectSqlUnchecked(join.getSubqueryJoin(), ctx, false);
                 sb.append("(").append(innerSql).append(")");
             } else {
                 // Entity join: JOIN t_table
@@ -1045,7 +1017,7 @@ public final class SqlRenderer {
                 sb.append(" ON ");
                 StringJoiner onJoiner = new StringJoiner(" AND ");
                 for (PredicateNode cond : join.getOnConditions()) {
-                    onJoiner.add(renderOnCondition(cond, spec, params, paramIdx, subqueryAliases));
+                    onJoiner.add(renderOnCondition(cond, spec, ctx, subqueryAliases));
                 }
                 sb.append(onJoiner);
             }
@@ -1054,24 +1026,22 @@ public final class SqlRenderer {
 
     private static <T, R> void appendWhereClause(StringBuilder sb,
                                                    SelectSpec<T, R> spec,
-                                                   Map<String, Object> params,
-                                                   AtomicInteger paramIdx) {
+                                                   RenderContext ctx) {
         PredicateNode where = spec.getWhere();
         if (where != null) {
-            sb.append(" WHERE ").append(renderPredicate(where, spec, params, paramIdx));
+            sb.append(" WHERE ").append(renderPredicate(where, spec, ctx));
         }
     }
 
     private static <T, R> void appendGroupByClause(StringBuilder sb,
                                                      SelectSpec<T, R> spec,
-                                                     Map<String, Object> params,
-                                                     AtomicInteger paramIdx) {
+                                                     RenderContext ctx) {
         List<SqlExpression<?>> groupBy = spec.getGroupByExpressions();
         if (!groupBy.isEmpty()) {
             sb.append(" GROUP BY ");
             StringJoiner joiner = new StringJoiner(", ");
             for (SqlExpression<?> expr : groupBy) {
-                joiner.add(renderExpression(expr, spec, params, paramIdx));
+                joiner.add(renderExpression(expr, spec, ctx));
             }
             sb.append(joiner);
         }
@@ -1079,19 +1049,14 @@ public final class SqlRenderer {
 
     private static <T, R> void appendHavingClause(StringBuilder sb,
                                                     SelectSpec<T, R> spec,
-                                                    Map<String, Object> params,
-                                                    AtomicInteger paramIdx) {
+                                                    RenderContext ctx) {
         PredicateNode having = spec.getHaving();
         if (having != null) {
-            sb.append(" HAVING ").append(renderPredicate(having, spec, params, paramIdx));
+            sb.append(" HAVING ").append(renderPredicate(having, spec, ctx));
         }
     }
 
-    private static String nextParam(AtomicInteger idx, Map<String, Object> params, Object value) {
-        String name = "p" + idx.incrementAndGet();
-        params.put(name, value);
-        return name;
-    }
+
 
     private static <T, R> String resolveAliasForRef(SelectSpec<T, R> spec, PropertyRef pr) {
         if (pr.ownerClass().equals(spec.getEntityClass())) {
@@ -1143,8 +1108,7 @@ public final class SqlRenderer {
      * inline and its parameters are merged into the shared {@code params} map.
      */
     private static String renderExpressionStandalone(SqlExpression<?> expression, EntityMeta meta,
-                                                      Map<String, Object> params,
-                                                      AtomicInteger paramIdx) {
+                                                      RenderContext ctx) {
         if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
         } else if (expression instanceof ColumnExpression<?> col) {
@@ -1154,17 +1118,17 @@ public final class SqlRenderer {
         } else if (expression instanceof FunctionExpression<?> fn) {
             StringJoiner argJoiner = new StringJoiner(", ");
             for (SqlExpression<?> arg : fn.getArgs()) {
-                argJoiner.add(renderExpressionStandalone(arg, meta, params, paramIdx));
+                argJoiner.add(renderExpressionStandalone(arg, meta, ctx));
             }
             return fn.getFunctionName() + "(" + argJoiner + ")";
         } else if (expression instanceof CastExpression<?> cast) {
-            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta, params, paramIdx)
+            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta, ctx)
                     + " AS " + cast.getTargetType() + ")";
         } else if (expression instanceof AliasedExpression<?> aliased) {
-            return renderExpressionStandalone(aliased.getInner(), meta, params, paramIdx);
+            return renderExpressionStandalone(aliased.getInner(), meta, ctx);
         } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
             // SET col = (SELECT ...) — render the subquery inline, sharing the param map
-            return "(" + renderSubquerySql(sub.getSubquery(), params, paramIdx) + ")";
+            return "(" + renderSubquerySql(sub.getSubquery(), ctx) + ")";
         } else {
             throw new IllegalArgumentException(
                     "Unsupported expression type in UPDATE SET: " + expression.getClass().getSimpleName());
