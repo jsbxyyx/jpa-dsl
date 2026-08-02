@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -56,14 +57,20 @@ public class JdbcDslAutoConfiguration {
      * </ol>
      */
     @Bean
-    public JdbcDslProperties jdbcDslProperties(JdbcDslProperties properties,
-                                                ObjectProvider<NamingStrategy> namingStrategyProvider) {
+    public JdbcDslConfigInitializer jdbcDslConfigInitializer(JdbcDslProperties properties,
+                                                               ObjectProvider<NamingStrategy> namingStrategyProvider) {
         JdbcDslConfig.setAllowEmptyWhere(properties.isAllowEmptyWhere());
         JdbcDslConfig.setLogicalDeleteAutoFilter(properties.isLogicalDeleteAutoFilter());
         NamingStrategy strategy = namingStrategyProvider.getIfAvailable(
                 () -> buildNamingStrategy(properties.getNamingStrategy()));
         JdbcDslConfig.setNamingStrategy(strategy);
-        return properties;
+        return new JdbcDslConfigInitializer();
+    }
+    
+    /**
+     * Marker class to ensure JdbcDslConfig is initialized.
+     */
+    public static class JdbcDslConfigInitializer {
     }
 
     private static NamingStrategy buildNamingStrategy(String value) {
@@ -84,6 +91,15 @@ public class JdbcDslAutoConfiguration {
         return DialectDetector.detect(dataSource);
     }
 
+    @Bean
+    @ConditionalOnMissingBean(JdbcDslCacheManager.class)
+    public JdbcDslCacheManager jdbcDslCacheManager(JdbcDslProperties properties) {
+        JdbcDslProperties.Cache cache = properties.getCache();
+        JdbcDslCacheManager manager = new JdbcDslCacheManager(cache.getPropertyRefMaxSize(), cache.getRowMapperMaxSize());
+        PropertyRefResolver.setCacheManager(manager);
+        return manager;
+    }
+
     /**
      * Creates a {@link JdbcDslExecutor} bean wired with the auto-detected (or user-provided)
      * {@link Dialect}.
@@ -91,7 +107,8 @@ public class JdbcDslAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(JdbcDslExecutor.class)
     @ConditionalOnBean({NamedParameterJdbcTemplate.class, Dialect.class})
-    public JdbcDslExecutor jdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect) {
-        return new JdbcDslExecutor(jdbc, dialect);
+    public JdbcDslExecutor jdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect,
+                                           JdbcDslCacheManager cacheManager) {
+        return new JdbcDslExecutor(jdbc, dialect, cacheManager);
     }
 }

@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
@@ -45,13 +46,14 @@ import java.util.stream.Collectors;
  *
  * <p>DTOs and entities must provide a public (or package-private) no-arg constructor.
  *
- * <p>The default {@link Dialect} is {@link Sql2008Dialect}.
+ * <p>The default {@link Dialect} is {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect}.
  * Pass a custom dialect (e.g., {@link io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect}) as needed.
  */
 public final class JdbcDslExecutor {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Dialect dialect;
+    private final JdbcDslCacheManager cacheManager;
     private TimeProvider timeProvider = LocalDateTime::now;
 
     /**
@@ -66,12 +68,17 @@ public final class JdbcDslExecutor {
      * @param jdbc the template whose DataSource is used for dialect detection
      */
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc) {
-        this(jdbc, DialectDetector.detect(jdbc.getJdbcTemplate().getDataSource()));
+        this(jdbc, DialectDetector.detect(jdbc.getJdbcTemplate().getDataSource()), new JdbcDslCacheManager());
     }
 
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect) {
+        this(jdbc, dialect, new JdbcDslCacheManager());
+    }
+
+    public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect, JdbcDslCacheManager cacheManager) {
         this.jdbc = jdbc;
         this.dialect = dialect;
+        this.cacheManager = cacheManager;
     }
 
     /**
@@ -797,6 +804,8 @@ public final class JdbcDslExecutor {
     private static final ConcurrentHashMap<Class<?>, Map<String, Field>> FIELD_CACHE =
             new ConcurrentHashMap<>();
 
+    /** Per-class cache: bean type → reusable RowMapper. */
+
     /**
      * Builds a {@link RowMapper} that maps each result-set row to an instance of {@code beanClass}.
      *
@@ -818,7 +827,12 @@ public final class JdbcDslExecutor {
                 || java.time.temporal.Temporal.class.isAssignableFrom(cls);
     }
 
-    private static <R> RowMapper<R> buildBeanRowMapper(Class<R> beanClass) {
+    @SuppressWarnings("unchecked")
+    private <R> RowMapper<R> buildBeanRowMapper(Class<R> beanClass) {
+        return (RowMapper<R>) cacheManager.getRowMapperCache().get(beanClass, cls -> createBeanRowMapper(beanClass));
+    }
+
+    private static <R> RowMapper<R> createBeanRowMapper(Class<R> beanClass) {
         if (isScalarType(beanClass)) {
             return new SingleColumnRowMapper<>(beanClass);
         }

@@ -1,11 +1,9 @@
 package io.github.jsbxyyx.jdbcdsl;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 
 /**
  * Resolves an {@link SFunction} method reference to a {@link PropertyRef}.
@@ -21,7 +19,11 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class PropertyRefResolver {
 
-    private static final ConcurrentMap<Class<?>, PropertyRef> CACHE = new ConcurrentHashMap<>();
+    private static volatile JdbcDslCacheManager cacheManager = new JdbcDslCacheManager();
+
+    public static void setCacheManager(JdbcDslCacheManager manager) {
+        cacheManager = manager;
+    }
 
     private PropertyRefResolver() {
     }
@@ -36,7 +38,7 @@ public final class PropertyRefResolver {
      * @throws IllegalArgumentException if {@code fn} is not a method reference
      */
     public static <T, R> PropertyRef resolve(SFunction<T, R> fn) {
-        return CACHE.computeIfAbsent(fn.getClass(), k -> doResolve(fn));
+        return cacheManager.getPropertyRefCache().get(fn.getClass(), k -> doResolve(fn));
     }
 
     private static <T, R> PropertyRef doResolve(SFunction<T, R> fn) {

@@ -50,6 +50,38 @@ public class JdbcDslProperties {
      */
     private String namingStrategy = "default";
 
+    /** Cache configuration. */
+    private Cache cache = new Cache();
+
+    public Cache getCache() {
+        return cache;
+    }
+
+    public void setCache(Cache cache) {
+        this.cache = cache;
+    }
+
+    public static class Cache {
+        private long propertyRefMaxSize = 50_000;
+        private long rowMapperMaxSize = 10_000;
+
+        public long getPropertyRefMaxSize() {
+            return propertyRefMaxSize;
+        }
+
+        public void setPropertyRefMaxSize(long propertyRefMaxSize) {
+            this.propertyRefMaxSize = propertyRefMaxSize;
+        }
+
+        public long getRowMapperMaxSize() {
+            return rowMapperMaxSize;
+        }
+
+        public void setRowMapperMaxSize(long rowMapperMaxSize) {
+            this.rowMapperMaxSize = rowMapperMaxSize;
+        }
+    }
+
     public boolean isAllowEmptyWhere() {
         return allowEmptyWhere;
     }
