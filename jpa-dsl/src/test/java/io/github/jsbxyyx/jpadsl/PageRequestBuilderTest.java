@@ -20,19 +20,14 @@ class PageRequestBuilderTest {
 
     @Test
     void customPageAndSize() {
-        Pageable pageable = PageRequestBuilder.builder()
-                .page(2)
-                .size(10)
-                .build();
+        Pageable pageable = PageRequestBuilder.builder().page(2).size(10).build();
         assertThat(pageable.getPageNumber()).isEqualTo(2);
         assertThat(pageable.getPageSize()).isEqualTo(10);
     }
 
     @Test
     void ascSorting() {
-        Pageable pageable = PageRequestBuilder.builder()
-                .asc("name")
-                .build();
+        Pageable pageable = PageRequestBuilder.builder().asc("name").build();
         Sort.Order order = pageable.getSort().getOrderFor("name");
         assertThat(order).isNotNull();
         assertThat(order.getDirection()).isEqualTo(Sort.Direction.ASC);
@@ -40,9 +35,7 @@ class PageRequestBuilderTest {
 
     @Test
     void descSorting() {
-        Pageable pageable = PageRequestBuilder.builder()
-                .desc("createdAt")
-                .build();
+        Pageable pageable = PageRequestBuilder.builder().desc("createdAt").build();
         Sort.Order order = pageable.getSort().getOrderFor("createdAt");
         assertThat(order).isNotNull();
         assertThat(order.getDirection()).isEqualTo(Sort.Direction.DESC);
@@ -50,14 +43,10 @@ class PageRequestBuilderTest {
 
     @Test
     void multipleSortOrders() {
-        Pageable pageable = PageRequestBuilder.builder()
-                .asc("lastName")
-                .desc("createdAt")
-                .build();
-        assertThat(pageable.getSort().getOrderFor("lastName").getDirection())
-                .isEqualTo(Sort.Direction.ASC);
-        assertThat(pageable.getSort().getOrderFor("createdAt").getDirection())
-                .isEqualTo(Sort.Direction.DESC);
+        Pageable pageable =
+                PageRequestBuilder.builder().asc("lastName").desc("createdAt").build();
+        assertThat(pageable.getSort().getOrderFor("lastName").getDirection()).isEqualTo(Sort.Direction.ASC);
+        assertThat(pageable.getSort().getOrderFor("createdAt").getDirection()).isEqualTo(Sort.Direction.DESC);
     }
 
     @Test
@@ -79,10 +68,8 @@ class PageRequestBuilderTest {
         Pageable pageable = PageRequestBuilder.builder()
                 .sort(Sort.Order.asc("name"), Sort.Order.desc("age"))
                 .build();
-        assertThat(pageable.getSort().getOrderFor("name").getDirection())
-                .isEqualTo(Sort.Direction.ASC);
-        assertThat(pageable.getSort().getOrderFor("age").getDirection())
-                .isEqualTo(Sort.Direction.DESC);
+        assertThat(pageable.getSort().getOrderFor("name").getDirection()).isEqualTo(Sort.Direction.ASC);
+        assertThat(pageable.getSort().getOrderFor("age").getDirection()).isEqualTo(Sort.Direction.DESC);
     }
 
     @Test

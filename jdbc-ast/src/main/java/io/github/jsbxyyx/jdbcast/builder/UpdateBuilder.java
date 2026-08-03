@@ -27,11 +27,11 @@ import java.util.function.Consumer;
  */
 public final class UpdateBuilder<T> {
 
-    private final Class<T>               entity;
-    private String                       tableAlias    = null;
-    private final List<ColumnAssignment> assignments   = new ArrayList<>();
-    private Condition                    where         = null;
-    private final List<String>           returningCols = new ArrayList<>();
+    private final Class<T> entity;
+    private String tableAlias = null;
+    private final List<ColumnAssignment> assignments = new ArrayList<>();
+    private Condition where = null;
+    private final List<String> returningCols = new ArrayList<>();
 
     UpdateBuilder(Class<T> entity) {
         this.entity = entity;
@@ -62,7 +62,9 @@ public final class UpdateBuilder<T> {
         ConditionBuilder cb = new ConditionBuilder();
         builder.accept(cb);
         Condition c = cb.build();
-        if (c != null) this.where = c;
+        if (c != null) {
+            this.where = c;
+        }
         return this;
     }
 

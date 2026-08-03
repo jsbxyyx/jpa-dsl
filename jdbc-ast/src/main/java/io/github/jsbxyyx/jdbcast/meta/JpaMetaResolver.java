@@ -33,8 +33,8 @@ public final class JpaMetaResolver implements MetaResolver {
     /** Shared singleton. */
     public static final JpaMetaResolver INSTANCE = new JpaMetaResolver();
 
-    private final ConcurrentMap<Class<?>, String> tableCache  = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, String>   columnCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Class<?>, String> tableCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> columnCache = new ConcurrentHashMap<>();
 
     private JpaMetaResolver() {}
 
@@ -56,8 +56,7 @@ public final class JpaMetaResolver implements MetaResolver {
     @Override
     public String columnName(Class<?> entityClass, String propertyName) {
         String key = entityClass.getName() + "#" + propertyName;
-        return columnCache.computeIfAbsent(key,
-                k -> resolveColumnName(new PropertyRef(entityClass, propertyName)));
+        return columnCache.computeIfAbsent(key, k -> resolveColumnName(new PropertyRef(entityClass, propertyName)));
     }
 
     // ------------------------------------------------------------------ //
@@ -65,9 +64,7 @@ public final class JpaMetaResolver implements MetaResolver {
     // ------------------------------------------------------------------ //
 
     private String resolveTableName(Class<?> cls) {
-        for (String annotationName : new String[]{
-                "jakarta.persistence.Table",
-                "javax.persistence.Table"}) {
+        for (String annotationName : new String[] {"jakarta.persistence.Table", "javax.persistence.Table"}) {
             try {
                 @SuppressWarnings("unchecked")
                 Class<Annotation> annClass = (Class<Annotation>) Class.forName(annotationName);
@@ -75,7 +72,9 @@ public final class JpaMetaResolver implements MetaResolver {
                 if (ann != null) {
                     Method nameMethod = annClass.getMethod("name");
                     String name = (String) nameMethod.invoke(ann);
-                    if (name != null && !name.isEmpty()) return name;
+                    if (name != null && !name.isEmpty()) {
+                        return name;
+                    }
                 }
             } catch (Exception ignored) {
                 // annotation not on classpath or not present — try next
@@ -87,9 +86,7 @@ public final class JpaMetaResolver implements MetaResolver {
     private String resolveColumnName(PropertyRef ref) {
         Field field = findField(ref.ownerClass(), ref.propertyName());
         if (field != null) {
-            for (String annotationName : new String[]{
-                    "jakarta.persistence.Column",
-                    "javax.persistence.Column"}) {
+            for (String annotationName : new String[] {"jakarta.persistence.Column", "javax.persistence.Column"}) {
                 try {
                     @SuppressWarnings("unchecked")
                     Class<Annotation> annClass = (Class<Annotation>) Class.forName(annotationName);
@@ -97,9 +94,12 @@ public final class JpaMetaResolver implements MetaResolver {
                     if (ann != null) {
                         Method nameMethod = annClass.getMethod("name");
                         String name = (String) nameMethod.invoke(ann);
-                        if (name != null && !name.isEmpty()) return name;
+                        if (name != null && !name.isEmpty()) {
+                            return name;
+                        }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
         }
         return ref.propertyName();

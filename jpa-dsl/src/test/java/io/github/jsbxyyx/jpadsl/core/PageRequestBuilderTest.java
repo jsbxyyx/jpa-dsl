@@ -19,10 +19,7 @@ class PageRequestBuilderTest {
 
     @Test
     void testPageAndSize() {
-        Pageable pageable = PageRequestBuilder.builder()
-                .page(2)
-                .size(20)
-                .build();
+        Pageable pageable = PageRequestBuilder.builder().page(2).size(20).build();
         assertThat(pageable.getPageNumber()).isEqualTo(2);
         assertThat(pageable.getPageSize()).isEqualTo(20);
     }

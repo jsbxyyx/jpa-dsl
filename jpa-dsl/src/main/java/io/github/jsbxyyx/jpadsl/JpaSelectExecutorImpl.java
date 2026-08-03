@@ -82,10 +82,7 @@ public class JpaSelectExecutorImpl<T> implements JpaSelectExecutor<T> {
     }
 
     private <R> jakarta.persistence.criteria.CompoundSelection<R> buildConstruct(
-            CriteriaBuilder cb,
-            CriteriaQuery<R> cq,
-            Root<T> root,
-            SelectSpec<T, R> spec) {
+            CriteriaBuilder cb, CriteriaQuery<R> cq, Root<T> root, SelectSpec<T, R> spec) {
 
         List<Selection<?>> selections = new ArrayList<>();
         for (SingularAttribute<? super T, ?> attr : spec.getSelectedAttrs()) {
@@ -94,10 +91,7 @@ public class JpaSelectExecutorImpl<T> implements JpaSelectExecutor<T> {
         return cb.construct(spec.getDtoClass(), selections.toArray(new Selection[0]));
     }
 
-    private <X> void applyWhere(CriteriaBuilder cb,
-                                CriteriaQuery<X> cq,
-                                Root<T> root,
-                                Specification<T> whereSpec) {
+    private <X> void applyWhere(CriteriaBuilder cb, CriteriaQuery<X> cq, Root<T> root, Specification<T> whereSpec) {
         if (whereSpec != null) {
             Predicate predicate = whereSpec.toPredicate(root, cq, cb);
             if (predicate != null) {
@@ -106,10 +100,7 @@ public class JpaSelectExecutorImpl<T> implements JpaSelectExecutor<T> {
         }
     }
 
-    private void applySort(CriteriaBuilder cb,
-                           CriteriaQuery<?> cq,
-                           Root<T> root,
-                           Sort sort) {
+    private void applySort(CriteriaBuilder cb, CriteriaQuery<?> cq, Root<T> root, Sort sort) {
         if (sort == null || sort.isUnsorted()) {
             return;
         }

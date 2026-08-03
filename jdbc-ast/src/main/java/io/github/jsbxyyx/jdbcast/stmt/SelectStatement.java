@@ -24,65 +24,104 @@ import java.util.List;
  */
 public final class SelectStatement {
 
-    private final List<CteDef>   with;
-    private final boolean        distinct;
-    private final List<Expr<?>>  select;
-    private final TableRef<?>    from;
+    private final List<CteDef> with;
+    private final boolean distinct;
+    private final List<Expr<?>> select;
+    private final TableRef<?> from;
     private final List<JoinClause> joins;
-    private final Condition      where;
-    private final List<Expr<?>>  groupBy;
-    private final Condition      having;
+    private final Condition where;
+    private final List<Expr<?>> groupBy;
+    private final Condition having;
     private final List<OrderItem> orderBy;
-    private final Long           limit;
-    private final Long           offset;
-    private final LockMode       lockMode;
-    private final SetOp          setOp;
+    private final Long limit;
+    private final Long offset;
+    private final LockMode lockMode;
+    private final SetOp setOp;
 
-    public SelectStatement(List<CteDef> with,
-                    boolean distinct,
-                    List<Expr<?>> select,
-                    TableRef<?> from,
-                    List<JoinClause> joins,
-                    Condition where,
-                    List<Expr<?>> groupBy,
-                    Condition having,
-                    List<OrderItem> orderBy,
-                    Long limit,
-                    Long offset,
-                    LockMode lockMode,
-                    SetOp setOp) {
-        this.with     = List.copyOf(with);
+    public SelectStatement(
+            List<CteDef> with,
+            boolean distinct,
+            List<Expr<?>> select,
+            TableRef<?> from,
+            List<JoinClause> joins,
+            Condition where,
+            List<Expr<?>> groupBy,
+            Condition having,
+            List<OrderItem> orderBy,
+            Long limit,
+            Long offset,
+            LockMode lockMode,
+            SetOp setOp) {
+        this.with = List.copyOf(with);
         this.distinct = distinct;
-        this.select   = List.copyOf(select);
-        this.from     = from;
-        this.joins    = List.copyOf(joins);
-        this.where    = where;
-        this.groupBy  = List.copyOf(groupBy);
-        this.having   = having;
-        this.orderBy  = List.copyOf(orderBy);
-        this.limit    = limit;
-        this.offset   = offset;
+        this.select = List.copyOf(select);
+        this.from = from;
+        this.joins = List.copyOf(joins);
+        this.where = where;
+        this.groupBy = List.copyOf(groupBy);
+        this.having = having;
+        this.orderBy = List.copyOf(orderBy);
+        this.limit = limit;
+        this.offset = offset;
         this.lockMode = lockMode;
-        this.setOp    = setOp;
+        this.setOp = setOp;
     }
 
     // ------------------------------------------------------------------ //
     //  Accessors
     // ------------------------------------------------------------------ //
 
-    public List<CteDef>    with()     { return with; }
-    public boolean         distinct() { return distinct; }
-    public List<Expr<?>>   select()   { return select; }
-    public TableRef<?>     from()     { return from; }
-    public List<JoinClause> joins()   { return joins; }
-    public Condition       where()    { return where; }
-    public List<Expr<?>>   groupBy()  { return groupBy; }
-    public Condition       having()   { return having; }
-    public List<OrderItem> orderBy()  { return orderBy; }
-    public Long            limit()    { return limit; }
-    public Long            offset()   { return offset; }
-    public LockMode        lockMode() { return lockMode; }
-    public SetOp           setOp()    { return setOp; }
+    public List<CteDef> with() {
+        return with;
+    }
+
+    public boolean distinct() {
+        return distinct;
+    }
+
+    public List<Expr<?>> select() {
+        return select;
+    }
+
+    public TableRef<?> from() {
+        return from;
+    }
+
+    public List<JoinClause> joins() {
+        return joins;
+    }
+
+    public Condition where() {
+        return where;
+    }
+
+    public List<Expr<?>> groupBy() {
+        return groupBy;
+    }
+
+    public Condition having() {
+        return having;
+    }
+
+    public List<OrderItem> orderBy() {
+        return orderBy;
+    }
+
+    public Long limit() {
+        return limit;
+    }
+
+    public Long offset() {
+        return offset;
+    }
+
+    public LockMode lockMode() {
+        return lockMode;
+    }
+
+    public SetOp setOp() {
+        return setOp;
+    }
 
     // ------------------------------------------------------------------ //
     //  Set-operation combinators
@@ -113,7 +152,7 @@ public final class SelectStatement {
     }
 
     private SelectStatement withSetOp(SetOp op) {
-        return new SelectStatement(with, distinct, select, from, joins,
-                where, groupBy, having, orderBy, limit, offset, lockMode, op);
+        return new SelectStatement(
+                with, distinct, select, from, joins, where, groupBy, having, orderBy, limit, offset, lockMode, op);
     }
 }

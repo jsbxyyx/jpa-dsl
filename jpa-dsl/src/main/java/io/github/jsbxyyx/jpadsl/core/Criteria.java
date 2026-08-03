@@ -51,9 +51,23 @@ public class Criteria {
         this.values = null;
     }
 
-    public String getField() { return field; }
-    public CriteriaType getType() { return type; }
-    public Object getValue() { return value; }
-    public Object getSecondValue() { return secondValue; }
-    public Collection<?> getValues() { return values; }
+    public String getField() {
+        return field;
+    }
+
+    public CriteriaType getType() {
+        return type;
+    }
+
+    public Object getValue() {
+        return value;
+    }
+
+    public Object getSecondValue() {
+        return secondValue;
+    }
+
+    public Collection<?> getValues() {
+        return values;
+    }
 }

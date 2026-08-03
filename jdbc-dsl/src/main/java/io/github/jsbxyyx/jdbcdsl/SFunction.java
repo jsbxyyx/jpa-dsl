@@ -12,5 +12,4 @@ import java.util.function.Function;
  * @param <R> the return type (property type)
  */
 @FunctionalInterface
-public interface SFunction<T, R> extends Function<T, R>, Serializable {
-}
+public interface SFunction<T, R> extends Function<T, R>, Serializable {}

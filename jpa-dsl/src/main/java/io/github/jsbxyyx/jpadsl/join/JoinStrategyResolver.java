@@ -22,8 +22,7 @@ public final class JoinStrategyResolver {
 
     private static final JoinStrategy STRATEGY = detect();
 
-    private JoinStrategyResolver() {
-    }
+    private JoinStrategyResolver() {}
 
     private static JoinStrategy detect() {
         try {

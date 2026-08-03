@@ -22,16 +22,16 @@ public final class SelectSpec<T, R> {
     private final List<SingularAttribute<? super T, ?>> selectedAttrs;
     private final Specification<T> whereSpec;
 
-    SelectSpec(Class<T> entityClass,
-               Class<R> dtoClass,
-               List<SingularAttribute<? super T, ?>> selectedAttrs,
-               Specification<T> whereSpec) {
+    SelectSpec(
+            Class<T> entityClass,
+            Class<R> dtoClass,
+            List<SingularAttribute<? super T, ?>> selectedAttrs,
+            Specification<T> whereSpec) {
         if (dtoClass == null) {
             throw new IllegalArgumentException("dtoClass must not be null");
         }
         if (selectedAttrs == null || selectedAttrs.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "At least one attribute must be selected via select(...)");
+            throw new IllegalArgumentException("At least one attribute must be selected via select(...)");
         }
         this.entityClass = entityClass;
         this.dtoClass = dtoClass;

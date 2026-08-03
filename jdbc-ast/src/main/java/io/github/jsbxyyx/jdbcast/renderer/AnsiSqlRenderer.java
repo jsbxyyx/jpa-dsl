@@ -27,12 +27,11 @@ import io.github.jsbxyyx.jdbcast.expr.RawExpr;
 import io.github.jsbxyyx.jdbcast.expr.StarExpr;
 import io.github.jsbxyyx.jdbcast.expr.SubqueryExpr;
 import io.github.jsbxyyx.jdbcast.expr.WindowExpr;
+import io.github.jsbxyyx.jdbcast.renderer.dialect.LimitOffsetDialect;
 import io.github.jsbxyyx.jdbcast.stmt.DeleteStatement;
 import io.github.jsbxyyx.jdbcast.stmt.InsertStatement;
 import io.github.jsbxyyx.jdbcast.stmt.SelectStatement;
 import io.github.jsbxyyx.jdbcast.stmt.UpdateStatement;
-
-import io.github.jsbxyyx.jdbcast.renderer.dialect.LimitOffsetDialect;
 
 import java.util.List;
 import java.util.Objects;
@@ -61,7 +60,7 @@ import java.util.stream.Collectors;
  */
 public class AnsiSqlRenderer implements SqlRenderer {
 
-    protected final MetaResolver     meta;
+    protected final MetaResolver meta;
     protected final PaginationDialect paginationDialect;
 
     /**
@@ -79,15 +78,19 @@ public class AnsiSqlRenderer implements SqlRenderer {
      * @param paginationDialect dialect that renders the LIMIT / OFFSET clause
      */
     public AnsiSqlRenderer(MetaResolver meta, PaginationDialect paginationDialect) {
-        this.meta              = Objects.requireNonNull(meta,              "meta");
+        this.meta = Objects.requireNonNull(meta, "meta");
         this.paginationDialect = Objects.requireNonNull(paginationDialect, "paginationDialect");
     }
 
     /** Returns the {@link MetaResolver} used by this renderer. */
-    public MetaResolver getMetaResolver() { return meta; }
+    public MetaResolver getMetaResolver() {
+        return meta;
+    }
 
     /** Returns the {@link PaginationDialect} used by this renderer. */
-    public PaginationDialect getPaginationDialect() { return paginationDialect; }
+    public PaginationDialect getPaginationDialect() {
+        return paginationDialect;
+    }
 
     // ================================================================== //
     //  Public render entry points
@@ -140,7 +143,9 @@ public class AnsiSqlRenderer implements SqlRenderer {
 
         // SELECT [DISTINCT]
         sb.append("SELECT ");
-        if (stmt.distinct()) sb.append("DISTINCT ");
+        if (stmt.distinct()) {
+            sb.append("DISTINCT ");
+        }
 
         if (stmt.select().isEmpty()) {
             sb.append("*");
@@ -149,7 +154,8 @@ public class AnsiSqlRenderer implements SqlRenderer {
         }
 
         // FROM
-        sb.append(" FROM ").append(renderTableRef(stmt.from().entityClass(), stmt.from().alias()));
+        sb.append(" FROM ")
+                .append(renderTableRef(stmt.from().entityClass(), stmt.from().alias()));
 
         // JOINs
         for (JoinClause join : stmt.joins()) {
@@ -177,8 +183,8 @@ public class AnsiSqlRenderer implements SqlRenderer {
 
         // ORDER BY
         if (!stmt.orderBy().isEmpty()) {
-            sb.append(" ORDER BY ").append(
-                    stmt.orderBy().stream()
+            sb.append(" ORDER BY ")
+                    .append(stmt.orderBy().stream()
                             .map(o -> renderOrderItem(o, ctx))
                             .collect(Collectors.joining(", ")));
         }
@@ -188,18 +194,21 @@ public class AnsiSqlRenderer implements SqlRenderer {
 
         // FOR UPDATE / FOR SHARE
         if (stmt.lockMode() != null) {
-            sb.append(switch (stmt.lockMode()) {
-                case UPDATE            -> " FOR UPDATE";
-                case UPDATE_NOWAIT     -> " FOR UPDATE NOWAIT";
-                case UPDATE_SKIP_LOCKED -> " FOR UPDATE SKIP LOCKED";
-                case SHARE             -> " FOR SHARE";
-            });
+            sb.append(
+                    switch (stmt.lockMode()) {
+                        case UPDATE -> " FOR UPDATE";
+                        case UPDATE_NOWAIT -> " FOR UPDATE NOWAIT";
+                        case UPDATE_SKIP_LOCKED -> " FOR UPDATE SKIP LOCKED";
+                        case SHARE -> " FOR SHARE";
+                    });
         }
 
         // SET OP (UNION / INTERSECT / EXCEPT)
         if (stmt.setOp() != null) {
-            sb.append(" ").append(stmt.setOp().type().keyword())
-              .append(" ").append(renderSelect(stmt.setOp().right(), ctx));
+            sb.append(" ")
+                    .append(stmt.setOp().type().keyword())
+                    .append(" ")
+                    .append(renderSelect(stmt.setOp().right(), ctx));
         }
 
         return sb.toString();
@@ -225,9 +234,8 @@ public class AnsiSqlRenderer implements SqlRenderer {
         String table = meta.tableName(stmt.entity());
         List<ColumnAssignment> cols = stmt.assignments();
         if (cols.isEmpty()) {
-            throw new IllegalStateException(
-                    "InsertStatement has no column assignments. " +
-                    "Either call .set(...) on the builder or use an entity-based executor.");
+            throw new IllegalStateException("InsertStatement has no column assignments. "
+                    + "Either call .set(...) on the builder or use an entity-based executor.");
         }
         StringJoiner colJoiner = new StringJoiner(", ");
         StringJoiner valJoiner = new StringJoiner(", ");
@@ -323,7 +331,8 @@ public class AnsiSqlRenderer implements SqlRenderer {
         if (expr instanceof CaseExpr<?> c) {
             return renderCaseExpr(c, ctx);
         }
-        throw new IllegalArgumentException("Unknown Expr type: " + expr.getClass().getName());
+        throw new IllegalArgumentException(
+                "Unknown Expr type: " + expr.getClass().getName());
     }
 
     protected String renderCol(ColExpr<?> c) {
@@ -341,20 +350,24 @@ public class AnsiSqlRenderer implements SqlRenderer {
             hasPrev = true;
         }
         if (!w.orderBy().isEmpty()) {
-            if (hasPrev) sb.append(" ");
-            sb.append("ORDER BY ").append(
-                    w.orderBy().stream()
+            if (hasPrev) {
+                sb.append(" ");
+            }
+            sb.append("ORDER BY ")
+                    .append(w.orderBy().stream()
                             .map(o -> renderOrderItem(o, ctx))
                             .collect(Collectors.joining(", ")));
             hasPrev = true;
         }
         if (w.frameType() != null) {
-            if (hasPrev) sb.append(" ");
+            if (hasPrev) {
+                sb.append(" ");
+            }
             sb.append(w.frameType().name())
-              .append(" BETWEEN ")
-              .append(w.frameStart().toSql())
-              .append(" AND ")
-              .append(w.frameEnd().toSql());
+                    .append(" BETWEEN ")
+                    .append(w.frameStart().toSql())
+                    .append(" AND ")
+                    .append(w.frameEnd().toSql());
         }
         sb.append(")");
         return sb.toString();
@@ -385,7 +398,7 @@ public class AnsiSqlRenderer implements SqlRenderer {
 
     protected String renderOrderItem(OrderItem o, RenderContext ctx) {
         String expr = renderExpr(o.expr(), ctx);
-        String dir  = o.asc() ? " ASC" : " DESC";
+        String dir = o.asc() ? " ASC" : " DESC";
         String nulls = "";
         if (o.nullsFirst() != null) {
             nulls = o.nullsFirst() ? " NULLS FIRST" : " NULLS LAST";
@@ -399,9 +412,7 @@ public class AnsiSqlRenderer implements SqlRenderer {
 
     protected String renderCondition(Condition condition, RenderContext ctx) {
         if (condition instanceof CompareCondition cc) {
-            String right = (cc.right() instanceof Expr<?> e)
-                    ? renderExpr(e, ctx)
-                    : ctx.addParam(cc.right());
+            String right = (cc.right() instanceof Expr<?> e) ? renderExpr(e, ctx) : ctx.addParam(cc.right());
             return renderExpr(cc.left(), ctx) + " " + cc.op().symbol() + " " + right;
         }
         if (condition instanceof AndCondition and) {
@@ -427,25 +438,22 @@ public class AnsiSqlRenderer implements SqlRenderer {
             return renderExpr(in.column(), ctx) + (in.negated() ? " NOT IN" : " IN") + " (" + vals + ")";
         }
         if (condition instanceof BetweenCondition bc) {
-            String low  = (bc.low()  instanceof Expr<?> e) ? renderExpr(e, ctx) : ctx.addParam(bc.low());
+            String low = (bc.low() instanceof Expr<?> e) ? renderExpr(e, ctx) : ctx.addParam(bc.low());
             String high = (bc.high() instanceof Expr<?> e) ? renderExpr(e, ctx) : ctx.addParam(bc.high());
-            return renderExpr(bc.column(), ctx)
-                    + (bc.negated() ? " NOT BETWEEN " : " BETWEEN ") + low + " AND " + high;
+            return renderExpr(bc.column(), ctx) + (bc.negated() ? " NOT BETWEEN " : " BETWEEN ") + low + " AND " + high;
         }
         if (condition instanceof LikeCondition lc) {
-            return renderExpr(lc.column(), ctx)
-                    + (lc.negated() ? " NOT LIKE " : " LIKE ")
-                    + ctx.addParam(lc.pattern());
+            return renderExpr(lc.column(), ctx) + (lc.negated() ? " NOT LIKE " : " LIKE ") + ctx.addParam(lc.pattern());
         }
         if (condition instanceof ExistsCondition ec) {
-            return (ec.negated() ? "NOT EXISTS " : "EXISTS ")
-                    + "(" + renderSelect(ec.subquery(), ctx) + ")";
+            return (ec.negated() ? "NOT EXISTS " : "EXISTS ") + "(" + renderSelect(ec.subquery(), ctx) + ")";
         }
         if (condition instanceof RawCondition rc) {
             ctx.mergeParams(rc.params());
             return rc.sql();
         }
-        throw new IllegalArgumentException("Unknown Condition type: " + condition.getClass().getName());
+        throw new IllegalArgumentException(
+                "Unknown Condition type: " + condition.getClass().getName());
     }
 
     // ================================================================== //
@@ -458,8 +466,6 @@ public class AnsiSqlRenderer implements SqlRenderer {
     }
 
     protected String joinExprs(List<? extends Expr<?>> exprs, RenderContext ctx) {
-        return exprs.stream()
-                .map(e -> renderExpr(e, ctx))
-                .collect(Collectors.joining(", "));
+        return exprs.stream().map(e -> renderExpr(e, ctx)).collect(Collectors.joining(", "));
     }
 }

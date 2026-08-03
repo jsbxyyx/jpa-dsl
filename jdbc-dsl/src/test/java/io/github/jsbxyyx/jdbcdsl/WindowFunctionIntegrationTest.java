@@ -30,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Sql(scripts = "/jdbcdsl-schema.sql",  executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",    executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class WindowFunctionIntegrationTest {
 
@@ -57,10 +57,11 @@ class WindowFunctionIntegrationTest {
     @Test
     void rowNumber_partitionByStatus_orderByAge_assignsCorrectRanks() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        rowNumber().over(w -> w
-                                .partitionBy(TUser::getStatus)
-                                .orderBy(JOrder.asc(TUser::getAge))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        rowNumber()
+                                .over(w -> w.partitionBy(TUser::getStatus).orderBy(JOrder.asc(TUser::getAge)))
+                                .as("rn"))
                 .orderBy(JSort.by(JOrder.asc(TUser::getStatus), JOrder.asc(TUser::getAge)))
                 .mapTo(UserRnDto.class);
 
@@ -89,7 +90,8 @@ class WindowFunctionIntegrationTest {
     @Test
     void rank_orderByAge_assignsGlobalRank() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         rank().over(w -> w.orderBy(JOrder.asc(TUser::getAge))).as("rn"))
                 .orderBy(JSort.by(JOrder.asc(TUser::getAge)))
                 .mapTo(UserRnDto.class);
@@ -111,8 +113,11 @@ class WindowFunctionIntegrationTest {
     @Test
     void denseRank_orderByAge_assignsContiguousRanks() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        denseRank().over(w -> w.orderBy(JOrder.asc(TUser::getAge))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        denseRank()
+                                .over(w -> w.orderBy(JOrder.asc(TUser::getAge)))
+                                .as("rn"))
                 .orderBy(JSort.by(JOrder.asc(TUser::getAge)))
                 .mapTo(UserRnDto.class);
 
@@ -138,7 +143,8 @@ class WindowFunctionIntegrationTest {
         // and check via raw SQL renderer — easier to verify with a custom DTO.
         // We use a simpler check: query count to confirm all rows return the same total.
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
-                .select(col(TOrder::getOrderNo, "o"),
+                .select(
+                        col(TOrder::getOrderNo, "o"),
                         sum(TOrder::getAmount).over().as("runningTotal"))
                 .mapToEntity();
 
@@ -149,13 +155,11 @@ class WindowFunctionIntegrationTest {
         assertThat(rendered.getSql()).contains("SUM(o.amount) OVER ()");
 
         // Execute raw to verify actual values
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                rendered.getSql(), rendered.getParams());
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
         assertThat(rows).hasSize(3);
         rows.forEach(row -> {
             Object total = row.get("RUNNINGTOTAL");
-            assertThat(new BigDecimal(total.toString()))
-                    .isEqualByComparingTo(new BigDecimal("400.00"));
+            assertThat(new BigDecimal(total.toString())).isEqualByComparingTo(new BigDecimal("400.00"));
         });
     }
 
@@ -168,23 +172,22 @@ class WindowFunctionIntegrationTest {
      */
     @Test
     void lag_orderById_returnsPreviousAmount() {
-        RenderedSql rendered = SqlRenderer.renderSelect(
-                SelectBuilder.from(TOrder.class, "o")
-                        .select(col(TOrder::getOrderNo, "o"),
-                                lag(TOrder::getAmount, 1)
-                                        .over(w -> w.orderBy(JOrder.asc(TOrder::getId)))
-                                        .as("prevAmount"))
-                        .orderBy(JSort.by(JOrder.asc(TOrder::getId)))
-                        .mapToEntity());
+        RenderedSql rendered = SqlRenderer.renderSelect(SelectBuilder.from(TOrder.class, "o")
+                .select(
+                        col(TOrder::getOrderNo, "o"),
+                        lag(TOrder::getAmount, 1)
+                                .over(w -> w.orderBy(JOrder.asc(TOrder::getId)))
+                                .as("prevAmount"))
+                .orderBy(JSort.by(JOrder.asc(TOrder::getId)))
+                .mapToEntity());
 
         assertThat(rendered.getSql()).contains("LAG(o.amount, 1) OVER (ORDER BY o.id ASC)");
 
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                rendered.getSql(), rendered.getParams());
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
         assertThat(rows).hasSize(3);
-        assertThat(rows.get(0).get("PREVAMOUNT")).isNull();  // first row has no predecessor
+        assertThat(rows.get(0).get("PREVAMOUNT")).isNull(); // first row has no predecessor
         assertThat(new BigDecimal(rows.get(1).get("PREVAMOUNT").toString()))
-                .isEqualByComparingTo(new BigDecimal("100.00"));  // ORD-002 follows ORD-001
+                .isEqualByComparingTo(new BigDecimal("100.00")); // ORD-002 follows ORD-001
     }
 
     /**
@@ -192,21 +195,20 @@ class WindowFunctionIntegrationTest {
      */
     @Test
     void lead_orderById_returnsNextAmount() {
-        RenderedSql rendered = SqlRenderer.renderSelect(
-                SelectBuilder.from(TOrder.class, "o")
-                        .select(col(TOrder::getOrderNo, "o"),
-                                lead(TOrder::getAmount, 1)
-                                        .over(w -> w.orderBy(JOrder.asc(TOrder::getId)))
-                                        .as("nextAmount"))
-                        .orderBy(JSort.by(JOrder.asc(TOrder::getId)))
-                        .mapToEntity());
+        RenderedSql rendered = SqlRenderer.renderSelect(SelectBuilder.from(TOrder.class, "o")
+                .select(
+                        col(TOrder::getOrderNo, "o"),
+                        lead(TOrder::getAmount, 1)
+                                .over(w -> w.orderBy(JOrder.asc(TOrder::getId)))
+                                .as("nextAmount"))
+                .orderBy(JSort.by(JOrder.asc(TOrder::getId)))
+                .mapToEntity());
 
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                rendered.getSql(), rendered.getParams());
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
         assertThat(rows).hasSize(3);
         assertThat(new BigDecimal(rows.get(0).get("NEXTAMOUNT").toString()))
-                .isEqualByComparingTo(new BigDecimal("250.00"));  // ORD-001 → ORD-002
-        assertThat(rows.get(2).get("NEXTAMOUNT")).isNull();       // last row has no successor
+                .isEqualByComparingTo(new BigDecimal("250.00")); // ORD-001 → ORD-002
+        assertThat(rows.get(2).get("NEXTAMOUNT")).isNull(); // last row has no successor
     }
 
     // ------------------------------------------------------------------ //
@@ -226,7 +228,8 @@ class WindowFunctionIntegrationTest {
                 .mapToEntity();
 
         SelectSpec<TUser, UserOrderCountDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         SqlFunctions.<Long>subquery(countSpec).as("orderCount"))
                 .orderBy(JSort.by(JOrder.asc(TUser::getUsername)))
                 .mapTo(UserOrderCountDto.class);
@@ -254,7 +257,8 @@ class WindowFunctionIntegrationTest {
                 .mapToEntity();
 
         SelectSpec<TUser, UserOrderCountDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         SqlFunctions.<Long>subquery(countSpec).as("orderCount"))
                 .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
                 .orderBy(JSort.by(JOrder.asc(TUser::getUsername)))
@@ -275,32 +279,27 @@ class WindowFunctionIntegrationTest {
     @Test
     void abs_rendersAndExecutesCorrectly() {
         // ABS(age) should equal age since all ages are positive
-        RenderedSql rendered = SqlRenderer.renderSelect(
-                SelectBuilder.from(TUser.class)
-                        .select(col(TUser::getUsername), abs(TUser::getAge).as("age"))
-                        .where(w -> w.eq(TUser::getUsername, "alice"))
-                        .mapTo(UserRnDto.class));
+        RenderedSql rendered = SqlRenderer.renderSelect(SelectBuilder.from(TUser.class)
+                .select(col(TUser::getUsername), abs(TUser::getAge).as("age"))
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserRnDto.class));
 
         assertThat(rendered.getSql()).contains("ABS(t.age)");
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                rendered.getSql(), rendered.getParams());
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("AGE")).isEqualTo(30);
     }
 
     @Test
     void round_rendersAndExecutesCorrectly() {
-        RenderedSql rendered = SqlRenderer.renderSelect(
-                SelectBuilder.from(TOrder.class, "o")
-                        .select(col(TOrder::getOrderNo, "o"), round(TOrder::getAmount).as("rn"))
-                        .where(w -> w.eq(TOrder::getOrderNo, "ORD-001"))
-                        .mapToEntity());
+        RenderedSql rendered = SqlRenderer.renderSelect(SelectBuilder.from(TOrder.class, "o")
+                .select(col(TOrder::getOrderNo, "o"), round(TOrder::getAmount).as("rn"))
+                .where(w -> w.eq(TOrder::getOrderNo, "ORD-001"))
+                .mapToEntity());
 
         assertThat(rendered.getSql()).contains("ROUND(o.amount)");
-        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(
-                rendered.getSql(), rendered.getParams());
+        List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
         assertThat(rows).hasSize(1);
-        assertThat(new BigDecimal(rows.get(0).get("RN").toString()))
-                .isEqualByComparingTo(new BigDecimal("100"));
+        assertThat(new BigDecimal(rows.get(0).get("RN").toString())).isEqualByComparingTo(new BigDecimal("100"));
     }
 }

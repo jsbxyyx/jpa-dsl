@@ -40,7 +40,11 @@ public final class WindowExpression<V> implements SqlExpression<V> {
      * sharing the same ORDER BY value); GROUPS counts peer groups (SQL:2011, supported by
      * PostgreSQL 11+, H2, SQLite 3.28+).
      */
-    public enum FrameType { ROWS, RANGE, GROUPS }
+    public enum FrameType {
+        ROWS,
+        RANGE,
+        GROUPS
+    }
 
     /**
      * A single boundary of the window frame ({@code ROWS}/{@code RANGE} BETWEEN … AND …).
@@ -57,8 +61,13 @@ public final class WindowExpression<V> implements SqlExpression<V> {
     public static final class FrameBound {
         /** The kind of this boundary. */
         public enum Kind {
-            UNBOUNDED_PRECEDING, PRECEDING, CURRENT_ROW, FOLLOWING, UNBOUNDED_FOLLOWING
+            UNBOUNDED_PRECEDING,
+            PRECEDING,
+            CURRENT_ROW,
+            FOLLOWING,
+            UNBOUNDED_FOLLOWING
         }
+
         private final Kind kind;
         private final long offset;
 
@@ -68,18 +77,33 @@ public final class WindowExpression<V> implements SqlExpression<V> {
         }
 
         /** {@code UNBOUNDED PRECEDING} — from the very first row of the partition. */
-        public static FrameBound unboundedPreceding() { return new FrameBound(Kind.UNBOUNDED_PRECEDING, 0); }
+        public static FrameBound unboundedPreceding() {
+            return new FrameBound(Kind.UNBOUNDED_PRECEDING, 0);
+        }
         /** {@code n PRECEDING} — {@code n} rows before the current row. */
-        public static FrameBound preceding(long n) { return new FrameBound(Kind.PRECEDING, n); }
+        public static FrameBound preceding(long n) {
+            return new FrameBound(Kind.PRECEDING, n);
+        }
         /** {@code CURRENT ROW}. */
-        public static FrameBound currentRow() { return new FrameBound(Kind.CURRENT_ROW, 0); }
+        public static FrameBound currentRow() {
+            return new FrameBound(Kind.CURRENT_ROW, 0);
+        }
         /** {@code n FOLLOWING} — {@code n} rows after the current row. */
-        public static FrameBound following(long n) { return new FrameBound(Kind.FOLLOWING, n); }
+        public static FrameBound following(long n) {
+            return new FrameBound(Kind.FOLLOWING, n);
+        }
         /** {@code UNBOUNDED FOLLOWING} — up to the very last row of the partition. */
-        public static FrameBound unboundedFollowing() { return new FrameBound(Kind.UNBOUNDED_FOLLOWING, 0); }
+        public static FrameBound unboundedFollowing() {
+            return new FrameBound(Kind.UNBOUNDED_FOLLOWING, 0);
+        }
 
-        public Kind getKind() { return kind; }
-        public long getOffset() { return offset; }
+        public Kind getKind() {
+            return kind;
+        }
+
+        public long getOffset() {
+            return offset;
+        }
 
         /** Returns the SQL fragment for this boundary (e.g. {@code "3 PRECEDING"}). */
         public String toSql() {
@@ -103,12 +127,13 @@ public final class WindowExpression<V> implements SqlExpression<V> {
     /** End boundary of the frame, or {@code null} when no explicit frame is set. */
     private final FrameBound frameEnd;
 
-    WindowExpression(SqlExpression<V> function,
-                     List<SqlExpression<?>> partitionBy,
-                     List<JOrder<?>> orderBy,
-                     FrameType frameType,
-                     FrameBound frameStart,
-                     FrameBound frameEnd) {
+    WindowExpression(
+            SqlExpression<V> function,
+            List<SqlExpression<?>> partitionBy,
+            List<JOrder<?>> orderBy,
+            FrameType frameType,
+            FrameBound frameStart,
+            FrameBound frameEnd) {
         this.function = function;
         this.partitionBy = Collections.unmodifiableList(new ArrayList<>(partitionBy));
         this.orderBy = Collections.unmodifiableList(new ArrayList<>(orderBy));
@@ -118,22 +143,34 @@ public final class WindowExpression<V> implements SqlExpression<V> {
     }
 
     /** Returns the base function or aggregate expression (the part before OVER). */
-    public SqlExpression<V> getFunction() { return function; }
+    public SqlExpression<V> getFunction() {
+        return function;
+    }
 
     /** Returns the PARTITION BY expressions (may be empty). */
-    public List<SqlExpression<?>> getPartitionBy() { return partitionBy; }
+    public List<SqlExpression<?>> getPartitionBy() {
+        return partitionBy;
+    }
 
     /** Returns the ORDER BY directives within the OVER clause (may be empty). */
-    public List<JOrder<?>> getOrderBy() { return orderBy; }
+    public List<JOrder<?>> getOrderBy() {
+        return orderBy;
+    }
 
     /** Returns the frame type (ROWS/RANGE/GROUPS), or {@code null} when no frame is specified. */
-    public FrameType getFrameType() { return frameType; }
+    public FrameType getFrameType() {
+        return frameType;
+    }
 
     /** Returns the frame start boundary, or {@code null} when no frame is specified. */
-    public FrameBound getFrameStart() { return frameStart; }
+    public FrameBound getFrameStart() {
+        return frameStart;
+    }
 
     /** Returns the frame end boundary, or {@code null} when no frame is specified. */
-    public FrameBound getFrameEnd() { return frameEnd; }
+    public FrameBound getFrameEnd() {
+        return frameEnd;
+    }
 
     // ------------------------------------------------------------------ //
     //  Builder

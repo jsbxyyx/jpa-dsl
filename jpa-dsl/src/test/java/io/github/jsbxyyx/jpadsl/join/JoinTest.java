@@ -4,9 +4,9 @@ import io.github.jsbxyyx.jpadsl.SpecificationBuilder;
 import io.github.jsbxyyx.jpadsl.testmodel.Order;
 import io.github.jsbxyyx.jpadsl.testmodel.Order_;
 import io.github.jsbxyyx.jpadsl.testmodel.TestOrderRepository;
+import io.github.jsbxyyx.jpadsl.testmodel.TestUserRepository;
 import io.github.jsbxyyx.jpadsl.testmodel.User;
 import io.github.jsbxyyx.jpadsl.testmodel.User_;
-import io.github.jsbxyyx.jpadsl.testmodel.TestUserRepository;
 import jakarta.persistence.criteria.JoinType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,15 +41,15 @@ class JoinTest {
         orderRepository.deleteAll();
         userRepository.deleteAll();
 
-        alice   = userRepository.save(new User("Alice",   "alice@example.com",   30, "ACTIVE"));
-        bob     = userRepository.save(new User("Bob",     "bob@example.com",     25, "INACTIVE"));
+        alice = userRepository.save(new User("Alice", "alice@example.com", 30, "ACTIVE"));
+        bob = userRepository.save(new User("Bob", "bob@example.com", 25, "INACTIVE"));
         charlie = userRepository.save(new User("Charlie", "charlie@example.com", 40, "ACTIVE"));
 
         // Alice has two orders: one PAID, one PENDING
-        orderRepository.save(new Order("ORD-001", new BigDecimal("100.00"), "PAID",    alice));
+        orderRepository.save(new Order("ORD-001", new BigDecimal("100.00"), "PAID", alice));
         orderRepository.save(new Order("ORD-002", new BigDecimal("200.00"), "PENDING", alice));
         // Bob has one PAID order
-        orderRepository.save(new Order("ORD-003", new BigDecimal("50.00"),  "PAID",    bob));
+        orderRepository.save(new Order("ORD-003", new BigDecimal("50.00"), "PAID", bob));
         // Charlie has no orders
     }
 
@@ -63,8 +63,10 @@ class JoinTest {
     @Test
     void fkJoin_inner_filterByOrderStatus() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .join(User_.orders, JoinType.INNER, (join, query, cb, predicates) ->
-                        predicates.add(cb.equal(join.get(Order_.status), "PAID")))
+                .join(
+                        User_.orders,
+                        JoinType.INNER,
+                        (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(Order_.status), "PAID")))
                 .build();
 
         List<User> result = userRepository.findAll(spec);
@@ -80,8 +82,10 @@ class JoinTest {
     @Test
     void fkJoin_inner_filterByPendingStatus() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .join(User_.orders, JoinType.INNER, (join, query, cb, predicates) ->
-                        predicates.add(cb.equal(join.get(Order_.status), "PENDING")))
+                .join(
+                        User_.orders,
+                        JoinType.INNER,
+                        (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(Order_.status), "PENDING")))
                 .build();
 
         List<User> result = userRepository.findAll(spec);
@@ -97,8 +101,10 @@ class JoinTest {
     void fkJoin_withAdditionalFilter() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .eq(User_.status, "ACTIVE")
-                .join(User_.orders, JoinType.INNER, (join, query, cb, predicates) ->
-                        predicates.add(cb.equal(join.get(Order_.status), "PAID")))
+                .join(
+                        User_.orders,
+                        JoinType.INNER,
+                        (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(Order_.status), "PAID")))
                 .build();
 
         List<User> result = userRepository.findAll(spec);
@@ -120,8 +126,10 @@ class JoinTest {
     @Test
     void noFkJoin_joinByUserId() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .join(Order.class, JoinType.INNER, (userRoot, orderJoin, cb) ->
-                        cb.equal(userRoot.get(User_.id), orderJoin.get(Order_.userId)))
+                .join(
+                        Order.class,
+                        JoinType.INNER,
+                        (userRoot, orderJoin, cb) -> cb.equal(userRoot.get(User_.id), orderJoin.get(Order_.userId)))
                 .build();
 
         List<User> result = userRepository.findAll(spec);
@@ -129,7 +137,8 @@ class JoinTest {
         // Alice (2 orders) and Bob (1 order) have orders, so both should appear.
         // Charlie has no orders → never appears.
         // JPA deduplicates entity instances, so Alice appears at most once per distinct identity.
-        List<String> distinctNames = result.stream().map(User::getName).distinct().toList();
+        List<String> distinctNames =
+                result.stream().map(User::getName).distinct().toList();
         assertThat(distinctNames).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
@@ -140,11 +149,12 @@ class JoinTest {
     @Test
     void noFkJoin_joinByUserIdWithStatusFilter() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .join(Order.class, JoinType.INNER, (userRoot, orderJoin, cb) ->
-                        cb.and(
+                .join(
+                        Order.class,
+                        JoinType.INNER,
+                        (userRoot, orderJoin, cb) -> cb.and(
                                 cb.equal(userRoot.get(User_.id), orderJoin.get(Order_.userId)),
-                                cb.equal(orderJoin.get(Order_.status), "PAID")
-                        ))
+                                cb.equal(orderJoin.get(Order_.status), "PAID")))
                 .build();
 
         List<User> result = userRepository.findAll(spec);
@@ -160,11 +170,12 @@ class JoinTest {
     void noFkJoin_withUserStatusFilter() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .eq(User_.status, "ACTIVE")
-                .join(Order.class, JoinType.INNER, (userRoot, orderJoin, cb) ->
-                        cb.and(
+                .join(
+                        Order.class,
+                        JoinType.INNER,
+                        (userRoot, orderJoin, cb) -> cb.and(
                                 cb.equal(userRoot.get(User_.id), orderJoin.get(Order_.userId)),
-                                cb.equal(orderJoin.get(Order_.status), "PAID")
-                        ))
+                                cb.equal(orderJoin.get(Order_.status), "PAID")))
                 .build();
 
         List<User> result = userRepository.findAll(spec);

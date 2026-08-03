@@ -3,7 +3,6 @@ package io.github.jsbxyyx.jpadsl;
 import jakarta.persistence.metamodel.SingularAttribute;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -30,8 +29,7 @@ import java.util.List;
  */
 public final class SpecificationDsl {
 
-    private SpecificationDsl() {
-    }
+    private SpecificationDsl() {}
 
     public static <T, V> Specification<T> eq(SingularAttribute<? super T, V> attr, V value) {
         return (root, query, cb) -> value == null ? null : cb.equal(root.get(attr), value);
@@ -53,8 +51,7 @@ public final class SpecificationDsl {
      * Creates a LIKE predicate. The value is automatically wrapped with {@code %} on both sides.
      */
     public static <T> Specification<T> like(SingularAttribute<? super T, String> attr, String value) {
-        return (root, query, cb) ->
-                value == null ? null : cb.like(root.get(attr), "%" + value + "%");
+        return (root, query, cb) -> value == null ? null : cb.like(root.get(attr), "%" + value + "%");
     }
 
     /**
@@ -62,39 +59,32 @@ public final class SpecificationDsl {
      */
     public static <T> Specification<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value) {
         return (root, query, cb) ->
-                value == null ? null
-                        : cb.like(cb.lower(root.get(attr)), "%" + value.toLowerCase() + "%");
+                value == null ? null : cb.like(cb.lower(root.get(attr)), "%" + value.toLowerCase() + "%");
     }
 
     public static <T, V extends Comparable<? super V>> Specification<T> gt(
             SingularAttribute<? super T, V> attr, V value) {
-        return (root, query, cb) ->
-                value == null ? null : cb.greaterThan(root.get(attr), value);
+        return (root, query, cb) -> value == null ? null : cb.greaterThan(root.get(attr), value);
     }
 
     public static <T, V extends Comparable<? super V>> Specification<T> gte(
             SingularAttribute<? super T, V> attr, V value) {
-        return (root, query, cb) ->
-                value == null ? null : cb.greaterThanOrEqualTo(root.get(attr), value);
+        return (root, query, cb) -> value == null ? null : cb.greaterThanOrEqualTo(root.get(attr), value);
     }
 
     public static <T, V extends Comparable<? super V>> Specification<T> lt(
             SingularAttribute<? super T, V> attr, V value) {
-        return (root, query, cb) ->
-                value == null ? null : cb.lessThan(root.get(attr), value);
+        return (root, query, cb) -> value == null ? null : cb.lessThan(root.get(attr), value);
     }
 
     public static <T, V extends Comparable<? super V>> Specification<T> lte(
             SingularAttribute<? super T, V> attr, V value) {
-        return (root, query, cb) ->
-                value == null ? null : cb.lessThanOrEqualTo(root.get(attr), value);
+        return (root, query, cb) -> value == null ? null : cb.lessThanOrEqualTo(root.get(attr), value);
     }
 
     public static <T, V extends Comparable<? super V>> Specification<T> between(
             SingularAttribute<? super T, V> attr, V lower, V upper) {
-        return (root, query, cb) ->
-                (lower == null || upper == null) ? null
-                        : cb.between(root.get(attr), lower, upper);
+        return (root, query, cb) -> (lower == null || upper == null) ? null : cb.between(root.get(attr), lower, upper);
     }
 
     public static <T, V> Specification<T> in(SingularAttribute<? super T, V> attr, Collection<V> values) {
@@ -103,8 +93,9 @@ public final class SpecificationDsl {
     }
 
     public static <T, V> Specification<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values) {
-        return (root, query, cb) ->
-                (values == null || values.isEmpty()) ? null : root.get(attr).in(values).not();
+        return (root, query, cb) -> (values == null || values.isEmpty())
+                ? null
+                : root.get(attr).in(values).not();
     }
 
     @SafeVarargs

@@ -23,20 +23,16 @@ class EntityGeneratorTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        dataSource = new SimpleDriverDataSource(
-                DriverManager.getDriver(DB_URL), DB_URL, "sa", "");
+        dataSource = new SimpleDriverDataSource(DriverManager.getDriver(DB_URL), DB_URL, "sa", "");
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS user_order");
-            stmt.execute(
-                "CREATE TABLE user_order (" +
-                "  id          BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  order_number VARCHAR(50)  NOT NULL," +
-                "  amount      DECIMAL(10,2)," +
-                "  created_at  TIMESTAMP" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE user_order (" + "  id          BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                    + "  order_number VARCHAR(50)  NOT NULL,"
+                    + "  amount      DECIMAL(10,2),"
+                    + "  created_at  TIMESTAMP"
+                    + ")");
             stmt.execute("COMMENT ON COLUMN user_order.id IS 'Primary key ID'");
             stmt.execute("COMMENT ON COLUMN user_order.order_number IS 'Order number'");
             stmt.execute("COMMENT ON COLUMN user_order.amount IS 'Order amount'");
@@ -72,8 +68,7 @@ class EntityGeneratorTest {
 
     @Test
     void testGenerateSpecificTable() throws Exception {
-        EntityGenerator.generate(dataSource, "com.example.entity", outputDir.getAbsolutePath(),
-                "user_order");
+        EntityGenerator.generate(dataSource, "com.example.entity", outputDir.getAbsolutePath(), "user_order");
 
         File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
         assertThat(entityFile).exists();
@@ -149,11 +144,12 @@ class EntityGeneratorTest {
     @Test
     void testTrimPrefix() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_user");
             stmt.execute("DROP TABLE IF EXISTS sys_config");
             stmt.execute("CREATE TABLE t_user (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50))");
-            stmt.execute("CREATE TABLE sys_config (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, cfg_key VARCHAR(50))");
+            stmt.execute(
+                    "CREATE TABLE sys_config (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, cfg_key VARCHAR(50))");
         }
 
         EntityGenerator.builder()
@@ -185,7 +181,7 @@ class EntityGeneratorTest {
     @Test
     void testGenerateSpecificTablesOnly() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_product");
             stmt.execute("DROP TABLE IF EXISTS t_category");
             stmt.execute("CREATE TABLE t_product (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50))");
@@ -230,9 +226,9 @@ class EntityGeneratorTest {
         } finally {
             // Clean up generated file and empty parent directories
             Files.deleteIfExists(entityFile.toPath());
-            File entityDir = entityFile.getParentFile();           // entity
-            File exampleDir = entityDir.getParentFile();           // example
-            File comDir = exampleDir.getParentFile();              // com
+            File entityDir = entityFile.getParentFile(); // entity
+            File exampleDir = entityDir.getParentFile(); // example
+            File comDir = exampleDir.getParentFile(); // com
             tryDeleteIfEmpty(entityDir);
             tryDeleteIfEmpty(exampleDir);
             tryDeleteIfEmpty(comDir);
@@ -382,7 +378,7 @@ class EntityGeneratorTest {
     @Test
     void testRepositoryWithTrimPrefix() throws Exception {
         try (java.sql.Connection conn = dataSource.getConnection();
-             java.sql.Statement stmt = conn.createStatement()) {
+                java.sql.Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_product");
             stmt.execute("CREATE TABLE t_product (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50))");
         }

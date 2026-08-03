@@ -36,8 +36,7 @@ public final class OracleDialect implements Dialect {
     }
 
     @Override
-    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
-                                    LinkedHashMap<String, Object> colValues) {
+    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         return renderMergeViaDual(spec, meta, colValues);
     }
 
@@ -47,8 +46,8 @@ public final class OracleDialect implements Dialect {
      * <p>Parameters in the USING clause use a {@code u_} prefix (e.g. {@code :u_id})
      * to avoid any name collision with other named parameters in the statement.
      */
-    static RenderedSql renderMergeViaDual(UpsertSpec<?> spec, EntityMeta meta,
-                                           LinkedHashMap<String, Object> colValues) {
+    static RenderedSql renderMergeViaDual(
+            UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
         List<String> conflictCols = spec.getConflictColumns();
         List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
@@ -82,9 +81,7 @@ public final class OracleDialect implements Dialect {
             insValJoiner.add("s." + col);
         }
 
-        String matchedClause = spec.isDoNothing()
-                ? ""
-                : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
+        String matchedClause = spec.isDoNothing() ? "" : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
 
         String sql = "MERGE INTO " + meta.getTableName() + " t"
                 + " USING (SELECT " + usingJoiner + " FROM DUAL) s"

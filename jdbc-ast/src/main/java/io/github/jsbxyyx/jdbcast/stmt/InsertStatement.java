@@ -13,19 +13,25 @@ import java.util.List;
  */
 public final class InsertStatement {
 
-    private final Class<?>              entity;
+    private final Class<?> entity;
     private final List<ColumnAssignment> assignments;
-    private final List<String>          returningCols;
+    private final List<String> returningCols;
 
-    public InsertStatement(Class<?> entity,
-                    List<ColumnAssignment> assignments,
-                    List<String> returningCols) {
-        this.entity        = entity;
-        this.assignments   = List.copyOf(assignments);
+    public InsertStatement(Class<?> entity, List<ColumnAssignment> assignments, List<String> returningCols) {
+        this.entity = entity;
+        this.assignments = List.copyOf(assignments);
         this.returningCols = List.copyOf(returningCols);
     }
 
-    public Class<?>               entity()        { return entity; }
-    public List<ColumnAssignment>  assignments()   { return assignments; }
-    public List<String>            returningCols() { return returningCols; }
+    public Class<?> entity() {
+        return entity;
+    }
+
+    public List<ColumnAssignment> assignments() {
+        return assignments;
+    }
+
+    public List<String> returningCols() {
+        return returningCols;
+    }
 }

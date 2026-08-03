@@ -109,8 +109,7 @@ class UpdateBuilderTest {
 
         // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
         assertThatThrownBy(() -> userRepository.update(spec))
-                .isInstanceOfAny(IllegalStateException.class,
-                        InvalidDataAccessApiUsageException.class)
+                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
                 .hasMessageContaining("SET clause");
     }
 
@@ -138,9 +137,7 @@ class UpdateBuilderTest {
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(3);
-        assertThat(userRepository.findAll())
-                .extracting(User::getStatus)
-                .containsOnly("UPDATED");
+        assertThat(userRepository.findAll()).extracting(User::getStatus).containsOnly("UPDATED");
     }
 
     // ------------------------------------------------------------------ //
@@ -169,8 +166,8 @@ class UpdateBuilderTest {
         // condition=false skips one predicate; the other applies normally
         UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "BLOCKED")
-                .eq(User_.status, "INACTIVE", false)  // skipped
-                .eq(User_.name, "Alice", true)         // applied
+                .eq(User_.status, "INACTIVE", false) // skipped
+                .eq(User_.name, "Alice", true) // applied
                 .build();
 
         int affected = userRepository.update(spec);
@@ -179,7 +176,8 @@ class UpdateBuilderTest {
         assertThat(affected).isEqualTo(1);
         User alice = userRepository.findAll().stream()
                 .filter(u -> "Alice".equals(u.getName()))
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
         assertThat(alice.getStatus()).isEqualTo("BLOCKED");
     }
 
@@ -212,7 +210,8 @@ class UpdateBuilderTest {
         assertThat(affected).isEqualTo(1);
         User charlie = userRepository.findAll().stream()
                 .filter(u -> "Charlie".equals(u.getName()))
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
         assertThat(charlie.getStatus()).isEqualTo("SENIOR");
     }
 
@@ -223,7 +222,7 @@ class UpdateBuilderTest {
         // The update may affect 0 rows (JPA `= null` semantics), but it must execute cleanly.
         UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
                 .set(User_.status, "UPDATED")
-                .eq(User_.name, (String) null, true)  // null value, condition=true → predicate added
+                .eq(User_.name, (String) null, true) // null value, condition=true → predicate added
                 .build();
         // Should not throw — no full-table guard because the predicate was registered
         int affected = userRepository.update(spec);
@@ -238,7 +237,7 @@ class UpdateBuilderTest {
     void update_setCondition_trueAppliesSetClause() {
         // condition=true: both SET clauses applied → status and name both updated for Alice
         UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
-                .set(User_.status, "BLOCKED", true)   // applied
+                .set(User_.status, "BLOCKED", true) // applied
                 .set(User_.name, "Alice-Updated", true) // applied
                 .eq(User_.name, "Alice")
                 .build();
@@ -249,7 +248,8 @@ class UpdateBuilderTest {
         assertThat(affected).isEqualTo(1);
         User found = userRepository.findAll().stream()
                 .filter(u -> "Alice-Updated".equals(u.getName()))
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
         assertThat(found.getStatus()).isEqualTo("BLOCKED");
     }
 
@@ -257,7 +257,7 @@ class UpdateBuilderTest {
     void update_setCondition_falseSkipsSetClause() {
         // condition=false: the name SET clause is skipped; only status is updated
         UpdateSpec<User> spec = UpdateBuilder.<User>builder(User.class)
-                .set(User_.status, "BLOCKED", true)      // applied
+                .set(User_.status, "BLOCKED", true) // applied
                 .set(User_.name, "Alice-Updated", false) // skipped
                 .eq(User_.name, "Alice")
                 .build();
@@ -268,7 +268,8 @@ class UpdateBuilderTest {
         assertThat(affected).isEqualTo(1);
         User found = userRepository.findAll().stream()
                 .filter(u -> "Alice".equals(u.getName())) // name unchanged
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
         assertThat(found.getStatus()).isEqualTo("BLOCKED");
     }
 
@@ -282,8 +283,7 @@ class UpdateBuilderTest {
                 .build();
 
         assertThatThrownBy(() -> userRepository.update(spec))
-                .isInstanceOfAny(IllegalStateException.class,
-                        InvalidDataAccessApiUsageException.class)
+                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
                 .hasMessageContaining("SET clause");
     }
 
@@ -310,4 +310,3 @@ class UpdateBuilderTest {
         assertThat(inactive).hasSize(3);
     }
 }
-

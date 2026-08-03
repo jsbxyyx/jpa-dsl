@@ -16,15 +16,24 @@ import java.util.Collection;
 public final class LeafPredicate implements PredicateNode {
 
     public enum Op {
-        EQ, NE, GT, GTE, LT, LTE,
-        LIKE, LIKE_IC,
-        IN, NOT_IN,
+        EQ,
+        NE,
+        GT,
+        GTE,
+        LT,
+        LTE,
+        LIKE,
+        LIKE_IC,
+        IN,
+        NOT_IN,
         BETWEEN,
-        IS_NULL, IS_NOT_NULL
+        IS_NULL,
+        IS_NOT_NULL
     }
 
     /** The left-hand SQL expression (column, function, or aggregate). */
     private final SqlExpression<?> expression;
+
     private final Op op;
     /** Primary value (used for all single-value ops and the lower bound of BETWEEN). */
     private final Object value;
@@ -113,7 +122,15 @@ public final class LeafPredicate implements PredicateNode {
         return null;
     }
 
-    public Op getOp() { return op; }
-    public Object getValue() { return value; }
-    public Object getValue2() { return value2; }
+    public Op getOp() {
+        return op;
+    }
+
+    public Object getValue() {
+        return value;
+    }
+
+    public Object getValue2() {
+        return value2;
+    }
 }

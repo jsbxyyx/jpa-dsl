@@ -18,9 +18,15 @@ package io.github.jsbxyyx.jdbcdsl.expr;
  * @param <V> the Java type of the value produced by this expression (used for type-safe wiring)
  */
 public sealed interface SqlExpression<V>
-        permits ColumnExpression, FunctionExpression, LiteralExpression, AggregateExpression,
-                AliasedExpression, CaseExpression, CastExpression,
-                WindowExpression, ScalarSubqueryExpression {
+        permits ColumnExpression,
+                FunctionExpression,
+                LiteralExpression,
+                AggregateExpression,
+                AliasedExpression,
+                CaseExpression,
+                CastExpression,
+                WindowExpression,
+                ScalarSubqueryExpression {
 
     /**
      * Wraps this expression with an explicit SQL column alias ({@code <expr> AS <alias>}).

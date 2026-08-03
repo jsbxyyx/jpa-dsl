@@ -10,9 +10,19 @@ public class UserRnDto {
 
     public UserRnDto() {}
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public String getUsername() {
+        return username;
+    }
 
-    public Long getRn() { return rn; }
-    public void setRn(Long rn) { this.rn = rn; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public Long getRn() {
+        return rn;
+    }
+
+    public void setRn(Long rn) {
+        this.rn = rn;
+    }
 }

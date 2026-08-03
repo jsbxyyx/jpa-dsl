@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.util.ServiceLoader;
@@ -34,8 +35,7 @@ public final class DialectDetector {
 
     private static final Logger log = LoggerFactory.getLogger(DialectDetector.class);
 
-    private DialectDetector() {
-    }
+    private DialectDetector() {}
 
     /**
      * Detects the {@link Dialect} from the given {@link DataSource}.
@@ -59,8 +59,10 @@ public final class DialectDetector {
             // 1. User SPI providers (highest priority)
             for (DialectProvider provider : ServiceLoader.load(DialectProvider.class)) {
                 if (provider.supports(productName)) {
-                    log.debug("jdbc-dsl: using SPI dialect provider {} for '{}'",
-                            provider.getClass().getName(), productName);
+                    log.debug(
+                            "jdbc-dsl: using SPI dialect provider {} for '{}'",
+                            provider.getClass().getName(),
+                            productName);
                     return provider.create();
                 }
             }
@@ -89,14 +91,13 @@ public final class DialectDetector {
                 if (lower.contains("kingbase")) {
                     return new KingbaseDialect();
                 }
-                log.warn("jdbc-dsl: unrecognized database product '{}', falling back to Sql2008Dialect",
-                        productName);
+                log.warn("jdbc-dsl: unrecognized database product '{}', falling back to Sql2008Dialect", productName);
             } else {
                 log.warn("jdbc-dsl: database product name is null, falling back to Sql2008Dialect");
             }
         } catch (Exception e) {
-            log.warn("jdbc-dsl: failed to detect database dialect ({}), falling back to Sql2008Dialect",
-                    e.getMessage());
+            log.warn(
+                    "jdbc-dsl: failed to detect database dialect ({}), falling back to Sql2008Dialect", e.getMessage());
         }
         return new Sql2008Dialect();
     }

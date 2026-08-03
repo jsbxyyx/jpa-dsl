@@ -23,21 +23,17 @@ class JdbcEntityGeneratorTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        dataSource = new SimpleDriverDataSource(
-                DriverManager.getDriver(DB_URL), DB_URL, "sa", "");
+        dataSource = new SimpleDriverDataSource(DriverManager.getDriver(DB_URL), DB_URL, "sa", "");
 
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS stock_all");
-            stmt.execute(
-                "CREATE TABLE stock_all (" +
-                "  id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  stock_code VARCHAR(20)  NOT NULL," +
-                "  stock_name VARCHAR(100)," +
-                "  price      DECIMAL(10,4)," +
-                "  status     VARCHAR(20)" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE stock_all (" + "  id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                    + "  stock_code VARCHAR(20)  NOT NULL,"
+                    + "  stock_name VARCHAR(100),"
+                    + "  price      DECIMAL(10,4),"
+                    + "  status     VARCHAR(20)"
+                    + ")");
         }
 
         outputDir = Files.createTempDirectory("jdbc-entity-gen-test").toFile();
@@ -146,7 +142,7 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_trimPrefix_removesPrefix() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_product");
             stmt.execute("CREATE TABLE t_product (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50))");
         }
@@ -189,8 +185,7 @@ class JdbcEntityGeneratorTest {
         assertThat(content).contains("import org.springframework.beans.factory.annotation.Autowired;");
         assertThat(content).contains("import org.springframework.stereotype.Repository;");
         assertThat(content).contains("@Repository");
-        assertThat(content).contains(
-                "public class StockAllRepository extends JdbcDslRepository<StockAll, Long> {");
+        assertThat(content).contains("public class StockAllRepository extends JdbcDslRepository<StockAll, Long> {");
         assertThat(content).contains("public StockAllRepository(JdbcDslExecutor jdbcDslExecutor)");
         assertThat(content).contains("@Autowired");
         assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
@@ -253,7 +248,7 @@ class JdbcEntityGeneratorTest {
     @Test
     void repository_withTrimPrefix_usesCorrectEntityName() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_item");
             stmt.execute("CREATE TABLE t_item (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50))");
         }
@@ -270,8 +265,7 @@ class JdbcEntityGeneratorTest {
         assertThat(repoFile).exists();
         String content = readFile(repoFile);
         assertThat(content).contains("import com.example.entity.Item;");
-        assertThat(content).contains(
-                "public class ItemRepository extends JdbcDslRepository<Item, Long> {");
+        assertThat(content).contains("public class ItemRepository extends JdbcDslRepository<Item, Long> {");
         assertThat(content).contains("super(Item.class, jdbcDslExecutor);");
     }
 
@@ -314,16 +308,14 @@ class JdbcEntityGeneratorTest {
     @Test
     void repository_nonAutoIncrementPk_isIncludedInInsert() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_user");
-            stmt.execute(
-                "CREATE TABLE t_user (" +
-                "  id         BIGINT       NOT NULL," +   // NOT auto-increment → business key
-                "  username   VARCHAR(50)  NOT NULL," +
-                "  created_at DATETIME     NOT NULL," +
-                "  PRIMARY KEY (id)" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE t_user (" + "  id         BIGINT       NOT NULL,"
+                    + // NOT auto-increment → business key
+                    "  username   VARCHAR(50)  NOT NULL,"
+                    + "  created_at DATETIME     NOT NULL,"
+                    + "  PRIMARY KEY (id)"
+                    + ")");
         }
 
         JdbcEntityGenerator.builder()
@@ -399,7 +391,7 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_nonAutoIncrementPk_hasNoGeneratedValueAnnotation() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_biz");
             stmt.execute("CREATE TABLE t_biz (id BIGINT NOT NULL, name VARCHAR(50), PRIMARY KEY (id))");
         }
@@ -424,15 +416,13 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_columnWithComment_emitsJavadocBeforeField() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_comment_test");
-            stmt.execute(
-                "CREATE TABLE t_comment_test (" +
-                "  id    BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'primary key'," +
-                "  name  VARCHAR(100) COMMENT 'user name'," +
-                "  score INT" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE t_comment_test ("
+                    + "  id    BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'primary key',"
+                    + "  name  VARCHAR(100) COMMENT 'user name',"
+                    + "  score INT"
+                    + ")");
         }
 
         JdbcEntityGenerator.builder()
@@ -454,15 +444,13 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_columnWithoutComment_doesNotEmitEmptyJavadoc() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_comment_test");
-            stmt.execute(
-                "CREATE TABLE t_comment_test (" +
-                "  id    BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'primary key'," +
-                "  name  VARCHAR(100) COMMENT 'user name'," +
-                "  score INT" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE t_comment_test ("
+                    + "  id    BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'primary key',"
+                    + "  name  VARCHAR(100) COMMENT 'user name',"
+                    + "  score INT"
+                    + ")");
         }
 
         JdbcEntityGenerator.builder()
@@ -484,16 +472,14 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_fieldOrderMatchesDatabaseColumnOrder() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_order_test");
             stmt.execute(
-                "CREATE TABLE t_order_test (" +
-                "  id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  first_col  VARCHAR(50)," +
-                "  second_col VARCHAR(50)," +
-                "  third_col  INT" +
-                ")"
-            );
+                    "CREATE TABLE t_order_test (" + "  id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                            + "  first_col  VARCHAR(50),"
+                            + "  second_col VARCHAR(50),"
+                            + "  third_col  INT"
+                            + ")");
         }
 
         JdbcEntityGenerator.builder()
@@ -541,7 +527,7 @@ class JdbcEntityGeneratorTest {
         // jakarta.persistence.Column and jakarta.persistence.Table are in the same group —
         // they must NOT be separated by a blank line.
         int columnPos = content.indexOf("import jakarta.persistence.Column;");
-        int tablePos  = content.indexOf("import jakarta.persistence.Table;");
+        int tablePos = content.indexOf("import jakarta.persistence.Table;");
         assertThat(columnPos).isGreaterThan(-1);
         assertThat(tablePos).isGreaterThan(-1);
         // Extract the text between those two import lines and verify no blank line
@@ -590,17 +576,14 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_deletedColumn_emitsLogicalDeleteAnnotation_withTimestamps() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_soft");
-            stmt.execute(
-                "CREATE TABLE t_soft (" +
-                "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  name       VARCHAR(100)," +
-                "  deleted    INT DEFAULT 0," +
-                "  created_at TIMESTAMP," +
-                "  updated_at TIMESTAMP" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE t_soft (" + "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                    + "  name       VARCHAR(100),"
+                    + "  deleted    INT DEFAULT 0,"
+                    + "  created_at TIMESTAMP,"
+                    + "  updated_at TIMESTAMP"
+                    + ")");
         }
         JdbcEntityGenerator.builder()
                 .dataSource(dataSource)
@@ -624,14 +607,11 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_deletedColumn_emitsLogicalDeleteAnnotation() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_del");
-            stmt.execute(
-                "CREATE TABLE t_del (" +
-                "  id      BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  deleted INT DEFAULT 0" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE t_del (" + "  id      BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                    + "  deleted INT DEFAULT 0"
+                    + ")");
         }
         JdbcEntityGenerator.builder()
                 .dataSource(dataSource)
@@ -650,15 +630,12 @@ class JdbcEntityGeneratorTest {
     @Test
     void entity_createdAtUpdatedAtColumns_emitDateAnnotations() throws Exception {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
+                Statement stmt = conn.createStatement()) {
             stmt.execute("DROP TABLE IF EXISTS t_time");
-            stmt.execute(
-                "CREATE TABLE t_time (" +
-                "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY," +
-                "  created_at TIMESTAMP," +
-                "  updated_at TIMESTAMP" +
-                ")"
-            );
+            stmt.execute("CREATE TABLE t_time (" + "  id         BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                    + "  created_at TIMESTAMP,"
+                    + "  updated_at TIMESTAMP"
+                    + ")");
         }
         JdbcEntityGenerator.builder()
                 .dataSource(dataSource)

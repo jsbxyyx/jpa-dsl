@@ -23,12 +23,13 @@ import jakarta.persistence.criteria.Root;
 public class StandardJoinStrategy implements JoinStrategy {
 
     @Override
-    public <T, J> Predicate buildJoin(Root<T> root,
-                                       CriteriaQuery<?> query,
-                                       CriteriaBuilder cb,
-                                       Class<J> targetEntity,
-                                       JoinType joinType,
-                                       JoinCondition<T, J> onCondition) {
+    public <T, J> Predicate buildJoin(
+            Root<T> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb,
+            Class<J> targetEntity,
+            JoinType joinType,
+            JoinCondition<T, J> onCondition) {
         // Standard JPA does not support JOIN ... ON between unrelated entities.
         // query.from() produces a cross join; the ON condition acts as the join filter in WHERE.
         // NOTE: joinType is intentionally ignored here — the cross-join + WHERE combination

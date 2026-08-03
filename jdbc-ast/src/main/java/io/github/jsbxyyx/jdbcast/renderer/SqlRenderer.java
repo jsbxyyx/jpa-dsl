@@ -15,7 +15,10 @@ import io.github.jsbxyyx.jdbcast.stmt.UpdateStatement;
 public interface SqlRenderer {
 
     RenderedSql render(SelectStatement stmt);
+
     RenderedSql render(InsertStatement stmt);
+
     RenderedSql render(UpdateStatement stmt);
+
     RenderedSql render(DeleteStatement stmt);
 }

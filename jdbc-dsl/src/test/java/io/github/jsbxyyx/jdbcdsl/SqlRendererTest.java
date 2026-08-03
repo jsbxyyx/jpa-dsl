@@ -5,10 +5,7 @@ import io.github.jsbxyyx.jdbcdsl.entity.TOrder;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
-import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
-import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.count;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
-import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.subquery;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,8 +41,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("ORDER BY t.username ASC, t.age DESC");
+        assertThat(rendered.getSql()).contains("ORDER BY t.username ASC, t.age DESC");
     }
 
     @Test
@@ -98,9 +94,7 @@ class SqlRendererTest {
     void renderSelect_orPredicate() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.or(sub -> sub
-                        .eq(TUser::getStatus, "ACTIVE")
-                        .eq(TUser::getStatus, "PENDING")))
+                .where(w -> w.or(sub -> sub.eq(TUser::getStatus, "ACTIVE").eq(TUser::getStatus, "PENDING")))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -114,9 +108,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
-        assertThat(rendered.getSql())
-                .startsWith("SELECT COUNT(*)")
-                .contains("FROM t_user t");
+        assertThat(rendered.getSql()).startsWith("SELECT COUNT(*)").contains("FROM t_user t");
         assertThat(rendered.getParams()).isEmpty();
     }
 
@@ -126,8 +118,7 @@ class SqlRendererTest {
         // count duplicate rows. The fix uses COUNT(DISTINCT alias.pk) instead.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(TUser::getId, TUser::getUsername)
-                .join(TOrder.class, "o", JoinType.LEFT, on ->
-                        on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
                 .mapTo(UserDto.class);
 
@@ -145,7 +136,9 @@ class SqlRendererTest {
         // When GROUP BY is present, COUNT(*) counts raw rows, not groups.
         // The fix wraps the grouped query as a derived table.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
-                .select(SqlFunctions.col(TUser::getStatus), SqlFunctions.countStar().as("cnt"))
+                .select(
+                        SqlFunctions.col(TUser::getStatus),
+                        SqlFunctions.countStar().as("cnt"))
                 .groupBy(TUser::getStatus)
                 .mapTo(UserDto.class);
 
@@ -161,7 +154,9 @@ class SqlRendererTest {
     void renderCount_withGroupByAndHaving_wrapsAsSubquery() {
         // HAVING must also be included in the inner query.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
-                .select(SqlFunctions.col(TUser::getStatus), SqlFunctions.countStar().as("cnt"))
+                .select(
+                        SqlFunctions.col(TUser::getStatus),
+                        SqlFunctions.countStar().as("cnt"))
                 .groupBy(TUser::getStatus)
                 .having(h -> h.gt(SqlFunctions.countStar(), 1L))
                 .mapTo(UserDto.class);
@@ -176,8 +171,7 @@ class SqlRendererTest {
 
     @Test
     void renderSelect_noExplicitSelect_expandsAllColumns() {
-        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
@@ -197,8 +191,7 @@ class SqlRendererTest {
         // TUser declares fields in order: id, username, email, age, status.
         // The expanded SELECT must reflect that order, NOT alphabetical order.
         // Alphabetical order would be: age, email, id, status, username.
-        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
         // Extract the SELECT clause (everything between "SELECT " and " FROM")
@@ -207,11 +200,11 @@ class SqlRendererTest {
         String selectClause = sql.substring(selectStart, fromStart);
 
         // Verify that the columns appear in entity declaration order, not alphabetical
-        int posId       = selectClause.indexOf("t.id AS id");
+        int posId = selectClause.indexOf("t.id AS id");
         int posUsername = selectClause.indexOf("t.username AS username");
-        int posEmail    = selectClause.indexOf("t.email AS email");
-        int posAge      = selectClause.indexOf("t.age AS age");
-        int posStatus   = selectClause.indexOf("t.status AS status");
+        int posEmail = selectClause.indexOf("t.email AS email");
+        int posAge = selectClause.indexOf("t.age AS age");
+        int posStatus = selectClause.indexOf("t.status AS status");
 
         assertThat(posId).isLessThan(posUsername);
         assertThat(posUsername).isLessThan(posEmail);
@@ -250,7 +243,9 @@ class SqlRendererTest {
                 break;
             }
         }
-        assertThat(hasFromSpring).as("JPageable must not have fromSpring methods").isFalse();
+        assertThat(hasFromSpring)
+                .as("JPageable must not have fromSpring methods")
+                .isFalse();
     }
 
     // ------------------------------------------------------------------ //
@@ -300,11 +295,9 @@ class SqlRendererTest {
     @Test
     void updateBuilder_noWhere_throwsIllegalState() {
         // build() without WHERE throws by default to prevent accidental full-table updates
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                UpdateBuilder.from(TUser.class)
-                        .set(TUser::getStatus, "INACTIVE")
-                        .build()
-        );
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .build());
     }
 
     @Test
@@ -341,9 +334,7 @@ class SqlRendererTest {
         assertThat(rendered.getSql()).contains("DELETE FROM t_user WHERE");
         assertThat(rendered.getSql()).contains("status = :p1");
         assertThat(rendered.getSql()).contains("age < :p2");
-        assertThat(rendered.getParams())
-                .containsEntry("p1", "INACTIVE")
-                .containsEntry("p2", 18);
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE").containsEntry("p2", 18);
     }
 
     @Test
@@ -356,9 +347,8 @@ class SqlRendererTest {
 
     @Test
     void deleteBuilder_noWhereCondition_throwsIllegalState() {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                DeleteBuilder.from(TUser.class).build()
-        );
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> DeleteBuilder.from(TUser.class)
+                .build());
     }
 
     // ------------------------------------------------------------------ //
@@ -478,13 +468,11 @@ class SqlRendererTest {
     @Test
     void forUpdate_notInSubquery() {
         // FOR UPDATE must not appear inside a subquery rendered via buildSelectSql
-        SelectSpec<TUser, UserDto> inner = SelectBuilder.from(TUser.class)
-                .forUpdate()
-                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> inner =
+                SelectBuilder.from(TUser.class).forUpdate().mapTo(UserDto.class);
         // render as subquery (includeOrderBy=false path)
-        java.util.Map<String, Object> params = new java.util.LinkedHashMap<>();
-        java.util.concurrent.atomic.AtomicInteger idx = new java.util.concurrent.atomic.AtomicInteger(0);
-        String sql = SqlRenderer.buildSelectSql(inner, params, idx, false);
+        RenderContext ctx = new RenderContext();
+        String sql = SqlRenderer.buildSelectSql(inner, ctx, false);
         assertThat(sql).doesNotContain("FOR UPDATE");
     }
 
@@ -503,7 +491,8 @@ class SqlRendererTest {
                 .where(w -> w.eq(TUser::getStatus, "INACTIVE"))
                 .mapTo(UserDto.class);
 
-        UnionSpec<UserDto> union = UnionSpec.of(b1).unionAll(b2)
+        UnionSpec<UserDto> union = UnionSpec.of(b1)
+                .unionAll(b2)
                 .orderBy(JSort.byAsc(TUser::getUsername))
                 .build();
 

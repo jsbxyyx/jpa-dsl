@@ -35,10 +35,8 @@ class JoinRendererTest {
         //           LEFT  JOIN t_audit_user au ON u.id = au.id
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(TUser::getId, TUser::getUsername)
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
-                .join(TAuditUser.class, "au", JoinType.LEFT,
-                        on -> on.eq(TUser::getId, "u", TAuditUser::getId, "au"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .join(TAuditUser.class, "au", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TAuditUser::getId, "au"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -54,10 +52,8 @@ class JoinRendererTest {
     void renderCount_multiJoinChain_usesCountDistinct() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(TUser::getId, TUser::getUsername)
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
-                .join(TAuditUser.class, "au", JoinType.LEFT,
-                        on -> on.eq(TUser::getId, "u", TAuditUser::getId, "au"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .join(TAuditUser.class, "au", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TAuditUser::getId, "au"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
@@ -83,10 +79,8 @@ class JoinRendererTest {
                         col(TUser::getUsername, "u"),
                         col(TOrder::getOrderNo, "o"),
                         col(TOrder::getAmount, "o"),
-                        col(TOrder::getStatus, "o").as("orderStatus")
-                )
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                        col(TOrder::getStatus, "o").as("orderStatus"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .mapTo(UserOrderDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -105,14 +99,12 @@ class JoinRendererTest {
     void renderSelect_crossTableWhere_filterOnJoinedColumn() {
         SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(col(TUser::getUsername, "u"), col(TOrder::getOrderNo, "o"))
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .where(w -> w.eq(TOrder::getStatus, "o", "PAID"))
                 .mapTo(UserOrderDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("o.status = :p1");
+        assertThat(rendered.getSql()).contains("o.status = :p1");
         assertThat(rendered.getParams()).containsEntry("p1", "PAID");
     }
 
@@ -128,8 +120,7 @@ class JoinRendererTest {
         // WHERE u2.username = :p1
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
                 .select(col(TUser::getUsername, "u1"))
-                .join(TUser.class, "u2", JoinType.INNER,
-                        on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
+                .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
                 .where(w -> w.eq(TUser::getUsername, "u2", "alice"))
                 .mapTo(UserDto.class);
 
@@ -149,10 +140,8 @@ class JoinRendererTest {
         SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u1")
                 .select(
                         col(TUser::getUsername, "u1"),
-                        col(TUser::getStatus, "u2").as("orderStatus")
-                )
-                .join(TUser.class, "u2", JoinType.LEFT,
-                        on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
+                        col(TUser::getStatus, "u2").as("orderStatus"))
+                .join(TUser.class, "u2", JoinType.LEFT, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
                 .mapTo(UserOrderDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -173,8 +162,7 @@ class JoinRendererTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
                 // col(TUser::getUsername) — no explicit alias in a self-join context
                 .select(col(TUser::getUsername))
-                .join(TUser.class, "u2", JoinType.INNER,
-                        on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
+                .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
                 .mapTo(UserDto.class);
 
         assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
@@ -193,8 +181,7 @@ class JoinRendererTest {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
                 // .select(SFunction...) shorthand — bare refs, no alias
                 .select(TUser::getUsername, TUser::getStatus)
-                .join(TUser.class, "u2", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
+                .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
                 .mapTo(UserDto.class);
 
         assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
@@ -218,8 +205,7 @@ class JoinRendererTest {
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(TUser::getId, TUser::getUsername)
-                .leftJoinSubquery(orderCount, TOrder.class, "o",
-                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+                .leftJoinSubquery(orderCount, TOrder.class, "o", on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -240,8 +226,7 @@ class JoinRendererTest {
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(TUser::getId, TUser::getUsername)
-                .innerJoinSubquery(subq, TOrder.class, "o",
-                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+                .innerJoinSubquery(subq, TOrder.class, "o", on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -255,13 +240,12 @@ class JoinRendererTest {
     @Test
     void renderSelect_joinSubqueryWithRawOn_generatesRawCondition() {
         // raw() is still available as an escape hatch for complex multi-condition ON clauses
-        SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class)
-                .mapToEntity();
+        SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class).mapToEntity();
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(TUser::getId, TUser::getUsername)
-                .joinSubquery(subq, TOrder.class, "o", JoinType.LEFT,
-                        on -> on.raw("o.userId = t.id AND o.status = 'PAID'"))
+                .joinSubquery(
+                        subq, TOrder.class, "o", JoinType.LEFT, on -> on.raw("o.userId = t.id AND o.status = 'PAID'"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);

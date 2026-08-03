@@ -27,8 +27,7 @@ public final class PostgresDialect implements Dialect {
     }
 
     @Override
-    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
-                                    LinkedHashMap<String, Object> colValues) {
+    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         return renderOnConflict(spec, meta, colValues);
     }
 
@@ -36,8 +35,7 @@ public final class PostgresDialect implements Dialect {
      * Shared render logic for PostgreSQL: {@code INSERT … ON CONFLICT … DO UPDATE SET …}
      * or {@code INSERT … ON CONFLICT [(target)] DO NOTHING} when {@code spec.isDoNothing()}.
      */
-    static RenderedSql renderOnConflict(UpsertSpec<?> spec, EntityMeta meta,
-                                         LinkedHashMap<String, Object> colValues) {
+    static RenderedSql renderOnConflict(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
         List<String> conflictCols = spec.getConflictColumns();
 
@@ -49,9 +47,7 @@ public final class PostgresDialect implements Dialect {
             valJoiner.add(":" + col);
         }
 
-        String conflictTarget = conflictCols.isEmpty()
-                ? ""
-                : " (" + String.join(", ", conflictCols) + ")";
+        String conflictTarget = conflictCols.isEmpty() ? "" : " (" + String.join(", ", conflictCols) + ")";
 
         String conflictAction;
         if (spec.isDoNothing()) {

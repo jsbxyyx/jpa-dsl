@@ -7,5 +7,4 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * This class is intentionally placed in the test source tree only.
  */
 @SpringBootApplication
-public class TestApplication {
-}
+public class TestApplication {}

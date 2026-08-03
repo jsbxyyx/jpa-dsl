@@ -14,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
@@ -65,9 +64,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -78,9 +75,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -91,9 +86,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "bob");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
@@ -115,9 +108,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("charlie");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -128,8 +119,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactly("alice", "bob", "charlie");
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("alice", "bob", "charlie");
     }
 
     @Test
@@ -140,8 +130,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactly("charlie", "bob", "alice");
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("charlie", "bob", "alice");
     }
 
     // ------------------------------------------------------------------ //
@@ -160,7 +149,8 @@ class JdbcDslIntegrationTest {
 
         assertThat(page.getTotalElements()).isEqualTo(3);
         assertThat(page.getTotalPages()).isEqualTo(2);
-        assertThat(page.getContent()).hasSize(2)
+        assertThat(page.getContent())
+                .hasSize(2)
                 .extracting(UserDto::getUsername)
                 .containsExactly("alice", "bob");
     }
@@ -176,7 +166,8 @@ class JdbcDslIntegrationTest {
         Page<UserDto> page = executor.selectPage(spec, pageable);
 
         assertThat(page.getTotalElements()).isEqualTo(3);
-        assertThat(page.getContent()).hasSize(1)
+        assertThat(page.getContent())
+                .hasSize(1)
                 .extracting(UserDto::getUsername)
                 .containsExactly("charlie");
     }
@@ -205,8 +196,7 @@ class JdbcDslIntegrationTest {
         Page<UserDto> page = executor.selectPage(spec, pageable);
 
         assertThat(page.getTotalElements()).isEqualTo(3);
-        assertThat(page.getContent()).extracting(UserDto::getUsername)
-                .containsExactly("alice", "bob");
+        assertThat(page.getContent()).extracting(UserDto::getUsername).containsExactly("alice", "bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -289,9 +279,7 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(0, 2, JSort.byAsc(TUser::getUsername));
         List<UserDto> result = executor.select(spec, pageable);
 
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice", "bob");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactly("alice", "bob");
     }
 
     @Test
@@ -303,9 +291,7 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(1, 2, JSort.byAsc(TUser::getUsername));
         List<UserDto> result = executor.select(spec, pageable);
 
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("charlie");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -328,15 +314,12 @@ class JdbcDslIntegrationTest {
     void select_withInnerJoin_onUserOrders() {
         SelectSpec<TOrder, OrderDto> spec = SelectBuilder.from(TOrder.class, "o")
                 .select(TOrder::getId, TOrder::getOrderNo, TOrder::getAmount)
-                .join(TUser.class, "u", JoinType.INNER,
-                        ob -> ob.eq(TOrder::getUserId, "o", TUser::getId, "u"))
+                .join(TUser.class, "u", JoinType.INNER, ob -> ob.eq(TOrder::getUserId, "o", TUser::getId, "u"))
                 .where(w -> w.eq(TUser::getStatus, "u", "ACTIVE"))
                 .mapTo(OrderDto.class);
 
         List<OrderDto> result = executor.select(spec);
-        assertThat(result).hasSize(2)
-                .extracting(OrderDto::getOrderNo)
-                .containsExactlyInAnyOrder("ORD-001", "ORD-002");
+        assertThat(result).hasSize(2).extracting(OrderDto::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-002");
     }
 
     // ------------------------------------------------------------------ //
@@ -366,15 +349,12 @@ class JdbcDslIntegrationTest {
     void select_conditionFalse_skips() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w
-                        .eq(TUser::getStatus, "INACTIVE", false)  // skipped
-                        .eq(TUser::getStatus, "ACTIVE", true))    // applied
+                .where(w -> w.eq(TUser::getStatus, "INACTIVE", false) // skipped
+                        .eq(TUser::getStatus, "ACTIVE", true)) // applied
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -383,8 +363,7 @@ class JdbcDslIntegrationTest {
 
     @Test
     void mapToEntity_noExplicitSelect_returnsFullyPopulatedEntities() {
-        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
 
         List<TUser> result = executor.select(spec);
         assertThat(result).hasSize(3);
@@ -403,17 +382,13 @@ class JdbcDslIntegrationTest {
                 .mapToEntity();
 
         List<TUser> result = executor.select(spec);
-        assertThat(result).hasSize(2)
-                .extracting(TUser::getStatus)
-                .containsOnly("ACTIVE");
-        assertThat(result).extracting(TUser::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(TUser::getStatus).containsOnly("ACTIVE");
+        assertThat(result).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
     void mapToEntity_orderEntity_returnsAllFields() {
-        SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
-                .mapToEntity();
+        SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o").mapToEntity();
 
         List<TOrder> result = executor.select(spec);
         assertThat(result).hasSize(3);
@@ -435,11 +410,10 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(3)
-                .allSatisfy(dto -> {
-                    assertThat(dto.getId()).as("id must not be null").isNotNull();
-                    assertThat(dto.getUsername()).as("username must not be null").isNotNull();
-                });
+        assertThat(result).hasSize(3).allSatisfy(dto -> {
+            assertThat(dto.getId()).as("id must not be null").isNotNull();
+            assertThat(dto.getUsername()).as("username must not be null").isNotNull();
+        });
     }
 
     // ------------------------------------------------------------------ //
@@ -452,8 +426,14 @@ class JdbcDslIntegrationTest {
      */
     static class EmailUpperDto {
         private String emailUpper;
-        public String getEmailUpper() { return emailUpper; }
-        public void setEmailUpper(String emailUpper) { this.emailUpper = emailUpper; }
+
+        public String getEmailUpper() {
+            return emailUpper;
+        }
+
+        public void setEmailUpper(String emailUpper) {
+            this.emailUpper = emailUpper;
+        }
     }
 
     @Test
@@ -478,15 +458,12 @@ class JdbcDslIntegrationTest {
         // Here we only select order fields to avoid the ambiguity.
         SelectSpec<TOrder, OrderDto> spec = SelectBuilder.from(TOrder.class, "o")
                 .select(TOrder::getId, TOrder::getOrderNo, TOrder::getAmount)
-                .join(TUser.class, "u", JoinType.INNER,
-                        ob -> ob.eq(TOrder::getUserId, "o", TUser::getId, "u"))
+                .join(TUser.class, "u", JoinType.INNER, ob -> ob.eq(TOrder::getUserId, "o", TUser::getId, "u"))
                 .where(w -> w.eq(TUser::getStatus, "u", "ACTIVE"))
                 .mapTo(OrderDto.class);
 
         List<OrderDto> result = executor.select(spec);
-        assertThat(result).hasSize(2)
-                .extracting(OrderDto::getOrderNo)
-                .containsExactlyInAnyOrder("ORD-001", "ORD-002");
+        assertThat(result).hasSize(2).extracting(OrderDto::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-002");
         // id and amount should be populated via setter
         assertThat(result).allSatisfy(dto -> {
             assertThat(dto.getId()).isNotNull();
@@ -615,11 +592,9 @@ class JdbcDslIntegrationTest {
     @Test
     void updateBuilder_noWhere_throwsIllegalStateByDefault() {
         // build() without WHERE throws by default to prevent accidental full-table updates
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                UpdateBuilder.from(TUser.class)
-                        .set(TUser::getStatus, "INACTIVE")
-                        .build()
-        );
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .build());
     }
 
     @Test
@@ -663,16 +638,13 @@ class JdbcDslIntegrationTest {
 
         SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class).mapToEntity();
         List<TUser> remaining = executor.select(verify);
-        assertThat(remaining).hasSize(2)
-                .extracting(TUser::getUsername)
-                .containsExactlyInAnyOrder("alice", "bob");
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
     void deleteBuilder_noWhereCondition_throwsIllegalState() {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                DeleteBuilder.from(TUser.class).build()
-        );
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> DeleteBuilder.from(TUser.class)
+                .build());
     }
 
     @Test
@@ -691,8 +663,7 @@ class JdbcDslIntegrationTest {
         // When all conditions are false the WHERE clause is empty → all rows returned
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w
-                        .eq(TUser::getStatus, "ACTIVE", false)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE", false)
                         .like(TUser::getUsername, "%ali%", false)
                         .gt(TUser::getAge, 50, false))
                 .mapTo(UserDto.class);
@@ -723,24 +694,19 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
     void whereCondition_likeIgnoreCaseFalse_skips() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w
-                        .likeIgnoreCase(TUser::getUsername, "%ALI%", false)  // skipped
-                        .eq(TUser::getStatus, "INACTIVE", true))           // applied
+                .where(w -> w.likeIgnoreCase(TUser::getUsername, "%ALI%", false) // skipped
+                        .eq(TUser::getStatus, "INACTIVE", true)) // applied
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("bob");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -767,9 +733,8 @@ class JdbcDslIntegrationTest {
     @Test
     void save_withInsertSpec_insertsSpecifiedColumns() {
         // Only insert username and status; email and age are omitted from the spec
-        InsertSpec<TUser> spec = InsertBuilder.into(TUser.class)
-                .columns("username", "status")
-                .build();
+        InsertSpec<TUser> spec =
+                InsertBuilder.into(TUser.class).columns("username", "status").build();
         TUser newUser = new TUser("eve", "eve@example.com", 33, "ACTIVE");
         executor.save(spec, newUser);
 
@@ -840,38 +805,36 @@ class JdbcDslIntegrationTest {
     @Test
     void updateById_updatesAllNonPkColumns() {
         // Fetch alice's id first
-        TUser alice = executor.select(
-                SelectBuilder.from(TUser.class)
+        TUser alice = executor.select(SelectBuilder.from(TUser.class)
                         .where(w -> w.eq(TUser::getUsername, "alice"))
-                        .mapToEntity()).get(0);
+                        .mapToEntity())
+                .get(0);
 
         alice.setEmail("alice_new@example.com");
         alice.setAge(99);
         int affected = executor.updateById(alice);
         assertThat(affected).isEqualTo(1);
 
-        TUser updated = executor.select(
-                SelectBuilder.from(TUser.class)
+        TUser updated = executor.select(SelectBuilder.from(TUser.class)
                         .where(w -> w.eq(TUser::getUsername, "alice"))
-                        .mapToEntity()).get(0);
+                        .mapToEntity())
+                .get(0);
         assertThat(updated.getEmail()).isEqualTo("alice_new@example.com");
         assertThat(updated.getAge()).isEqualTo(99);
     }
 
     @Test
     void deleteById_deletesMatchingRow() {
-        TUser bob = executor.select(
-                SelectBuilder.from(TUser.class)
+        TUser bob = executor.select(SelectBuilder.from(TUser.class)
                         .where(w -> w.eq(TUser::getUsername, "bob"))
-                        .mapToEntity()).get(0);
+                        .mapToEntity())
+                .get(0);
 
         int affected = executor.deleteById(TUser.class, bob.getId());
         assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        assertThat(remaining).hasSize(2)
-                .extracting(TUser::getUsername)
-                .doesNotContain("bob");
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).doesNotContain("bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -889,7 +852,8 @@ class JdbcDslIntegrationTest {
         assertThat(affected).isEqualTo(1);
 
         TUser bob = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "bob")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity());
         assertThat(bob.getStatus()).isEqualTo("DISABLED");
     }
 
@@ -905,7 +869,8 @@ class JdbcDslIntegrationTest {
         assertThat(affected).isEqualTo(1);
 
         TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "charlie")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "charlie"))
+                .mapToEntity());
         assertThat(charlie.getStatus()).isEqualTo("SENIOR");
     }
 
@@ -922,12 +887,14 @@ class JdbcDslIntegrationTest {
         assertThat(affected).isEqualTo(1);
 
         TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "charlie")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "charlie"))
+                .mapToEntity());
         assertThat(charlie.getStatus()).isEqualTo("VETERAN");
 
         // alice (ACTIVE, age=25) should be unchanged
         TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "alice")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity());
         assertThat(alice.getStatus()).isEqualTo("ACTIVE");
     }
 
@@ -937,20 +904,22 @@ class JdbcDslIntegrationTest {
         // Only eq(username, "alice", true) should be in the WHERE clause
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
                 .set(TUser::getAge, 55)
-                .eq(TUser::getStatus, "INACTIVE", false)   // skipped
-                .eq(TUser::getUsername, "alice", true)      // applied
+                .eq(TUser::getStatus, "INACTIVE", false) // skipped
+                .eq(TUser::getUsername, "alice", true) // applied
                 .build();
 
         int affected = executor.executeUpdate(spec);
         assertThat(affected).isEqualTo(1);
 
         TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "alice")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity());
         assertThat(alice.getAge()).isEqualTo(55);
 
         // bob's age must not be changed
         TUser bob = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "bob")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .mapToEntity());
         assertThat(bob.getAge()).isNotEqualTo(55);
     }
 
@@ -967,12 +936,14 @@ class JdbcDslIntegrationTest {
         assertThat(affected).isEqualTo(1);
 
         TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "alice")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity());
         assertThat(alice.getAge()).isEqualTo(77);
 
         // charlie is also ACTIVE but username != alice → must not be updated
         TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
-                .where(w -> w.eq(TUser::getUsername, "charlie")).mapToEntity());
+                .where(w -> w.eq(TUser::getUsername, "charlie"))
+                .mapToEntity());
         assertThat(charlie.getAge()).isNotEqualTo(77);
     }
 
@@ -982,17 +953,14 @@ class JdbcDslIntegrationTest {
 
     @Test
     void deleteBuilder_directEq_deletesMatchingRow() {
-        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
-                .eq(TUser::getUsername, "bob")
-                .build();
+        DeleteSpec<TUser> spec =
+                DeleteBuilder.from(TUser.class).eq(TUser::getUsername, "bob").build();
 
         int affected = executor.executeDelete(spec);
         assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        assertThat(remaining).hasSize(2)
-                .extracting(TUser::getUsername)
-                .doesNotContain("bob");
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).doesNotContain("bob");
     }
 
     @Test
@@ -1007,26 +975,22 @@ class JdbcDslIntegrationTest {
         assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        assertThat(remaining).hasSize(2)
-                .extracting(TUser::getUsername)
-                .containsExactlyInAnyOrder("alice", "bob");
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
     void deleteBuilder_directEqConditionFalse_skips() {
         // condition=false means the predicate is not added
         DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
-                .eq(TUser::getStatus, "INACTIVE", false)  // skipped
-                .eq(TUser::getUsername, "bob", true)       // applied
+                .eq(TUser::getStatus, "INACTIVE", false) // skipped
+                .eq(TUser::getUsername, "bob", true) // applied
                 .build();
 
         int affected = executor.executeDelete(spec);
         assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        assertThat(remaining).hasSize(2)
-                .extracting(TUser::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -1042,9 +1006,7 @@ class JdbcDslIntegrationTest {
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
         // charlie is also ACTIVE but was not deleted (username != alice)
-        assertThat(remaining).hasSize(2)
-                .extracting(TUser::getUsername)
-                .containsExactlyInAnyOrder("bob", "charlie");
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("bob", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -1093,9 +1055,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
         List<UserDto> result = executor.select(spec);
         // bob is INACTIVE; alice and charlie are ACTIVE → 2 rows returned
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -1163,14 +1123,15 @@ class JdbcDslIntegrationTest {
         SelectSpec<TUser, TUser> alice = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity();
-        assertThat(executor.select(alice)).hasSize(1)
-                .extracting(TUser::getStatus).containsExactly("INACTIVE");
+        assertThat(executor.select(alice))
+                .hasSize(1)
+                .extracting(TUser::getStatus)
+                .containsExactly("INACTIVE");
 
         SelectSpec<TUser, TUser> bob = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity();
-        assertThat(executor.select(bob)).hasSize(1)
-                .extracting(TUser::getStatus).containsExactly("ACTIVE");
+        assertThat(executor.select(bob)).hasSize(1).extracting(TUser::getStatus).containsExactly("ACTIVE");
     }
 
     @Test
@@ -1196,9 +1157,7 @@ class JdbcDslIntegrationTest {
         // Only charlie should remain
         SelectSpec<TUser, TUser> all = SelectBuilder.from(TUser.class).mapToEntity();
         List<TUser> remaining = executor.select(all);
-        assertThat(remaining).hasSize(1)
-                .extracting(TUser::getUsername)
-                .containsExactly("charlie");
+        assertThat(remaining).hasSize(1).extracting(TUser::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -1222,7 +1181,8 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.eq(TUser::getStatus, "INACTIVE"))
                 .mapTo(UserDto.class);
 
-        UnionSpec<UserDto> union = UnionSpec.of(active).unionAll(inactive)
+        UnionSpec<UserDto> union = UnionSpec.of(active)
+                .unionAll(inactive)
                 .orderBy(JSort.byDesc(TUser::getUsername))
                 .build();
 

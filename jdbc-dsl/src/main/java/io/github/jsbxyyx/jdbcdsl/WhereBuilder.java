@@ -1,6 +1,5 @@
 package io.github.jsbxyyx.jdbcdsl;
 
-import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.ExistsPredicate;

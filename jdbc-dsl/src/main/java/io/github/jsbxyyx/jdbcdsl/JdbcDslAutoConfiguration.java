@@ -1,7 +1,9 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -13,9 +15,6 @@ import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
-
-import org.springframework.beans.factory.ObjectProvider;
 
 import javax.sql.DataSource;
 
@@ -57,21 +56,20 @@ public class JdbcDslAutoConfiguration {
      * </ol>
      */
     @Bean
-    public JdbcDslConfigInitializer jdbcDslConfigInitializer(JdbcDslProperties properties,
-                                                               ObjectProvider<NamingStrategy> namingStrategyProvider) {
+    public JdbcDslConfigInitializer jdbcDslConfigInitializer(
+            JdbcDslProperties properties, ObjectProvider<NamingStrategy> namingStrategyProvider) {
         JdbcDslConfig.setAllowEmptyWhere(properties.isAllowEmptyWhere());
         JdbcDslConfig.setLogicalDeleteAutoFilter(properties.isLogicalDeleteAutoFilter());
-        NamingStrategy strategy = namingStrategyProvider.getIfAvailable(
-                () -> buildNamingStrategy(properties.getNamingStrategy()));
+        NamingStrategy strategy =
+                namingStrategyProvider.getIfAvailable(() -> buildNamingStrategy(properties.getNamingStrategy()));
         JdbcDslConfig.setNamingStrategy(strategy);
         return new JdbcDslConfigInitializer();
     }
-    
+
     /**
      * Marker class to ensure JdbcDslConfig is initialized.
      */
-    public static class JdbcDslConfigInitializer {
-    }
+    public static class JdbcDslConfigInitializer {}
 
     private static NamingStrategy buildNamingStrategy(String value) {
         if ("snake_case".equalsIgnoreCase(value)) {
@@ -105,8 +103,8 @@ public class JdbcDslAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(JdbcDslExecutor.class)
     @ConditionalOnBean({NamedParameterJdbcTemplate.class, Dialect.class})
-    public JdbcDslExecutor jdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect,
-                                           JdbcDslCacheManager cacheManager) {
+    public JdbcDslExecutor jdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc, Dialect dialect, JdbcDslCacheManager cacheManager) {
         PropertyRefResolver.setCacheManager(cacheManager);
         return new JdbcDslExecutor(jdbc, dialect, cacheManager);
     }

@@ -28,26 +28,38 @@ public final class EntityMeta {
     private final List<String> createdDatePropertyNames;
     private final List<String> lastModifiedDatePropertyNames;
 
-    public EntityMeta(String tableName,
-                      Map<String, String> propertyToColumn,
-                      String idPropertyName,
-                      String idColumnName,
-                      boolean idGeneratedByIdentity) {
-        this(tableName, propertyToColumn, idPropertyName, idColumnName, idGeneratedByIdentity,
-                null, null, null, null, List.of(), List.of());
+    public EntityMeta(
+            String tableName,
+            Map<String, String> propertyToColumn,
+            String idPropertyName,
+            String idColumnName,
+            boolean idGeneratedByIdentity) {
+        this(
+                tableName,
+                propertyToColumn,
+                idPropertyName,
+                idColumnName,
+                idGeneratedByIdentity,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                List.of());
     }
 
-    public EntityMeta(String tableName,
-                      Map<String, String> propertyToColumn,
-                      String idPropertyName,
-                      String idColumnName,
-                      boolean idGeneratedByIdentity,
-                      String logicalDeletePropertyName,
-                      String logicalDeleteColumnName,
-                      String logicalDeletedValue,
-                      String logicalDeleteNormalValue,
-                      List<String> createdDatePropertyNames,
-                      List<String> lastModifiedDatePropertyNames) {
+    public EntityMeta(
+            String tableName,
+            Map<String, String> propertyToColumn,
+            String idPropertyName,
+            String idColumnName,
+            boolean idGeneratedByIdentity,
+            String logicalDeletePropertyName,
+            String logicalDeleteColumnName,
+            String logicalDeletedValue,
+            String logicalDeleteNormalValue,
+            List<String> createdDatePropertyNames,
+            List<String> lastModifiedDatePropertyNames) {
         this.tableName = tableName;
         this.propertyToColumn = Collections.unmodifiableMap(propertyToColumn);
         this.idPropertyName = idPropertyName;

@@ -1,12 +1,13 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
+import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.AliasedExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
-import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ScalarSubqueryExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
@@ -20,7 +21,6 @@ import io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 import io.github.jsbxyyx.jdbcdsl.predicate.RawPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.ScalarSubqueryPredicate;
-import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
-
 
 /**
  * Renders a {@link SelectSpec} into a parameterized {@link RenderedSql}.
@@ -48,8 +47,7 @@ import java.util.StringJoiner;
  */
 public final class SqlRenderer {
 
-    private SqlRenderer() {
-    }
+    private SqlRenderer() {}
 
     /**
      * Renders a {@link UnionSpec} into a parameterized {@link RenderedSql}.
@@ -68,14 +66,15 @@ public final class SqlRenderer {
         for (int i = 0; i < branches.size(); i++) {
             UnionSpec.Branch<R> branch = branches.get(i);
             if (i > 0) {
-                String op = switch (branch.unionType()) {
-                    case UNION_ALL -> " UNION ALL ";
-                    case INTERSECT -> " INTERSECT ";
-                    case INTERSECT_ALL -> " INTERSECT ALL ";
-                    case EXCEPT -> " EXCEPT ";
-                    case EXCEPT_ALL -> " EXCEPT ALL ";
-                    default -> " UNION ";
-                };
+                String op =
+                        switch (branch.unionType()) {
+                            case UNION_ALL -> " UNION ALL ";
+                            case INTERSECT -> " INTERSECT ";
+                            case INTERSECT_ALL -> " INTERSECT ALL ";
+                            case EXCEPT -> " EXCEPT ";
+                            case EXCEPT_ALL -> " EXCEPT ALL ";
+                            default -> " UNION ";
+                        };
                 sb.append(op);
             }
             sb.append(buildSelectSqlUnchecked(branch.spec(), ctx, false));
@@ -88,11 +87,12 @@ public final class SqlRenderer {
             StringJoiner orderJoiner = new StringJoiner(", ");
             for (JOrder<?> order : sort.getOrders()) {
                 String colExpr = renderOrderExpressionUnqualified(order.getExpression(), ctx);
-                String nullHandling = switch (order.getNullHandling()) {
-                    case NULLS_FIRST -> " NULLS FIRST";
-                    case NULLS_LAST -> " NULLS LAST";
-                    case NATIVE -> "";
-                };
+                String nullHandling =
+                        switch (order.getNullHandling()) {
+                            case NULLS_FIRST -> " NULLS FIRST";
+                            case NULLS_LAST -> " NULLS LAST";
+                            case NATIVE -> "";
+                        };
                 orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
             }
             sb.append(orderJoiner);
@@ -107,8 +107,7 @@ public final class SqlRenderer {
      * <p>Used for ORDER BY on UNION results, where column references must be bare names
      * (or their output aliases) rather than {@code alias.column_name}.
      */
-    private static String renderOrderExpressionUnqualified(SqlExpression<?> expression,
-                                                            RenderContext ctx) {
+    private static String renderOrderExpressionUnqualified(SqlExpression<?> expression, RenderContext ctx) {
         if (expression instanceof ColumnExpression<?> col) {
             // Resolve to column name only (no table alias — ORDER BY column alias on UNION)
             PropertyRef pr = col.getPropertyRef();
@@ -147,9 +146,7 @@ public final class SqlRenderer {
      * @param includeOrderBy {@code false} when rendering a subquery (ORDER BY is not valid
      *                       inside a subquery in SQL-92)
      */
-    static <T, R> String buildSelectSql(SelectSpec<T, R> spec,
-                                         RenderContext ctx,
-                                         boolean includeOrderBy) {
+    static <T, R> String buildSelectSql(SelectSpec<T, R> spec, RenderContext ctx, boolean includeOrderBy) {
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
 
@@ -173,7 +170,8 @@ public final class SqlRenderer {
         if (exprs.isEmpty()) {
             EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
             StringJoiner cols = new StringJoiner(", ");
-            meta.getPropertyToColumn().entrySet()
+            meta.getPropertyToColumn()
+                    .entrySet()
                     .forEach(e -> cols.add(alias + "." + e.getValue() + " AS " + e.getKey()));
             sb.append(cols);
         } else {
@@ -223,23 +221,25 @@ public final class SqlRenderer {
                     } else {
                         colExpr = renderExpression(order.getExpression(), spec, ctx);
                     }
-                    String nullHandling = switch (order.getNullHandling()) {
-                        case NULLS_FIRST -> " NULLS FIRST";
-                        case NULLS_LAST -> " NULLS LAST";
-                        case NATIVE -> "";
-                    };
+                    String nullHandling =
+                            switch (order.getNullHandling()) {
+                                case NULLS_FIRST -> " NULLS FIRST";
+                                case NULLS_LAST -> " NULLS LAST";
+                                case NATIVE -> "";
+                            };
                     orderJoiner.add(colExpr + " " + order.getDirection().name() + nullHandling);
                 }
                 sb.append(orderJoiner);
             }
             // Locking clause is a top-level SELECT modifier; never emitted inside subqueries.
             if (spec.getLockMode() != null) {
-                String lockSql = switch (spec.getLockMode()) {
-                    case UPDATE -> " FOR UPDATE";
-                    case UPDATE_NOWAIT -> " FOR UPDATE NOWAIT";
-                    case UPDATE_SKIP_LOCKED -> " FOR UPDATE SKIP LOCKED";
-                    case SHARE -> " FOR SHARE";
-                };
+                String lockSql =
+                        switch (spec.getLockMode()) {
+                            case UPDATE -> " FOR UPDATE";
+                            case UPDATE_NOWAIT -> " FOR UPDATE NOWAIT";
+                            case UPDATE_SKIP_LOCKED -> " FOR UPDATE SKIP LOCKED";
+                            case SHARE -> " FOR SHARE";
+                        };
                 sb.append(lockSql);
             }
         }
@@ -253,15 +253,12 @@ public final class SqlRenderer {
      * ORDER BY is intentionally omitted — it is not valid inside a SQL-92 subquery.
      */
     @SuppressWarnings("unchecked")
-    static String renderSubquerySql(SelectSpec<?, ?> spec,
-                                     RenderContext ctx) {
+    static String renderSubquerySql(SelectSpec<?, ?> spec, RenderContext ctx) {
         return buildSelectSql((SelectSpec<Object, Object>) spec, ctx, false);
     }
 
     @SuppressWarnings("unchecked")
-    private static String buildSelectSqlUnchecked(SelectSpec<?, ?> spec,
-                                                   RenderContext ctx,
-                                                   boolean includeOrderBy) {
+    private static String buildSelectSqlUnchecked(SelectSpec<?, ?> spec, RenderContext ctx, boolean includeOrderBy) {
         return buildSelectSql((SelectSpec<Object, Object>) spec, ctx, includeOrderBy);
     }
 
@@ -301,7 +298,10 @@ public final class SqlRenderer {
         if (hasGroupBy) {
             // Wrap the grouped query as a derived table and count its rows.
             StringBuilder inner = new StringBuilder("SELECT 1")
-                    .append(" FROM ").append(fromTarget).append(" ").append(alias);
+                    .append(" FROM ")
+                    .append(fromTarget)
+                    .append(" ")
+                    .append(alias);
             appendJoinClauses(inner, spec, ctx);
             appendWhereClause(inner, spec, ctx);
             appendGroupByClause(inner, spec, ctx);
@@ -315,15 +315,24 @@ public final class SqlRenderer {
             String pkCol = rootMeta.getIdColumnName();
             if (pkCol != null) {
                 StringBuilder sb = new StringBuilder("SELECT COUNT(DISTINCT ")
-                        .append(alias).append(".").append(pkCol).append(")")
-                        .append(" FROM ").append(fromTarget).append(" ").append(alias);
+                        .append(alias)
+                        .append(".")
+                        .append(pkCol)
+                        .append(")")
+                        .append(" FROM ")
+                        .append(fromTarget)
+                        .append(" ")
+                        .append(alias);
                 appendJoinClauses(sb, spec, ctx);
                 appendWhereClause(sb, spec, ctx);
                 return new RenderedSql(ctePrefix + sb, ctx.getParams());
             }
             // No PK available: fall back to subquery.
             StringBuilder inner = new StringBuilder("SELECT 1")
-                    .append(" FROM ").append(fromTarget).append(" ").append(alias);
+                    .append(" FROM ")
+                    .append(fromTarget)
+                    .append(" ")
+                    .append(alias);
             appendJoinClauses(inner, spec, ctx);
             appendWhereClause(inner, spec, ctx);
             return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", ctx.getParams());
@@ -331,16 +340,20 @@ public final class SqlRenderer {
 
         // Simple case: no JOINs, no GROUP BY.
         StringBuilder sb = new StringBuilder("SELECT COUNT(*)")
-                .append(" FROM ").append(fromTarget).append(" ").append(alias);
+                .append(" FROM ")
+                .append(fromTarget)
+                .append(" ")
+                .append(alias);
         appendWhereClause(sb, spec, ctx);
         return new RenderedSql(ctePrefix + sb, ctx.getParams());
     }
 
     /** Builds the {@code WITH cte1 AS (...), cte2 AS (...) } prefix string (empty string when no CTEs). */
-    private static <T, R> String buildCtePrefix(SelectSpec<T, R> spec,
-                                                 RenderContext ctx) {
+    private static <T, R> String buildCtePrefix(SelectSpec<T, R> spec, RenderContext ctx) {
         List<CteDef> cteDefs = spec.getCteDefs();
-        if (cteDefs.isEmpty()) return "";
+        if (cteDefs.isEmpty()) {
+            return "";
+        }
         StringJoiner cteJoiner = new StringJoiner(", ");
         for (CteDef cte : cteDefs) {
             String body = buildSelectSqlUnchecked(cte.body(), ctx, false);
@@ -361,12 +374,9 @@ public final class SqlRenderer {
      *   <li>Function / aggregate / literal → no alias (JDBC column label is used by the mapper)</li>
      * </ul>
      */
-    private static <T, R> String renderSelectItem(SqlExpression<?> expr,
-                                                   SelectSpec<T, R> spec,
-                                                   RenderContext ctx) {
+    private static <T, R> String renderSelectItem(SqlExpression<?> expr, SelectSpec<T, R> spec, RenderContext ctx) {
         if (expr instanceof AliasedExpression<?> aliased) {
-            return renderExpression(aliased.getInner(), spec, ctx)
-                    + " AS " + aliased.getAlias();
+            return renderExpression(aliased.getInner(), spec, ctx) + " AS " + aliased.getAlias();
         } else if (expr instanceof ColumnExpression<?> col) {
             String sql = renderColumnExpression(col, spec);
             String propName = col.getPropertyRef().propertyName();
@@ -386,9 +396,7 @@ public final class SqlRenderer {
      * {@link AliasedExpression}s are rendered by delegating to their inner expression
      * (alias is handled separately in the SELECT clause via {@link #renderSelectItem}).
      */
-    static <T, R> String renderExpression(SqlExpression<?> expression,
-                                          SelectSpec<T, R> spec,
-                                          RenderContext ctx) {
+    static <T, R> String renderExpression(SqlExpression<?> expression, SelectSpec<T, R> spec, RenderContext ctx) {
         if (expression instanceof AliasedExpression<?> aliased) {
             // In non-SELECT contexts (WHERE / ORDER BY / HAVING), render the inner expression.
             return renderExpression(aliased.getInner(), spec, ctx);
@@ -418,14 +426,15 @@ public final class SqlRenderer {
         PropertyRef pr = col.getPropertyRef();
         EntityMeta meta = EntityMetaReader.read(pr.ownerClass());
         String colName = meta.getColumnName(pr.propertyName());
-        if (colName == null) colName = pr.propertyName();
+        if (colName == null) {
+            colName = pr.propertyName();
+        }
         String tableAlias = col.getTableAlias() != null ? col.getTableAlias() : resolveAliasForRef(spec, pr);
         return tableAlias + "." + colName;
     }
 
-    private static <T, R> String renderFunctionExpression(FunctionExpression<?> fn,
-                                                           SelectSpec<T, R> spec,
-                                                           RenderContext ctx) {
+    private static <T, R> String renderFunctionExpression(
+            FunctionExpression<?> fn, SelectSpec<T, R> spec, RenderContext ctx) {
         StringJoiner argJoiner = new StringJoiner(", ");
         for (SqlExpression<?> arg : fn.getArgs()) {
             argJoiner.add(renderExpression(arg, spec, ctx));
@@ -433,9 +442,8 @@ public final class SqlRenderer {
         return fn.getFunctionName() + "(" + argJoiner + ")";
     }
 
-    private static <T, R> String renderAggregateExpression(AggregateExpression<?> agg,
-                                                            SelectSpec<T, R> spec,
-                                                            RenderContext ctx) {
+    private static <T, R> String renderAggregateExpression(
+            AggregateExpression<?> agg, SelectSpec<T, R> spec, RenderContext ctx) {
         StringJoiner argJoiner = new StringJoiner(", ");
         for (SqlExpression<?> arg : agg.getArgs()) {
             argJoiner.add(renderExpression(arg, spec, ctx));
@@ -444,9 +452,8 @@ public final class SqlRenderer {
         return agg.getFunctionName() + "(" + inner + ")";
     }
 
-    private static <T, R> String renderCaseExpression(CaseExpression<?> expr,
-                                                       SelectSpec<T, R> spec,
-                                                       RenderContext ctx) {
+    private static <T, R> String renderCaseExpression(
+            CaseExpression<?> expr, SelectSpec<T, R> spec, RenderContext ctx) {
         StringBuilder sb = new StringBuilder("CASE");
         for (CaseExpression.WhenClause when : expr.getWhenClauses()) {
             sb.append(" WHEN ").append(renderPredicate(when.condition(), spec, ctx));
@@ -459,9 +466,8 @@ public final class SqlRenderer {
         return sb.toString();
     }
 
-    private static <T, R> String renderWindowExpression(WindowExpression<?> win,
-                                                          SelectSpec<T, R> spec,
-                                                          RenderContext ctx) {
+    private static <T, R> String renderWindowExpression(
+            WindowExpression<?> win, SelectSpec<T, R> spec, RenderContext ctx) {
         String funcSql = renderExpression(win.getFunction(), spec, ctx);
 
         StringBuilder over = new StringBuilder();
@@ -477,15 +483,18 @@ public final class SqlRenderer {
 
         List<JOrder<?>> orderBy = win.getOrderBy();
         if (!orderBy.isEmpty()) {
-            if (over.length() > 0) over.append(" ");
+            if (over.length() > 0) {
+                over.append(" ");
+            }
             StringJoiner oj = new StringJoiner(", ");
             for (JOrder<?> order : orderBy) {
                 String colExpr = renderExpression(order.getExpression(), spec, ctx);
-                String nullHandling = switch (order.getNullHandling()) {
-                    case NULLS_FIRST -> " NULLS FIRST";
-                    case NULLS_LAST -> " NULLS LAST";
-                    case NATIVE -> "";
-                };
+                String nullHandling =
+                        switch (order.getNullHandling()) {
+                            case NULLS_FIRST -> " NULLS FIRST";
+                            case NULLS_LAST -> " NULLS LAST";
+                            case NATIVE -> "";
+                        };
                 oj.add(colExpr + " " + order.getDirection().name() + nullHandling);
             }
             over.append("ORDER BY ").append(oj);
@@ -493,12 +502,17 @@ public final class SqlRenderer {
 
         // Frame clause: ROWS/RANGE/GROUPS BETWEEN start AND end
         if (win.getFrameType() != null && win.getFrameStart() != null) {
-            if (over.length() > 0) over.append(" ");
+            if (over.length() > 0) {
+                over.append(" ");
+            }
             String frameTypeStr = win.getFrameType().name(); // ROWS, RANGE, or GROUPS
             String startSql = win.getFrameStart().toSql();
             if (win.getFrameEnd() != null) {
-                over.append(frameTypeStr).append(" BETWEEN ").append(startSql)
-                        .append(" AND ").append(win.getFrameEnd().toSql());
+                over.append(frameTypeStr)
+                        .append(" BETWEEN ")
+                        .append(startSql)
+                        .append(" AND ")
+                        .append(win.getFrameEnd().toSql());
             } else {
                 over.append(frameTypeStr).append(" ").append(startSql);
             }
@@ -507,8 +521,7 @@ public final class SqlRenderer {
         return funcSql + " OVER (" + over + ")";
     }
 
-    private static String renderScalarSubqueryExpression(ScalarSubqueryExpression<?> sub,
-                                                          RenderContext ctx) {
+    private static String renderScalarSubqueryExpression(ScalarSubqueryExpression<?> sub, RenderContext ctx) {
         String inner = renderSubquerySql(sub.getSubquery(), ctx);
         return "(" + inner + ")";
     }
@@ -517,9 +530,7 @@ public final class SqlRenderer {
     //  Predicate rendering
     // ------------------------------------------------------------------ //
 
-    private static <T, R> String renderPredicate(PredicateNode node,
-                                                   SelectSpec<T, R> spec,
-                                                   RenderContext ctx) {
+    private static <T, R> String renderPredicate(PredicateNode node, SelectSpec<T, R> spec, RenderContext ctx) {
         if (node instanceof LeafPredicate leaf) {
             return renderLeaf(leaf, spec, ctx);
         } else if (node instanceof AndPredicate and) {
@@ -543,34 +554,31 @@ public final class SqlRenderer {
         }
     }
 
-    private static <T, R> String renderInSubquery(InSubqueryPredicate node,
-                                                    SelectSpec<T, R> spec,
-                                                    RenderContext ctx) {
+    private static <T, R> String renderInSubquery(InSubqueryPredicate node, SelectSpec<T, R> spec, RenderContext ctx) {
         String lhs = renderExpression(node.getLhs(), spec, ctx);
         String inner = renderSubquerySql(node.getSubquery(), ctx);
         String op = node.isNegated() ? " NOT IN (" : " IN (";
         return lhs + op + inner + ")";
     }
 
-    private static String renderExists(ExistsPredicate node,
-                                        RenderContext ctx) {
+    private static String renderExists(ExistsPredicate node, RenderContext ctx) {
         String inner = renderSubquerySql(node.getSubquery(), ctx);
         String prefix = node.isNegated() ? "NOT EXISTS (" : "EXISTS (";
         return prefix + inner + ")";
     }
 
-    private static <T, R> String renderScalarSubquery(ScalarSubqueryPredicate node,
-                                                        SelectSpec<T, R> spec,
-                                                        RenderContext ctx) {
+    private static <T, R> String renderScalarSubquery(
+            ScalarSubqueryPredicate node, SelectSpec<T, R> spec, RenderContext ctx) {
         String lhs = renderExpression(node.getLhs(), spec, ctx);
-        String op = switch (node.getOp()) {
-            case EQ -> " = ";
-            case NE -> " <> ";
-            case GT -> " > ";
-            case GTE -> " >= ";
-            case LT -> " < ";
-            case LTE -> " <= ";
-        };
+        String op =
+                switch (node.getOp()) {
+                    case EQ -> " = ";
+                    case NE -> " <> ";
+                    case GT -> " > ";
+                    case GTE -> " >= ";
+                    case LT -> " < ";
+                    case LTE -> " <= ";
+                };
         String inner = renderSubquerySql(node.getSubquery(), ctx);
         return lhs + op + "(" + inner + ")";
     }
@@ -581,9 +589,7 @@ public final class SqlRenderer {
         return node.getSql();
     }
 
-    private static <T, R> String renderLeaf(LeafPredicate leaf,
-                                             SelectSpec<T, R> spec,
-                                             RenderContext ctx) {
+    private static <T, R> String renderLeaf(LeafPredicate leaf, SelectSpec<T, R> spec, RenderContext ctx) {
         String lhs = renderExpression(leaf.getExpression(), spec, ctx);
 
         return switch (leaf.getOp()) {
@@ -637,9 +643,7 @@ public final class SqlRenderer {
         };
     }
 
-    private static <T, R> String renderAnd(AndPredicate and,
-                                            SelectSpec<T, R> spec,
-                                            RenderContext ctx) {
+    private static <T, R> String renderAnd(AndPredicate and, SelectSpec<T, R> spec, RenderContext ctx) {
         StringJoiner joiner = new StringJoiner(" AND ", "(", ")");
         for (PredicateNode child : and.getChildren()) {
             joiner.add(renderPredicate(child, spec, ctx));
@@ -647,9 +651,7 @@ public final class SqlRenderer {
         return joiner.toString();
     }
 
-    private static <T, R> String renderOr(OrPredicate or,
-                                           SelectSpec<T, R> spec,
-                                           RenderContext ctx) {
+    private static <T, R> String renderOr(OrPredicate or, SelectSpec<T, R> spec, RenderContext ctx) {
         StringJoiner joiner = new StringJoiner(" OR ", "(", ")");
         for (PredicateNode child : or.getChildren()) {
             joiner.add(renderPredicate(child, spec, ctx));
@@ -657,10 +659,8 @@ public final class SqlRenderer {
         return joiner.toString();
     }
 
-    private static <T, R> String renderOnCondition(PredicateNode cond,
-                                                    SelectSpec<T, R> spec,
-                                                    RenderContext ctx,
-                                                    Set<String> subqueryAliases) {
+    private static <T, R> String renderOnCondition(
+            PredicateNode cond, SelectSpec<T, R> spec, RenderContext ctx, Set<String> subqueryAliases) {
         if (cond instanceof OnEqPredicate onEq) {
             return renderOnEq(onEq, subqueryAliases);
         }
@@ -685,7 +685,7 @@ public final class SqlRenderer {
     }
 
     private static String renderOnEq(OnEqPredicate onEq, Set<String> subqueryAliases) {
-        String leftCol  = resolveOnColumn(onEq.getLeftRef(),  onEq.getLeftAlias(),  subqueryAliases);
+        String leftCol = resolveOnColumn(onEq.getLeftRef(), onEq.getLeftAlias(), subqueryAliases);
         String rightCol = resolveOnColumn(onEq.getRightRef(), onEq.getRightAlias(), subqueryAliases);
         return onEq.getLeftAlias() + "." + leftCol + " = " + onEq.getRightAlias() + "." + rightCol;
     }
@@ -709,9 +709,8 @@ public final class SqlRenderer {
      * @return the rendered SQL and its named parameters
      * @throws UnsupportedOperationException when the dialect does not support UPSERT
      */
-    public static <T> RenderedSql renderUpsert(UpsertSpec<T> spec, EntityMeta meta,
-                                                java.util.LinkedHashMap<String, Object> colValues,
-                                                Dialect dialect) {
+    public static <T> RenderedSql renderUpsert(
+            UpsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, Dialect dialect) {
         return dialect.renderUpsert(spec, meta, colValues);
     }
 
@@ -733,11 +732,10 @@ public final class SqlRenderer {
      * @param meta      entity metadata (table name, column mappings)
      * @param colValues ordered map of {@code columnName → value} to insert
      */
-    public static <T> RenderedSql renderInsert(InsertSpec<T> spec, EntityMeta meta,
-                                               java.util.LinkedHashMap<String, Object> colValues) {
-        List<String> cols = spec.getColumnNames().isEmpty()
-                ? new ArrayList<>(colValues.keySet())
-                : spec.getColumnNames();
+    public static <T> RenderedSql renderInsert(
+            InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
+        List<String> cols =
+                spec.getColumnNames().isEmpty() ? new ArrayList<>(colValues.keySet()) : spec.getColumnNames();
 
         StringJoiner colJoiner = new StringJoiner(", ");
         StringJoiner valJoiner = new StringJoiner(", ");
@@ -748,8 +746,7 @@ public final class SqlRenderer {
             params.put(col, colValues.get(col));
         }
 
-        String sql = "INSERT INTO " + meta.getTableName()
-                + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
+        String sql = "INSERT INTO " + meta.getTableName() + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
         return new RenderedSql(sql, params);
     }
 
@@ -770,9 +767,8 @@ public final class SqlRenderer {
      * @param returningCols  column names to return (use the DB column name, not the property name)
      * @return the rendered INSERT … RETURNING SQL and its parameters
      */
-    public static <T> RenderedSql renderInsertReturning(InsertSpec<T> spec, EntityMeta meta,
-                                                         java.util.LinkedHashMap<String, Object> colValues,
-                                                         List<String> returningCols) {
+    public static <T> RenderedSql renderInsertReturning(
+            InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, List<String> returningCols) {
         RenderedSql base = renderInsert(spec, meta, colValues);
         if (returningCols == null || returningCols.isEmpty()) {
             return base;
@@ -832,12 +828,15 @@ public final class SqlRenderer {
         RenderContext ctx = new RenderContext();
 
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
-        StringBuilder sb = new StringBuilder("UPDATE ").append(meta.getTableName()).append(" SET ");
+        StringBuilder sb =
+                new StringBuilder("UPDATE ").append(meta.getTableName()).append(" SET ");
 
         StringJoiner setJoiner = new StringJoiner(", ");
         for (Map.Entry<String, Object> entry : spec.getAssignments()) {
             String colName = meta.getColumnName(entry.getKey());
-            if (colName == null) colName = entry.getKey();
+            if (colName == null) {
+                colName = entry.getKey();
+            }
             Object value = entry.getValue();
             if (value instanceof SqlExpression<?> expr) {
                 // Expression assignment: SET col = <SQL expression>
@@ -880,9 +879,7 @@ public final class SqlRenderer {
      * Renders a predicate in standalone (non-SELECT) context where column references are
      * resolved directly from the entity metadata without a table alias.
      */
-    private static String renderPredicateStandalone(PredicateNode node,
-                                                     EntityMeta meta,
-                                                     RenderContext ctx) {
+    private static String renderPredicateStandalone(PredicateNode node, EntityMeta meta, RenderContext ctx) {
         if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf) {
             return renderLeafStandalone(leaf, meta, ctx);
         } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate and) {
@@ -906,16 +903,17 @@ public final class SqlRenderer {
         }
     }
 
-    private static String renderLeafStandalone(io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf,
-                                                EntityMeta meta,
-                                                RenderContext ctx) {
+    private static String renderLeafStandalone(
+            io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf, EntityMeta meta, RenderContext ctx) {
         // Resolve LHS: if the expression is a ColumnExpression, resolve its column name from meta
         String lhs;
         io.github.jsbxyyx.jdbcdsl.expr.SqlExpression<?> expr = leaf.getExpression();
         if (expr instanceof io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression<?> col) {
             String propName = col.getPropertyRef().propertyName();
             String colName = meta.getColumnName(propName);
-            if (colName == null) colName = propName;
+            if (colName == null) {
+                colName = propName;
+            }
             lhs = colName;
         } else {
             // Fallback: render as-is without table alias (unusual for update/delete)
@@ -981,9 +979,7 @@ public final class SqlRenderer {
     //  Clause-appending helpers (shared by renderSelect and renderCount)
     // ------------------------------------------------------------------ //
 
-    private static <T, R> void appendJoinClauses(StringBuilder sb,
-                                                   SelectSpec<T, R> spec,
-                                                   RenderContext ctx) {
+    private static <T, R> void appendJoinClauses(StringBuilder sb, SelectSpec<T, R> spec, RenderContext ctx) {
         // Collect aliases that refer to subqueries (derived tables), including the spec's
         // own FROM if it is a subquery.  ON-condition column references for these aliases
         // use camelCase property names (the aliases projected by the inner SELECT) rather
@@ -1024,18 +1020,14 @@ public final class SqlRenderer {
         }
     }
 
-    private static <T, R> void appendWhereClause(StringBuilder sb,
-                                                   SelectSpec<T, R> spec,
-                                                   RenderContext ctx) {
+    private static <T, R> void appendWhereClause(StringBuilder sb, SelectSpec<T, R> spec, RenderContext ctx) {
         PredicateNode where = spec.getWhere();
         if (where != null) {
             sb.append(" WHERE ").append(renderPredicate(where, spec, ctx));
         }
     }
 
-    private static <T, R> void appendGroupByClause(StringBuilder sb,
-                                                     SelectSpec<T, R> spec,
-                                                     RenderContext ctx) {
+    private static <T, R> void appendGroupByClause(StringBuilder sb, SelectSpec<T, R> spec, RenderContext ctx) {
         List<SqlExpression<?>> groupBy = spec.getGroupByExpressions();
         if (!groupBy.isEmpty()) {
             sb.append(" GROUP BY ");
@@ -1047,16 +1039,12 @@ public final class SqlRenderer {
         }
     }
 
-    private static <T, R> void appendHavingClause(StringBuilder sb,
-                                                    SelectSpec<T, R> spec,
-                                                    RenderContext ctx) {
+    private static <T, R> void appendHavingClause(StringBuilder sb, SelectSpec<T, R> spec, RenderContext ctx) {
         PredicateNode having = spec.getHaving();
         if (having != null) {
             sb.append(" HAVING ").append(renderPredicate(having, spec, ctx));
         }
     }
-
-
 
     private static <T, R> String resolveAliasForRef(SelectSpec<T, R> spec, PropertyRef pr) {
         if (pr.ownerClass().equals(spec.getEntityClass())) {
@@ -1065,17 +1053,17 @@ public final class SqlRenderer {
             // the caller intended.  Fail fast with an actionable error message so the caller
             // does not silently receive SQL that references the wrong table.
             boolean selfJoinExists = spec.getJoins().stream()
-                    .anyMatch(j -> j.getSubqueryJoin() == null
-                            && pr.ownerClass().equals(j.getJoinEntityClass()));
+                    .anyMatch(
+                            j -> j.getSubqueryJoin() == null && pr.ownerClass().equals(j.getJoinEntityClass()));
             if (selfJoinExists) {
                 String prop = pr.propertyName();
                 String getter = "get" + Character.toUpperCase(prop.charAt(0)) + prop.substring(1);
                 throw new IllegalStateException(
                         "Ambiguous column reference '" + pr.ownerClass().getSimpleName() + "."
-                        + prop + "': the same entity class is used as both the root table ("
-                        + spec.getAlias() + ") and a joined table. "
-                        + "Use col(" + pr.ownerClass().getSimpleName() + "::" + getter
-                        + ", \"<alias>\") to specify the table alias explicitly.");
+                                + prop + "': the same entity class is used as both the root table ("
+                                + spec.getAlias() + ") and a joined table. "
+                                + "Use col(" + pr.ownerClass().getSimpleName() + "::" + getter
+                                + ", \"<alias>\") to specify the table alias explicitly.");
             }
             return spec.getAlias();
         }
@@ -1107,8 +1095,7 @@ public final class SqlRenderer {
      * <p>{@link ScalarSubqueryExpression}s are fully supported: the inner SELECT is rendered
      * inline and its parameters are merged into the shared {@code params} map.
      */
-    private static String renderExpressionStandalone(SqlExpression<?> expression, EntityMeta meta,
-                                                      RenderContext ctx) {
+    private static String renderExpressionStandalone(SqlExpression<?> expression, EntityMeta meta, RenderContext ctx) {
         if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
         } else if (expression instanceof ColumnExpression<?> col) {
@@ -1122,16 +1109,16 @@ public final class SqlRenderer {
             }
             return fn.getFunctionName() + "(" + argJoiner + ")";
         } else if (expression instanceof CastExpression<?> cast) {
-            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta, ctx)
-                    + " AS " + cast.getTargetType() + ")";
+            return "CAST(" + renderExpressionStandalone(cast.getInner(), meta, ctx) + " AS " + cast.getTargetType()
+                    + ")";
         } else if (expression instanceof AliasedExpression<?> aliased) {
             return renderExpressionStandalone(aliased.getInner(), meta, ctx);
         } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
             // SET col = (SELECT ...) — render the subquery inline, sharing the param map
             return "(" + renderSubquerySql(sub.getSubquery(), ctx) + ")";
         } else {
-            throw new IllegalArgumentException(
-                    "Unsupported expression type in UPDATE SET: " + expression.getClass().getSimpleName());
+            throw new IllegalArgumentException("Unsupported expression type in UPDATE SET: "
+                    + expression.getClass().getSimpleName());
         }
     }
 }

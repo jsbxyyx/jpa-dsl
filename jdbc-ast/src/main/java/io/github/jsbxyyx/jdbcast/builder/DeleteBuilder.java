@@ -21,9 +21,9 @@ import java.util.function.Consumer;
  */
 public final class DeleteBuilder<T> {
 
-    private final Class<T>     entity;
-    private String             tableAlias    = null;
-    private Condition          where         = null;
+    private final Class<T> entity;
+    private String tableAlias = null;
+    private Condition where = null;
     private final List<String> returningCols = new ArrayList<>();
 
     DeleteBuilder(Class<T> entity) {
@@ -45,7 +45,9 @@ public final class DeleteBuilder<T> {
         ConditionBuilder cb = new ConditionBuilder();
         builder.accept(cb);
         Condition c = cb.build();
-        if (c != null) this.where = c;
+        if (c != null) {
+            this.where = c;
+        }
         return this;
     }
 

@@ -39,28 +39,35 @@ public final class UpsertSpec<T> {
      */
     private final boolean doNothing;
 
-    UpsertSpec(Class<T> entityClass, List<String> conflictColumns, List<String> updateColumns,
-               boolean doNothing) {
+    UpsertSpec(Class<T> entityClass, List<String> conflictColumns, List<String> updateColumns, boolean doNothing) {
         this.entityClass = entityClass;
         this.conflictColumns = List.copyOf(conflictColumns);
         this.updateColumns = List.copyOf(updateColumns);
         this.doNothing = doNothing;
     }
 
-    public Class<T> getEntityClass() { return entityClass; }
+    public Class<T> getEntityClass() {
+        return entityClass;
+    }
 
     /** Returns the conflict-target column names (may be empty for MySQL). */
-    public List<String> getConflictColumns() { return conflictColumns; }
+    public List<String> getConflictColumns() {
+        return conflictColumns;
+    }
 
     /**
      * Returns the explicit update columns, or an empty list when all non-conflict columns
      * should be updated (the default resolved by
      * {@link io.github.jsbxyyx.jdbcdsl.dialect.Dialect#resolveUpdateColumns}).
      */
-    public List<String> getUpdateColumns() { return updateColumns; }
+    public List<String> getUpdateColumns() {
+        return updateColumns;
+    }
 
     /**
      * Returns {@code true} when the conflict action is "do nothing" (skip duplicates silently).
      */
-    public boolean isDoNothing() { return doNothing; }
+    public boolean isDoNothing() {
+        return doNothing;
+    }
 }

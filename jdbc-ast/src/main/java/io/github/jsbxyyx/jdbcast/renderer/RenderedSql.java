@@ -8,5 +8,4 @@ import java.util.Map;
  * @param sql    the SQL string with {@code :paramName} placeholders
  * @param params the named parameter values
  */
-public record RenderedSql(String sql, Map<String, Object> params) {
-}
+public record RenderedSql(String sql, Map<String, Object> params) {}

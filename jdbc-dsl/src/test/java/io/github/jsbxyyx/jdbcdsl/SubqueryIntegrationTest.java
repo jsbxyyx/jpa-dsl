@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",   executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class SubqueryIntegrationTest {
 
@@ -61,9 +61,7 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "bob");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
@@ -79,9 +77,7 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "bob");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -100,9 +96,7 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("charlie");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -159,9 +153,7 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -178,14 +170,10 @@ class SubqueryIntegrationTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w
-                        .eq(TUser::getStatus, "ACTIVE")
-                        .inSubquery(col(TUser::getId), inner))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 }

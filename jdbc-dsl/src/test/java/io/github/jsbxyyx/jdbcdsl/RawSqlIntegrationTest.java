@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",   executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class RawSqlIntegrationTest {
 
@@ -64,9 +64,7 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -79,9 +77,7 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("charlie");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -91,16 +87,12 @@ class RawSqlIntegrationTest {
         // Let's use age > 30 to get only charlie
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w
-                        .eq(TUser::getStatus, "ACTIVE")
-                        .raw("t.age > 30"))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").raw("t.age > 30"))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("charlie");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -126,18 +118,13 @@ class RawSqlIntegrationTest {
         // SELECT t.id, UPPER(t.username) AS username FROM t_user
         // The raw expression renders verbatim; the DTO mapper uses the column label.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
-                .select(
-                        SqlFunctions.col(TUser::getId),
-                        raw("UPPER(t.username)").as("username")
-                )
+                .select(SqlFunctions.col(TUser::getId), raw("UPPER(t.username)").as("username"))
                 .orderBy(JSort.by(JOrder.asc(TUser::getUsername)))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(3)
-                .extracting(UserDto::getUsername)
-                .containsExactly("ALICE", "BOB", "CHARLIE");
+        assertThat(result).hasSize(3).extracting(UserDto::getUsername).containsExactly("ALICE", "BOB", "CHARLIE");
     }
 
     @Test
@@ -147,8 +134,7 @@ class RawSqlIntegrationTest {
                 .select(TUser::getId, TUser::getUsername)
                 .orderBy(JSort.by(
                         JOrder.asc(raw("CASE WHEN t.status = 'ACTIVE' THEN 0 ELSE 1 END")),
-                        JOrder.asc(TUser::getUsername)
-                ))
+                        JOrder.asc(TUser::getUsername)))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
@@ -171,29 +157,21 @@ class RawSqlIntegrationTest {
                 Map.of("status", "ACTIVE"),
                 UserDto.class);
 
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactly("alice", "charlie");
     }
 
     @Test
     void query_rawSql_noParams_returnsAll() {
-        List<UserDto> result = executor.query(
-                "SELECT id, username FROM t_user ORDER BY username",
-                Map.of(),
-                UserDto.class);
+        List<UserDto> result =
+                executor.query("SELECT id, username FROM t_user ORDER BY username", Map.of(), UserDto.class);
 
-        assertThat(result).hasSize(3)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice", "bob", "charlie");
+        assertThat(result).hasSize(3).extracting(UserDto::getUsername).containsExactly("alice", "bob", "charlie");
     }
 
     @Test
     void queryOne_rawSql_returnsFirstRow() {
         UserDto result = executor.queryOne(
-                "SELECT id, username FROM t_user WHERE username = :name",
-                Map.of("name", "bob"),
-                UserDto.class);
+                "SELECT id, username FROM t_user WHERE username = :name", Map.of("name", "bob"), UserDto.class);
 
         assertThat(result).isNotNull();
         assertThat(result.getUsername()).isEqualTo("bob");
@@ -202,9 +180,7 @@ class RawSqlIntegrationTest {
     @Test
     void queryOne_rawSql_noMatch_returnsNull() {
         UserDto result = executor.queryOne(
-                "SELECT id, username FROM t_user WHERE username = :name",
-                Map.of("name", "nobody"),
-                UserDto.class);
+                "SELECT id, username FROM t_user WHERE username = :name", Map.of("name", "nobody"), UserDto.class);
 
         assertThat(result).isNull();
     }
@@ -223,12 +199,8 @@ class RawSqlIntegrationTest {
 
         // Verify with a subsequent query
         List<UserDto> active = executor.query(
-                "SELECT id, username FROM t_user WHERE status = :s",
-                Map.of("s", "DISABLED"),
-                UserDto.class);
-        assertThat(active).hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("bob");
+                "SELECT id, username FROM t_user WHERE status = :s", Map.of("s", "DISABLED"), UserDto.class);
+        assertThat(active).hasSize(1).extracting(UserDto::getUsername).containsExactly("bob");
     }
 
     @Test
@@ -239,12 +211,8 @@ class RawSqlIntegrationTest {
 
         assertThat(affected).isEqualTo(1);
 
-        List<UserDto> all = executor.query(
-                "SELECT id, username FROM t_user ORDER BY username",
-                Map.of(),
-                UserDto.class);
-        assertThat(all).hasSize(4)
-                .extracting(UserDto::getUsername)
-                .contains("dave");
+        List<UserDto> all =
+                executor.query("SELECT id, username FROM t_user ORDER BY username", Map.of(), UserDto.class);
+        assertThat(all).hasSize(4).extracting(UserDto::getUsername).contains("dave");
     }
 }

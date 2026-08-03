@@ -27,8 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Sql(scripts = "/jdbcdsl-schema.sql",  executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",    executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class CteIntegrationTest {
 
@@ -112,8 +112,7 @@ class CteIntegrationTest {
      */
     @Test
     void cteQuery_outerOrderBy_resultsSortedCorrectly() {
-        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class).mapToEntity();
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("all_users", TUser.class)
                 .withCte("all_users", cteBody)
@@ -123,9 +122,9 @@ class CteIntegrationTest {
 
         List<UserDto> rows = executor.select(spec);
         assertThat(rows).hasSize(3);
-        assertThat(rows.get(0).getUsername()).isEqualTo("charlie");  // age=40
-        assertThat(rows.get(1).getUsername()).isEqualTo("alice");    // age=30
-        assertThat(rows.get(2).getUsername()).isEqualTo("bob");      // age=25
+        assertThat(rows.get(0).getUsername()).isEqualTo("charlie"); // age=40
+        assertThat(rows.get(1).getUsername()).isEqualTo("alice"); // age=30
+        assertThat(rows.get(2).getUsername()).isEqualTo("bob"); // age=25
     }
 
     // ------------------------------------------------------------------ //

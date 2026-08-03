@@ -29,19 +29,17 @@ class SpecificationBuilderTest {
     void setUp() {
         userRepository.deleteAll();
         userRepository.saveAll(Arrays.asList(
-            new User("John Doe", "john@example.com", 25, "ACTIVE", "ADMIN"),
-            new User("Jane Smith", "jane@example.com", 30, "ACTIVE", "USER"),
-            new User("Bob Johnson", "bob@example.com", 17, "INACTIVE", "USER"),
-            new User("Alice Brown", null, 22, "ACTIVE", "USER"),
-            new User("Charlie Wilson", "charlie@example.com", 35, "PENDING", "MANAGER")
-        ));
+                new User("John Doe", "john@example.com", 25, "ACTIVE", "ADMIN"),
+                new User("Jane Smith", "jane@example.com", 30, "ACTIVE", "USER"),
+                new User("Bob Johnson", "bob@example.com", 17, "INACTIVE", "USER"),
+                new User("Alice Brown", null, 22, "ACTIVE", "USER"),
+                new User("Charlie Wilson", "charlie@example.com", 35, "PENDING", "MANAGER")));
     }
 
     @Test
     void testEqualCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, "ACTIVE")
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
         assertThat(result).allMatch(u -> "ACTIVE".equals(u.getStatus()));
@@ -49,9 +47,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testNotEqualCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .ne(User_.status, "ACTIVE")
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().ne(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
         assertThat(result).noneMatch(u -> "ACTIVE".equals(u.getStatus()));
@@ -59,9 +56,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testLikeCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .like(User_.name, "John")
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().like(User_.name, "John").build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // John Doe and Bob Johnson
     }
@@ -77,9 +73,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testBetweenCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .between(User_.age, 20, 30)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().between(User_.age, 20, 30).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3); // John(25), Jane(30), Alice(22)
         assertThat(result).allMatch(u -> u.getAge() >= 20 && u.getAge() <= 30);
@@ -87,9 +82,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testGtCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .gt(User_.age, 25)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().gt(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // Jane(30), Charlie(35)
         assertThat(result).allMatch(u -> u.getAge() > 25);
@@ -97,9 +91,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testLtCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .lt(User_.age, 25)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().lt(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // Bob(17), Alice(22)
         assertThat(result).allMatch(u -> u.getAge() < 25);
@@ -107,9 +100,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testGteCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .gte(User_.age, 25)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().gte(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3); // John(25), Jane(30), Charlie(35)
         assertThat(result).allMatch(u -> u.getAge() >= 25);
@@ -117,9 +109,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testLteCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .lte(User_.age, 25)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().lte(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3); // John(25), Bob(17), Alice(22)
         assertThat(result).allMatch(u -> u.getAge() <= 25);
@@ -127,9 +118,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testIsNullCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .isNull(User_.email)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().isNull(User_.email).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Alice Brown
         assertThat(result.get(0).getName()).isEqualTo("Alice Brown");
@@ -137,9 +127,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testIsNotNullCondition() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .isNotNull(User_.email)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().isNotNull(User_.email).build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(4);
         assertThat(result).allMatch(u -> u.getEmail() != null);
@@ -148,10 +137,7 @@ class SpecificationBuilderTest {
     @Test
     void testOrCondition() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .or(
-                    SpecificationDsl.eq(User_.status, "INACTIVE"),
-                    SpecificationDsl.eq(User_.status, "PENDING")
-                )
+                .or(SpecificationDsl.eq(User_.status, "INACTIVE"), SpecificationDsl.eq(User_.status, "PENDING"))
                 .build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
@@ -179,9 +165,8 @@ class SpecificationBuilderTest {
 
     @Test
     void testPaginationAndSorting() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, "ACTIVE")
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
         var pageRequest = PageRequestBuilder.builder()
                 .page(0)
                 .size(2)
@@ -191,6 +176,7 @@ class SpecificationBuilderTest {
         assertThat(page.getTotalElements()).isEqualTo(3);
         assertThat(page.getContent()).hasSize(2);
         // Sorted by age DESC: Jane(30), John(25), Alice(22) — first page has Jane and John
-        assertThat(page.getContent().get(0).getAge()).isGreaterThanOrEqualTo(page.getContent().get(1).getAge());
+        assertThat(page.getContent().get(0).getAge())
+                .isGreaterThanOrEqualTo(page.getContent().get(1).getAge());
     }
 }

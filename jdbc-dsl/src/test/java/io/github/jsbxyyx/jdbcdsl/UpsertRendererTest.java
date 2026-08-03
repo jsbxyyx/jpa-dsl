@@ -64,9 +64,7 @@ class UpsertRendererTest {
         assertThat(sql).contains("age = VALUES(age)");
         assertThat(sql).contains("status = VALUES(status)");
 
-        assertThat(rendered.getParams())
-                .containsEntry("username", "alice")
-                .containsEntry("email", "alice@example.com");
+        assertThat(rendered.getParams()).containsEntry("username", "alice").containsEntry("email", "alice@example.com");
     }
 
     @Test
@@ -210,8 +208,8 @@ class UpsertRendererTest {
 
         LinkedHashMap<String, Object> values = colValues(false);
         RenderedSql oracle12 = SqlRenderer.renderUpsert(spec, meta, values, new OracleDialect());
-        RenderedSql oracle11 = SqlRenderer.renderUpsert(spec, meta,
-                new LinkedHashMap<>(values), new Oracle11gDialect());
+        RenderedSql oracle11 =
+                SqlRenderer.renderUpsert(spec, meta, new LinkedHashMap<>(values), new Oracle11gDialect());
 
         assertThat(oracle11.getSql()).isEqualTo(oracle12.getSql());
         assertThat(oracle11.getParams()).isEqualTo(oracle12.getParams());
@@ -267,13 +265,11 @@ class UpsertRendererTest {
 
     @Test
     void sql2008_upsert_throwsUnsupportedOperation() {
-        UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class)
-                .onConflict(TUser::getUsername)
-                .build();
+        UpsertSpec<TUser> spec =
+                UpsertBuilder.into(TUser.class).onConflict(TUser::getUsername).build();
 
         LinkedHashMap<String, Object> values = colValues(false);
-        assertThatThrownBy(() ->
-                SqlRenderer.renderUpsert(spec, meta, values, new Sql2008Dialect()))
+        assertThatThrownBy(() -> SqlRenderer.renderUpsert(spec, meta, values, new Sql2008Dialect()))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining("Sql2008Dialect");
     }
@@ -286,12 +282,11 @@ class UpsertRendererTest {
     void resolveUpdateColumns_emptyUpdateCols_returnsAllNonConflict() {
         UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class)
                 .onConflict(TUser::getUsername)
-                .doUpdateAll()   // leaves updateColumns empty
+                .doUpdateAll() // leaves updateColumns empty
                 .build();
 
         java.util.List<String> all = java.util.List.of("username", "email", "age", "status");
-        java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect
-                .resolveUpdateColumns(spec, all);
+        java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, all);
 
         assertThat(resolved).containsExactlyInAnyOrder("email", "age", "status");
         assertThat(resolved).doesNotContain("username");
@@ -305,8 +300,7 @@ class UpsertRendererTest {
                 .build();
 
         java.util.List<String> all = java.util.List.of("username", "email", "age", "status");
-        java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect
-                .resolveUpdateColumns(spec, all);
+        java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, all);
 
         assertThat(resolved).containsExactly("email");
     }

@@ -39,10 +39,11 @@ public interface JoinStrategy {
      * @return an additional {@link Predicate} to add to the WHERE clause, or {@code null} when
      *         the condition has already been embedded in the JOIN's ON clause
      */
-    <T, J> Predicate buildJoin(Root<T> root,
-                                CriteriaQuery<?> query,
-                                CriteriaBuilder cb,
-                                Class<J> targetEntity,
-                                JoinType joinType,
-                                JoinCondition<T, J> onCondition);
+    <T, J> Predicate buildJoin(
+            Root<T> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb,
+            Class<J> targetEntity,
+            JoinType joinType,
+            JoinCondition<T, J> onCondition);
 }

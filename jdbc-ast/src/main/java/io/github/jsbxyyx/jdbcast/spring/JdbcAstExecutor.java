@@ -12,7 +12,6 @@ import io.github.jsbxyyx.jdbcast.stmt.UpdateStatement;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -81,8 +80,8 @@ import java.util.Optional;
 public class JdbcAstExecutor {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    private final SqlRenderer                renderer;
-    private final MetaResolver               meta;
+    private final SqlRenderer renderer;
+    private final MetaResolver meta;
 
     /**
      * Creates an executor backed by the given template and renderer.
@@ -93,7 +92,7 @@ public class JdbcAstExecutor {
      */
     public JdbcAstExecutor(NamedParameterJdbcTemplate jdbcTemplate, SqlRenderer renderer) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
-        this.renderer     = Objects.requireNonNull(renderer,     "renderer");
+        this.renderer = Objects.requireNonNull(renderer, "renderer");
         this.meta = (renderer instanceof io.github.jsbxyyx.jdbcast.renderer.AnsiSqlRenderer ar)
                 ? ar.getMetaResolver()
                 : null;
@@ -135,8 +134,12 @@ public class JdbcAstExecutor {
      */
     public <T> Optional<T> queryOne(SelectStatement stmt, RowMapper<T> rowMapper) {
         List<T> list = query(stmt, rowMapper);
-        if (list.isEmpty())   return Optional.empty();
-        if (list.size() == 1) return Optional.of(list.get(0));
+        if (list.isEmpty()) {
+            return Optional.empty();
+        }
+        if (list.size() == 1) {
+            return Optional.of(list.get(0));
+        }
         throw new IncorrectResultSizeDataAccessException(1, list.size());
     }
 
@@ -200,8 +203,7 @@ public class JdbcAstExecutor {
      * @param pageNumber zero-based page number
      * @param pageSize   number of rows per page
      */
-    public <T> PageResult<T> queryPage(SelectStatement baseStmt, Class<T> rowType,
-                                       long pageNumber, int pageSize) {
+    public <T> PageResult<T> queryPage(SelectStatement baseStmt, Class<T> rowType, long pageNumber, int pageSize) {
         return queryPage(baseStmt, BeanPropertyRowMapper.newInstance(rowType), pageNumber, pageSize);
     }
 
@@ -210,8 +212,8 @@ public class JdbcAstExecutor {
      *
      * @see #queryPage(SelectStatement, Class, long, int)
      */
-    public <T> PageResult<T> queryPage(SelectStatement baseStmt, RowMapper<T> rowMapper,
-                                       long pageNumber, int pageSize) {
+    public <T> PageResult<T> queryPage(
+            SelectStatement baseStmt, RowMapper<T> rowMapper, long pageNumber, int pageSize) {
         return queryPage(baseStmt, deriveCountStatement(baseStmt), rowMapper, pageNumber, pageSize);
     }
 
@@ -230,8 +232,12 @@ public class JdbcAstExecutor {
      * PageResult<TUser> page = executor.queryPage(baseStmt, countStmt, rowMapper, 0, 20);
      * }</pre>
      */
-    public <T> PageResult<T> queryPage(SelectStatement baseStmt, SelectStatement countStmt,
-                                       RowMapper<T> rowMapper, long pageNumber, int pageSize) {
+    public <T> PageResult<T> queryPage(
+            SelectStatement baseStmt,
+            SelectStatement countStmt,
+            RowMapper<T> rowMapper,
+            long pageNumber,
+            int pageSize) {
         RenderedSql cr = renderer.render(countStmt);
         Long total = jdbcTemplate.queryForObject(cr.sql(), cr.params(), Long.class);
         if (total == null || total == 0) {
@@ -249,19 +255,36 @@ public class JdbcAstExecutor {
 
     private static SelectStatement deriveCountStatement(SelectStatement s) {
         return new SelectStatement(
-                s.with(), false,
+                s.with(),
+                false,
                 List.of(AggExpr.of("COUNT", StarExpr.ALL)),
-                s.from(), s.joins(), s.where(),
-                Collections.emptyList(), null,
-                Collections.emptyList(), null, null, null, null);
+                s.from(),
+                s.joins(),
+                s.where(),
+                Collections.emptyList(),
+                null,
+                Collections.emptyList(),
+                null,
+                null,
+                null,
+                null);
     }
 
     private static SelectStatement withPage(SelectStatement s, long pageNumber, int pageSize) {
         return new SelectStatement(
-                s.with(), s.distinct(), s.select(), s.from(), s.joins(),
-                s.where(), s.groupBy(), s.having(), s.orderBy(),
-                (long) pageSize, pageNumber * pageSize,
-                s.lockMode(), s.setOp());
+                s.with(),
+                s.distinct(),
+                s.select(),
+                s.from(),
+                s.joins(),
+                s.where(),
+                s.groupBy(),
+                s.having(),
+                s.orderBy(),
+                (long) pageSize,
+                pageNumber * pageSize,
+                s.lockMode(),
+                s.setOp());
     }
 
     // ================================================================== //
@@ -284,11 +307,11 @@ public class JdbcAstExecutor {
      * @param keyType the Java type of the generated key (e.g., {@code Long.class})
      */
     public <K> K insertAndGetKey(InsertStatement stmt, Class<K> keyType) {
-        RenderedSql r   = renderer.render(stmt);
-        KeyHolder   kh  = new GeneratedKeyHolder();
+        RenderedSql r = renderer.render(stmt);
+        KeyHolder kh = new GeneratedKeyHolder();
         jdbcTemplate.update(r.sql(), new MapSqlParameterSource(r.params()), kh);
-        return keyType.cast(Objects.requireNonNull(kh.getKey(),
-                "No generated key returned — check that the table has an IDENTITY/SERIAL column"));
+        return keyType.cast(Objects.requireNonNull(
+                kh.getKey(), "No generated key returned — check that the table has an IDENTITY/SERIAL column"));
     }
 
     // ================================================================== //
@@ -319,8 +342,7 @@ public class JdbcAstExecutor {
         EntitySql es = buildEntityInsertSql(entity.getClass(), entity);
         KeyHolder kh = new GeneratedKeyHolder();
         jdbcTemplate.update(es.sql, new MapSqlParameterSource(es.params), kh);
-        return keyType.cast(Objects.requireNonNull(kh.getKey(),
-                "No generated key returned"));
+        return keyType.cast(Objects.requireNonNull(kh.getKey(), "No generated key returned"));
     }
 
     // ================================================================== //
@@ -388,10 +410,14 @@ public class JdbcAstExecutor {
 
         for (Field f : fields) {
             // Skip static, synthetic fields
-            if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
-            if (f.isSynthetic()) continue;
+            if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                continue;
+            }
+            if (f.isSynthetic()) {
+                continue;
+            }
 
-            String colName   = meta.columnName(entityClass, f.getName());
+            String colName = meta.columnName(entityClass, f.getName());
             String paramName = "e_" + colName;
             Object value;
             try {
@@ -400,7 +426,10 @@ public class JdbcAstExecutor {
                 continue;
             }
 
-            if (!first) { colPart.append(", "); valPart.append(", "); }
+            if (!first) {
+                colPart.append(", ");
+                valPart.append(", ");
+            }
             colPart.append(colName);
             valPart.append(":").append(paramName);
             params.put(paramName, value);

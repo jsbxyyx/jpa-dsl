@@ -39,8 +39,7 @@ public final class H2Dialect implements Dialect {
     }
 
     @Override
-    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
-                                    LinkedHashMap<String, Object> colValues) {
+    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
         List<String> conflictCols = spec.getConflictColumns();
         List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
@@ -78,9 +77,7 @@ public final class H2Dialect implements Dialect {
             insValJoiner.add("s." + col);
         }
 
-        String matchedClause = spec.isDoNothing()
-                ? ""
-                : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
+        String matchedClause = spec.isDoNothing() ? "" : " WHEN MATCHED THEN UPDATE SET " + updateJoiner;
 
         String sql = "MERGE INTO " + meta.getTableName() + " t"
                 + " USING (VALUES(" + valJoiner + ")) AS s(" + aliasJoiner + ")"

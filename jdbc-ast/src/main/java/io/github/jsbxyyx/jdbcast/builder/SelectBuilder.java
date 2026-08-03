@@ -1,7 +1,6 @@
 package io.github.jsbxyyx.jdbcast.builder;
 
 import io.github.jsbxyyx.jdbcast.LockMode;
-import io.github.jsbxyyx.jdbcast.clause.ColumnAssignment;
 import io.github.jsbxyyx.jdbcast.clause.CteDef;
 import io.github.jsbxyyx.jdbcast.clause.JoinClause;
 import io.github.jsbxyyx.jdbcast.clause.OrderItem;
@@ -34,18 +33,18 @@ import java.util.function.Consumer;
  */
 public final class SelectBuilder {
 
-    private final TableRef<?>        from;
-    private final List<CteDef>       with     = new ArrayList<>();
-    private boolean                  distinct = false;
-    private final List<Expr<?>>      select   = new ArrayList<>();
-    private final List<JoinClause>   joins    = new ArrayList<>();
-    private Condition                where    = null;
-    private final List<Expr<?>>      groupBy  = new ArrayList<>();
-    private Condition                having   = null;
-    private final List<OrderItem>    orderBy  = new ArrayList<>();
-    private Long                     limit    = null;
-    private Long                     offset   = null;
-    private LockMode                 lockMode = null;
+    private final TableRef<?> from;
+    private final List<CteDef> with = new ArrayList<>();
+    private boolean distinct = false;
+    private final List<Expr<?>> select = new ArrayList<>();
+    private final List<JoinClause> joins = new ArrayList<>();
+    private Condition where = null;
+    private final List<Expr<?>> groupBy = new ArrayList<>();
+    private Condition having = null;
+    private final List<OrderItem> orderBy = new ArrayList<>();
+    private Long limit = null;
+    private Long offset = null;
+    private LockMode lockMode = null;
 
     SelectBuilder(TableRef<?> from) {
         this.from = from;
@@ -127,7 +126,9 @@ public final class SelectBuilder {
         ConditionBuilder cb = new ConditionBuilder();
         builder.accept(cb);
         Condition c = cb.build();
-        if (c != null) this.where = c;
+        if (c != null) {
+            this.where = c;
+        }
         return this;
     }
 
@@ -156,7 +157,9 @@ public final class SelectBuilder {
         ConditionBuilder cb = new ConditionBuilder();
         builder.accept(cb);
         Condition c = cb.build();
-        if (c != null) this.having = c;
+        if (c != null) {
+            this.having = c;
+        }
         return this;
     }
 
@@ -184,7 +187,7 @@ public final class SelectBuilder {
     }
 
     public SelectBuilder page(long pageNumber, int pageSize) {
-        this.limit  = (long) pageSize;
+        this.limit = (long) pageSize;
         this.offset = pageNumber * pageSize;
         return this;
     }
@@ -207,7 +210,7 @@ public final class SelectBuilder {
     // ------------------------------------------------------------------ //
 
     public SelectStatement build() {
-        return new SelectStatement(with, distinct, select, from,
-                joins, where, groupBy, having, orderBy, limit, offset, lockMode, null);
+        return new SelectStatement(
+                with, distinct, select, from, joins, where, groupBy, having, orderBy, limit, offset, lockMode, null);
     }
 }

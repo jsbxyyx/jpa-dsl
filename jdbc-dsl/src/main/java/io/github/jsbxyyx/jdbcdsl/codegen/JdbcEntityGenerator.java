@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.codegen;
 
 import javax.sql.DataSource;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -49,8 +50,7 @@ public final class JdbcEntityGenerator {
 
     private static final Logger LOG = Logger.getLogger(JdbcEntityGenerator.class.getName());
 
-    private JdbcEntityGenerator() {
-    }
+    private JdbcEntityGenerator() {}
 
     // -------------------------------------------------------------------------
     // Builder API
@@ -73,8 +73,7 @@ public final class JdbcEntityGenerator {
         private String repositoryPackage = null;
         private boolean repositoryOverride = false;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         /** Sets the JDBC data source (required). */
         public Builder dataSource(DataSource dataSource) {
@@ -150,8 +149,15 @@ public final class JdbcEntityGenerator {
         }
 
         private void doGenerate(String[] tableNames) {
-            JdbcEntityGenerator.doGenerate(dataSource, entityPackage, outputDir, useLombok,
-                    prefixes, tableNames, repositoryPackage, repositoryOverride);
+            JdbcEntityGenerator.doGenerate(
+                    dataSource,
+                    entityPackage,
+                    outputDir,
+                    useLombok,
+                    prefixes,
+                    tableNames,
+                    repositoryPackage,
+                    repositoryOverride);
         }
     }
 
@@ -159,19 +165,26 @@ public final class JdbcEntityGenerator {
     // Core generation logic
     // -------------------------------------------------------------------------
 
-    static void doGenerate(DataSource dataSource, String entityPackage, String outputDir,
-                           boolean useLombok, String[] prefixes, String[] tableNames,
-                           String repositoryPackage, boolean repositoryOverride) {
-        LOG.log(Level.INFO,
+    static void doGenerate(
+            DataSource dataSource,
+            String entityPackage,
+            String outputDir,
+            boolean useLombok,
+            String[] prefixes,
+            String[] tableNames,
+            String repositoryPackage,
+            boolean repositoryOverride) {
+        LOG.log(
+                Level.INFO,
                 "JdbcEntityGenerator starting: entityPackage={0}, outputDir={1}, useLombok={2}, "
                         + "prefixes={3}, repositoryPackage={4}",
-                new Object[]{entityPackage, outputDir, useLombok, Arrays.toString(prefixes), repositoryPackage});
+                new Object[] {entityPackage, outputDir, useLombok, Arrays.toString(prefixes), repositoryPackage});
         long startTime = System.currentTimeMillis();
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
 
             List<String> tables = resolveTables(meta, tableNames);
-            LOG.log(Level.INFO, "Resolved {0} table(s): {1}", new Object[]{tables.size(), tables});
+            LOG.log(Level.INFO, "Resolved {0} table(s): {1}", new Object[] {tables.size(), tables});
             int processed = 0;
             for (String table : tables) {
                 LOG.log(Level.INFO, "Processing table: {0}", table);
@@ -180,25 +193,35 @@ public final class JdbcEntityGenerator {
                 try {
                     writeEntity(entityPackage, outputDir, table, columns, primaryKeys, useLombok, prefixes);
                 } catch (IOException e) {
-                    LOG.log(Level.SEVERE, "Failed to write JDBC entity for table {0}: {1}",
-                            new Object[]{table, e.getMessage()});
+                    LOG.log(Level.SEVERE, "Failed to write JDBC entity for table {0}: {1}", new Object[] {
+                        table, e.getMessage()
+                    });
                     throw e;
                 }
                 if (repositoryPackage != null && !repositoryPackage.isEmpty()) {
                     try {
-                        writeRepository(entityPackage, repositoryPackage, outputDir, table, columns,
-                                primaryKeys, prefixes, repositoryOverride);
+                        writeRepository(
+                                entityPackage,
+                                repositoryPackage,
+                                outputDir,
+                                table,
+                                columns,
+                                primaryKeys,
+                                prefixes,
+                                repositoryOverride);
                     } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Failed to write JDBC repository for table {0}: {1}",
-                                new Object[]{table, e.getMessage()});
+                        LOG.log(Level.SEVERE, "Failed to write JDBC repository for table {0}: {1}", new Object[] {
+                            table, e.getMessage()
+                        });
                         throw e;
                     }
                 }
                 processed++;
             }
             long elapsed = System.currentTimeMillis() - startTime;
-            LOG.log(Level.INFO, "JdbcEntityGenerator completed: {0} table(s) processed in {1} ms",
-                    new Object[]{processed, elapsed});
+            LOG.log(Level.INFO, "JdbcEntityGenerator completed: {0} table(s) processed in {1} ms", new Object[] {
+                processed, elapsed
+            });
         } catch (SQLException | IOException e) {
             throw new RuntimeException("JdbcEntityGenerator failed", e);
         }
@@ -214,7 +237,7 @@ public final class JdbcEntityGenerator {
             result.addAll(Arrays.asList(requested));
             return result;
         }
-        try (ResultSet rs = meta.getTables(null, null, "%", new String[]{"TABLE"})) {
+        try (ResultSet rs = meta.getTables(null, null, "%", new String[] {"TABLE"})) {
             while (rs.next()) {
                 result.add(rs.getString("TABLE_NAME"));
             }
@@ -275,9 +298,15 @@ public final class JdbcEntityGenerator {
     // Code generation
     // -------------------------------------------------------------------------
 
-    private static void writeEntity(String pkg, String outputDir, String tableName,
-                                    List<ColumnInfo> columns, Set<String> primaryKeys,
-                                    boolean useLombok, String[] prefixes) throws IOException {
+    private static void writeEntity(
+            String pkg,
+            String outputDir,
+            String tableName,
+            List<ColumnInfo> columns,
+            Set<String> primaryKeys,
+            boolean useLombok,
+            String[] prefixes)
+            throws IOException {
         String lowerTable = tableName.toLowerCase();
         String trimmedName = applyTrimPrefix(tableName, prefixes);
         String className = toPascalCase(trimmedName);
@@ -321,9 +350,15 @@ public final class JdbcEntityGenerator {
         boolean hasLastModifiedDate = false;
         for (ColumnInfo col : columns) {
             String lc = col.name.toLowerCase();
-            if (isLogicalDeleteColumn(lc)) hasLogicalDelete = true;
-            if (isCreatedDateColumn(lc)) hasCreatedDate = true;
-            if (isLastModifiedDateColumn(lc)) hasLastModifiedDate = true;
+            if (isLogicalDeleteColumn(lc)) {
+                hasLogicalDelete = true;
+            }
+            if (isCreatedDateColumn(lc)) {
+                hasCreatedDate = true;
+            }
+            if (isLastModifiedDateColumn(lc)) {
+                hasLastModifiedDate = true;
+            }
         }
         if (hasLogicalDelete) {
             imports.add("io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete");
@@ -444,8 +479,8 @@ public final class JdbcEntityGenerator {
                     w.println("    }");
                     w.println();
 
-                    w.println("    public " + className + " set" + pascalField
-                            + "(" + simpleType + " " + fieldName + ") {");
+                    w.println("    public " + className + " set" + pascalField + "(" + simpleType + " " + fieldName
+                            + ") {");
                     w.println("        this." + fieldName + " = " + fieldName + ";");
                     w.println("        return this;");
                     w.println("    }");
@@ -458,9 +493,16 @@ public final class JdbcEntityGenerator {
         LOG.log(Level.INFO, "JDBC entity file written: {0}", file.getAbsolutePath());
     }
 
-    private static void writeRepository(String entityPackage, String repositoryPackage, String outputDir,
-                                        String tableName, List<ColumnInfo> columns, Set<String> primaryKeys,
-                                        String[] prefixes, boolean override) throws IOException {
+    private static void writeRepository(
+            String entityPackage,
+            String repositoryPackage,
+            String outputDir,
+            String tableName,
+            List<ColumnInfo> columns,
+            Set<String> primaryKeys,
+            String[] prefixes,
+            boolean override)
+            throws IOException {
         String trimmedName = applyTrimPrefix(tableName, prefixes);
         String entityClassName = toPascalCase(trimmedName);
         String repositoryClassName = entityClassName + "Repository";
@@ -500,8 +542,8 @@ public final class JdbcEntityGenerator {
             w.println(" * Common CRUD, query, and builder operations are inherited from JdbcDslRepository.");
             w.println(" */");
             w.println("@Repository");
-            w.println("public class " + repositoryClassName + " extends JdbcDslRepository<"
-                    + entityClassName + ", " + pkJavaType + "> {");
+            w.println("public class " + repositoryClassName + " extends JdbcDslRepository<" + entityClassName + ", "
+                    + pkJavaType + "> {");
             w.println();
             w.println("    @Autowired");
             w.println("    public " + repositoryClassName + "(JdbcDslExecutor jdbcDslExecutor) {");
@@ -522,6 +564,7 @@ public final class JdbcEntityGenerator {
             public void println() {
                 print('\n');
             }
+
             @Override
             public void println(String x) {
                 print(x);
@@ -656,7 +699,9 @@ public final class JdbcEntityGenerator {
 
     static String toCamelCase(String name) {
         String pascal = toPascalCase(name);
-        if (pascal.isEmpty()) return pascal;
+        if (pascal.isEmpty()) {
+            return pascal;
+        }
         return Character.toLowerCase(pascal.charAt(0)) + pascal.substring(1);
     }
 
@@ -668,7 +713,9 @@ public final class JdbcEntityGenerator {
      * destroy the existing capitalisation).
      */
     static String capitalize(String name) {
-        if (name == null || name.isEmpty()) return name;
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 
@@ -678,8 +725,7 @@ public final class JdbcEntityGenerator {
         }
         String lowerName = tableName.toLowerCase();
         for (String prefix : prefixes) {
-            if (prefix != null && !prefix.isEmpty()
-                    && lowerName.startsWith(prefix.toLowerCase())) {
+            if (prefix != null && !prefix.isEmpty() && lowerName.startsWith(prefix.toLowerCase())) {
                 return tableName.substring(prefix.length());
             }
         }
@@ -724,10 +770,20 @@ public final class JdbcEntityGenerator {
             upper = upper.substring(0, paren).trim();
         }
         return switch (upper) {
-            case "VARCHAR", "CHAR", "TEXT", "CLOB", "LONGVARCHAR",
-                    "NVARCHAR", "NCHAR", "NCLOB", "LONGNVARCHAR",
-                    "CHARACTER VARYING", "CHARACTER",
-                    "TINYTEXT", "MEDIUMTEXT", "LONGTEXT" -> "String";
+            case "VARCHAR",
+                    "CHAR",
+                    "TEXT",
+                    "CLOB",
+                    "LONGVARCHAR",
+                    "NVARCHAR",
+                    "NCHAR",
+                    "NCLOB",
+                    "LONGNVARCHAR",
+                    "CHARACTER VARYING",
+                    "CHARACTER",
+                    "TINYTEXT",
+                    "MEDIUMTEXT",
+                    "LONGTEXT" -> "String";
             case "INTEGER", "INT", "INT4" -> "Integer";
             case "BIGINT", "INT8" -> "Long";
             case "SMALLINT", "TINYINT", "INT2" -> "Short";
@@ -760,8 +816,13 @@ public final class JdbcEntityGenerator {
         final int ordinalPosition;
         final String comment;
 
-        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition,
-                   String comment) {
+        ColumnInfo(
+                String name,
+                String typeName,
+                boolean nullable,
+                boolean autoIncrement,
+                int ordinalPosition,
+                String comment) {
             this.name = name;
             this.typeName = typeName;
             this.nullable = nullable;

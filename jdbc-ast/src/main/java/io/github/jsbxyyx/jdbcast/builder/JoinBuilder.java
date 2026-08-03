@@ -19,13 +19,13 @@ import io.github.jsbxyyx.jdbcast.condition.Condition;
 public final class JoinBuilder {
 
     private final SelectBuilder parent;
-    private final TableRef<?>   table;
-    private final JoinType      type;
+    private final TableRef<?> table;
+    private final JoinType type;
 
     JoinBuilder(SelectBuilder parent, TableRef<?> table, JoinType type) {
         this.parent = parent;
-        this.table  = table;
-        this.type   = type;
+        this.table = table;
+        this.type = type;
     }
 
     /** Specifies the ON condition and returns the parent {@link SelectBuilder}. */

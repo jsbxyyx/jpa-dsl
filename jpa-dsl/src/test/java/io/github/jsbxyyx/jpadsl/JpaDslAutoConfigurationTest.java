@@ -32,23 +32,19 @@ class JpaDslAutoConfigurationTest {
 
     @Test
     void whenJpaDslEnabled_explicitly_contributorsAreRegistered() {
-        contextRunner
-                .withPropertyValues("jpadsl.enabled=true")
-                .run(context -> {
-                    assertThat(context).hasSingleBean(JpaSelectFragmentsContributor.class);
-                    assertThat(context).hasSingleBean(JpaUpdateFragmentsContributor.class);
-                    assertThat(context).hasSingleBean(JpaDeleteFragmentsContributor.class);
-                });
+        contextRunner.withPropertyValues("jpadsl.enabled=true").run(context -> {
+            assertThat(context).hasSingleBean(JpaSelectFragmentsContributor.class);
+            assertThat(context).hasSingleBean(JpaUpdateFragmentsContributor.class);
+            assertThat(context).hasSingleBean(JpaDeleteFragmentsContributor.class);
+        });
     }
 
     @Test
     void whenJpaDslDisabled_noContributorsAreRegistered() {
-        contextRunner
-                .withPropertyValues("jpadsl.enabled=false")
-                .run(context -> {
-                    assertThat(context).doesNotHaveBean(JpaSelectFragmentsContributor.class);
-                    assertThat(context).doesNotHaveBean(JpaUpdateFragmentsContributor.class);
-                    assertThat(context).doesNotHaveBean(JpaDeleteFragmentsContributor.class);
-                });
+        contextRunner.withPropertyValues("jpadsl.enabled=false").run(context -> {
+            assertThat(context).doesNotHaveBean(JpaSelectFragmentsContributor.class);
+            assertThat(context).doesNotHaveBean(JpaUpdateFragmentsContributor.class);
+            assertThat(context).doesNotHaveBean(JpaDeleteFragmentsContributor.class);
+        });
     }
 }

@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Sql(scripts = "/upsert-schema.sql",  executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/upsert-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/upsert-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class UpsertIntegrationTest {
 
@@ -57,9 +57,8 @@ class UpsertIntegrationTest {
 
         executor.upsert(byUsername, user);
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT username, email, age, status FROM t_user",
-                Collections.emptyMap());
+        List<Map<String, Object>> rows =
+                jdbcTemplate.queryForList("SELECT username, email, age, status FROM t_user", Collections.emptyMap());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("USERNAME")).isEqualTo("alice");
         assertThat(rows.get(0).get("EMAIL")).isEqualTo("alice@example.com");
@@ -85,9 +84,8 @@ class UpsertIntegrationTest {
         executor.upsert(byUsername, updated);
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT username, email, status FROM t_user WHERE username = 'alice'",
-                Collections.emptyMap());
-        assertThat(rows).hasSize(1);  // still exactly one row
+                "SELECT username, email, status FROM t_user WHERE username = 'alice'", Collections.emptyMap());
+        assertThat(rows).hasSize(1); // still exactly one row
         assertThat(rows.get(0).get("EMAIL")).isEqualTo("new@example.com");
         assertThat(rows.get(0).get("STATUS")).isEqualTo("ACTIVE");
     }
@@ -115,11 +113,10 @@ class UpsertIntegrationTest {
         executor.upsert(emailOnlyUpdate, updated);
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT email, age, status FROM t_user WHERE username = 'bob'",
-                Collections.emptyMap());
-        assertThat(row.get("EMAIL")).isEqualTo("bob@new.com");   // updated
-        assertThat(row.get("AGE")).isEqualTo(25);                // unchanged
-        assertThat(row.get("STATUS")).isEqualTo("ACTIVE");       // unchanged
+                "SELECT email, age, status FROM t_user WHERE username = 'bob'", Collections.emptyMap());
+        assertThat(row.get("EMAIL")).isEqualTo("bob@new.com"); // updated
+        assertThat(row.get("AGE")).isEqualTo(25); // unchanged
+        assertThat(row.get("STATUS")).isEqualTo("ACTIVE"); // unchanged
     }
 
     // ------------------------------------------------------------------ //
@@ -131,15 +128,14 @@ class UpsertIntegrationTest {
      */
     @Test
     void upsert_calledTwice_tableHasExactlyOneRow() {
-        TUser first  = new TUser("charlie", "first@example.com", 40, "ACTIVE");
+        TUser first = new TUser("charlie", "first@example.com", 40, "ACTIVE");
         TUser second = new TUser("charlie", "second@example.com", 41, "INACTIVE");
 
         executor.upsert(byUsername, first);
         executor.upsert(byUsername, second);
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT username, email, age FROM t_user",
-                Collections.emptyMap());
+        List<Map<String, Object>> rows =
+                jdbcTemplate.queryForList("SELECT username, email, age FROM t_user", Collections.emptyMap());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("EMAIL")).isEqualTo("second@example.com");
         assertThat(rows.get(0).get("AGE")).isEqualTo(41);

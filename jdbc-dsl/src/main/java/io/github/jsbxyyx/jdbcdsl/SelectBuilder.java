@@ -203,8 +203,8 @@ public final class SelectBuilder<T> {
     }
 
     /** Adds a JOIN clause. */
-    public <J> SelectBuilder<T> join(Class<J> joinEntity, String joinAlias,
-                                     JoinType type, Consumer<OnBuilder> onConsumer) {
+    public <J> SelectBuilder<T> join(
+            Class<J> joinEntity, String joinAlias, JoinType type, Consumer<OnBuilder> onConsumer) {
         OnBuilder ob = new OnBuilder();
         onConsumer.accept(ob);
         joins.add(new JoinSpec(joinEntity, joinAlias, type, ob.getConditions()));
@@ -273,9 +273,12 @@ public final class SelectBuilder<T> {
      * @param type        the JOIN type (INNER, LEFT, RIGHT, FULL)
      * @param onConsumer  configures the ON clause
      */
-    public <J> SelectBuilder<T> joinSubquery(SelectSpec<?, ?> subquery, Class<J> entityClass,
-                                              String joinAlias, JoinType type,
-                                              Consumer<OnBuilder> onConsumer) {
+    public <J> SelectBuilder<T> joinSubquery(
+            SelectSpec<?, ?> subquery,
+            Class<J> entityClass,
+            String joinAlias,
+            JoinType type,
+            Consumer<OnBuilder> onConsumer) {
         OnBuilder ob = new OnBuilder();
         onConsumer.accept(ob);
         joins.add(JoinSpec.ofSubquery(subquery, entityClass, joinAlias, type, ob.getConditions()));
@@ -283,14 +286,14 @@ public final class SelectBuilder<T> {
     }
 
     /** {@code LEFT JOIN (SELECT ...) alias ON ...} convenience overload. */
-    public <J> SelectBuilder<T> leftJoinSubquery(SelectSpec<?, ?> subquery, Class<J> entityClass,
-                                                  String joinAlias, Consumer<OnBuilder> onConsumer) {
+    public <J> SelectBuilder<T> leftJoinSubquery(
+            SelectSpec<?, ?> subquery, Class<J> entityClass, String joinAlias, Consumer<OnBuilder> onConsumer) {
         return joinSubquery(subquery, entityClass, joinAlias, JoinType.LEFT, onConsumer);
     }
 
     /** {@code INNER JOIN (SELECT ...) alias ON ...} convenience overload. */
-    public <J> SelectBuilder<T> innerJoinSubquery(SelectSpec<?, ?> subquery, Class<J> entityClass,
-                                                   String joinAlias, Consumer<OnBuilder> onConsumer) {
+    public <J> SelectBuilder<T> innerJoinSubquery(
+            SelectSpec<?, ?> subquery, Class<J> entityClass, String joinAlias, Consumer<OnBuilder> onConsumer) {
         return joinSubquery(subquery, entityClass, joinAlias, JoinType.INNER, onConsumer);
     }
 
@@ -361,9 +364,21 @@ public final class SelectBuilder<T> {
      * @param dtoClass the result type; must have a no-arg constructor and setters
      */
     public <R> SelectSpec<T, R> mapTo(Class<R> dtoClass) {
-        return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
-                dtoClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride,
-                subqueryFrom, lockMode);
+        return new SelectSpec<>(
+                entityClass,
+                alias,
+                distinct,
+                selectedExpressions,
+                where,
+                joins,
+                sort,
+                dtoClass,
+                groupByExpressions,
+                having,
+                List.copyOf(cteDefs),
+                tableNameOverride,
+                subqueryFrom,
+                lockMode);
     }
 
     /**
@@ -380,8 +395,20 @@ public final class SelectBuilder<T> {
      * @return a spec where the result type {@code R} equals the entity type {@code T}
      */
     public SelectSpec<T, T> mapToEntity() {
-        return new SelectSpec<>(entityClass, alias, distinct, selectedExpressions, where, joins, sort,
-                entityClass, groupByExpressions, having, List.copyOf(cteDefs), tableNameOverride,
-                subqueryFrom, lockMode);
+        return new SelectSpec<>(
+                entityClass,
+                alias,
+                distinct,
+                selectedExpressions,
+                where,
+                joins,
+                sort,
+                entityClass,
+                groupByExpressions,
+                having,
+                List.copyOf(cteDefs),
+                tableNameOverride,
+                subqueryFrom,
+                lockMode);
     }
 }

@@ -33,8 +33,7 @@ import java.util.List;
  */
 public final class SqlFunctions {
 
-    private SqlFunctions() {
-    }
+    private SqlFunctions() {}
 
     // ------------------------------------------------------------------ //
     //  Literal / CASE
@@ -141,8 +140,8 @@ public final class SqlFunctions {
      * produces {@code COALESCE(t.email, 'N/A')}.
      */
     public static <T> FunctionExpression<String> coalesce(SFunction<T, ?> prop, String fallbackLiteral) {
-        return new FunctionExpression<>("COALESCE",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(fallbackLiteral)));
+        return new FunctionExpression<>(
+                "COALESCE", List.of(ColumnExpression.of(prop), LiteralExpression.of(fallbackLiteral)));
     }
 
     /**
@@ -199,8 +198,8 @@ public final class SqlFunctions {
      * Oracle does not support {@code SUBSTRING} — use {@link #substr(SFunction, int)} instead.
      */
     public static <T> FunctionExpression<String> substring(SFunction<T, ?> prop, int pos) {
-        return new FunctionExpression<>("SUBSTRING",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos))));
+        return new FunctionExpression<>(
+                "SUBSTRING", List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos))));
     }
 
     /**
@@ -210,8 +209,11 @@ public final class SqlFunctions {
      * Oracle does not support {@code SUBSTRING} — use {@link #substr(SFunction, int, int)} instead.
      */
     public static <T> FunctionExpression<String> substring(SFunction<T, ?> prop, int pos, int len) {
-        return new FunctionExpression<>("SUBSTRING",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos)),
+        return new FunctionExpression<>(
+                "SUBSTRING",
+                List.of(
+                        ColumnExpression.of(prop),
+                        LiteralExpression.of(String.valueOf(pos)),
                         LiteralExpression.of(String.valueOf(len))));
     }
 
@@ -222,8 +224,8 @@ public final class SqlFunctions {
      * SQL Server does not support {@code SUBSTR} — use {@link #substring(SFunction, int)} instead.
      */
     public static <T> FunctionExpression<String> substr(SFunction<T, ?> prop, int pos) {
-        return new FunctionExpression<>("SUBSTR",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos))));
+        return new FunctionExpression<>(
+                "SUBSTR", List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos))));
     }
 
     /**
@@ -233,8 +235,11 @@ public final class SqlFunctions {
      * SQL Server does not support {@code SUBSTR} — use {@link #substring(SFunction, int, int)} instead.
      */
     public static <T> FunctionExpression<String> substr(SFunction<T, ?> prop, int pos, int len) {
-        return new FunctionExpression<>("SUBSTR",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(pos)),
+        return new FunctionExpression<>(
+                "SUBSTR",
+                List.of(
+                        ColumnExpression.of(prop),
+                        LiteralExpression.of(String.valueOf(pos)),
                         LiteralExpression.of(String.valueOf(len))));
     }
 
@@ -253,8 +258,8 @@ public final class SqlFunctions {
      * @param valueLiteral a raw SQL literal (use quotes for strings, e.g. {@code "'N/A'"})
      */
     public static <T, V> FunctionExpression<V> nullif(SFunction<T, ?> prop, String valueLiteral) {
-        return new FunctionExpression<>("NULLIF",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(valueLiteral)));
+        return new FunctionExpression<>(
+                "NULLIF", List.of(ColumnExpression.of(prop), LiteralExpression.of(valueLiteral)));
     }
 
     /**
@@ -402,8 +407,8 @@ public final class SqlFunctions {
      * <p>Example: {@code lag(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("prevAge")}
      */
     public static <T, V> FunctionExpression<V> lag(SFunction<T, V> prop, int offset) {
-        return new FunctionExpression<>("LAG",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
+        return new FunctionExpression<>(
+                "LAG", List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
     }
 
     /**
@@ -419,8 +424,8 @@ public final class SqlFunctions {
      * <p>Example: {@code lead(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("nextAge")}
      */
     public static <T, V> FunctionExpression<V> lead(SFunction<T, V> prop, int offset) {
-        return new FunctionExpression<>("LEAD",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
+        return new FunctionExpression<>(
+                "LEAD", List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(offset))));
     }
 
     /**
@@ -495,8 +500,8 @@ public final class SqlFunctions {
 
     /** {@code ROUND(col, scale)} — rounds to {@code scale} decimal places */
     public static <T> FunctionExpression<Number> round(SFunction<T, ?> prop, int scale) {
-        return new FunctionExpression<>("ROUND",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(scale))));
+        return new FunctionExpression<>(
+                "ROUND", List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(scale))));
     }
 
     /** {@code ABS(col)} — absolute value */
@@ -506,8 +511,8 @@ public final class SqlFunctions {
 
     /** {@code MOD(col, divisor)} — remainder of col / divisor */
     public static <T> FunctionExpression<Number> mod(SFunction<T, ?> prop, int divisor) {
-        return new FunctionExpression<>("MOD",
-                List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(divisor))));
+        return new FunctionExpression<>(
+                "MOD", List.of(ColumnExpression.of(prop), LiteralExpression.of(String.valueOf(divisor))));
     }
 
     /**
@@ -517,7 +522,9 @@ public final class SqlFunctions {
     @SafeVarargs
     public static <T> FunctionExpression<Object> greatest(SFunction<T, ?>... props) {
         List<SqlExpression<?>> args = new ArrayList<>(props.length);
-        for (SFunction<T, ?> p : props) args.add(ColumnExpression.of(p));
+        for (SFunction<T, ?> p : props) {
+            args.add(ColumnExpression.of(p));
+        }
         return new FunctionExpression<>("GREATEST", args);
     }
 
@@ -528,7 +535,9 @@ public final class SqlFunctions {
     @SafeVarargs
     public static <T> FunctionExpression<Object> least(SFunction<T, ?>... props) {
         List<SqlExpression<?>> args = new ArrayList<>(props.length);
-        for (SFunction<T, ?> p : props) args.add(ColumnExpression.of(p));
+        for (SFunction<T, ?> p : props) {
+            args.add(ColumnExpression.of(p));
+        }
         return new FunctionExpression<>("LEAST", args);
     }
 
@@ -545,11 +554,12 @@ public final class SqlFunctions {
      * <p>Example: {@code replace(TUser::getEmail, "'@old.com'", "'@new.com'")}
      * → {@code REPLACE(t.email, '@old.com', '@new.com')}
      */
-    public static <T> FunctionExpression<String> replace(SFunction<T, ?> prop,
-                                                          String searchLiteral,
-                                                          String replaceLiteral) {
-        return new FunctionExpression<>("REPLACE",
-                List.of(ColumnExpression.of(prop),
+    public static <T> FunctionExpression<String> replace(
+            SFunction<T, ?> prop, String searchLiteral, String replaceLiteral) {
+        return new FunctionExpression<>(
+                "REPLACE",
+                List.of(
+                        ColumnExpression.of(prop),
                         LiteralExpression.of(searchLiteral),
                         LiteralExpression.of(replaceLiteral)));
     }
@@ -560,8 +570,10 @@ public final class SqlFunctions {
      * <p>Example: {@code lpad(TUser::getUsername, 10, "'0'")} → {@code LPAD(t.username, 10, '0')}
      */
     public static <T> FunctionExpression<String> lpad(SFunction<T, ?> prop, int length, String padLiteral) {
-        return new FunctionExpression<>("LPAD",
-                List.of(ColumnExpression.of(prop),
+        return new FunctionExpression<>(
+                "LPAD",
+                List.of(
+                        ColumnExpression.of(prop),
                         LiteralExpression.of(String.valueOf(length)),
                         LiteralExpression.of(padLiteral)));
     }
@@ -570,8 +582,10 @@ public final class SqlFunctions {
      * {@code RPAD(col, length, padLiteral)} — right-pads {@code col} to {@code length} characters.
      */
     public static <T> FunctionExpression<String> rpad(SFunction<T, ?> prop, int length, String padLiteral) {
-        return new FunctionExpression<>("RPAD",
-                List.of(ColumnExpression.of(prop),
+        return new FunctionExpression<>(
+                "RPAD",
+                List.of(
+                        ColumnExpression.of(prop),
                         LiteralExpression.of(String.valueOf(length)),
                         LiteralExpression.of(padLiteral)));
     }

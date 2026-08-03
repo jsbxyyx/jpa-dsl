@@ -33,8 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Sql(scripts = "/jdbcdsl-schema.sql",  executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",    executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class NewFeaturesIntegrationTest {
 
@@ -73,8 +73,7 @@ class NewFeaturesIntegrationTest {
 
         // Both alice (ACTIVE, 30) and charlie (ACTIVE, 40) satisfy both conditions
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     /**
@@ -95,8 +94,7 @@ class NewFeaturesIntegrationTest {
         List<UserDto> result = executor.union(spec);
 
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ===================================================================== //
@@ -127,11 +125,11 @@ class NewFeaturesIntegrationTest {
         TUser aliceDuplicate = new TUser("alice", "other@example.com", 99, "INACTIVE");
         h2Executor.upsert(spec, aliceDuplicate);
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT username, email, age, status FROM t_user", Collections.emptyMap());
+        List<Map<String, Object>> rows =
+                jdbcTemplate.queryForList("SELECT username, email, age, status FROM t_user", Collections.emptyMap());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("EMAIL")).isEqualTo("alice@example.com"); // unchanged
-        assertThat(rows.get(0).get("AGE")).isEqualTo(30);                    // unchanged
+        assertThat(rows.get(0).get("AGE")).isEqualTo(30); // unchanged
     }
 
     // ===================================================================== //
@@ -152,8 +150,7 @@ class NewFeaturesIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     /**
@@ -187,14 +184,13 @@ class NewFeaturesIntegrationTest {
                 .select(
                         // Use orderNo aliased as "username" to fit into UserRnDto.username
                         col(TOrder::getOrderNo, "o").as("username"),
-                        sum(TOrder::getAmount).over(w -> w
-                                .partitionBy(TOrder::getUserId)
-                                .orderBy(JOrder.asc(TOrder::getId))
-                                .rowsBetween(
-                                        WindowExpression.FrameBound.unboundedPreceding(),
-                                        WindowExpression.FrameBound.currentRow())
-                        ).as("rn")
-                )
+                        sum(TOrder::getAmount)
+                                .over(w -> w.partitionBy(TOrder::getUserId)
+                                        .orderBy(JOrder.asc(TOrder::getId))
+                                        .rowsBetween(
+                                                WindowExpression.FrameBound.unboundedPreceding(),
+                                                WindowExpression.FrameBound.currentRow()))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         List<UserRnDto> result = executor.select(spec);
@@ -203,11 +199,11 @@ class NewFeaturesIntegrationTest {
         assertThat(result).hasSize(3);
 
         // The result contains cumulative amounts — verify order rows are present
-        assertThat(result).extracting(UserRnDto::getUsername)
+        assertThat(result)
+                .extracting(UserRnDto::getUsername)
                 .containsExactlyInAnyOrder("ORD-001", "ORD-002", "ORD-003");
         // Verify rn is populated (exact numeric type varies by DB driver)
         // Some rows may have null rn if the BigDecimal→Long conversion fails gracefully
         assertThat(result).hasSize(3);
     }
-
 }

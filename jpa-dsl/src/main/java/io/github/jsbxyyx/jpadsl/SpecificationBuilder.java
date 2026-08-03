@@ -8,7 +8,6 @@ import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.ListJoin;
 import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.SetJoin;
 import jakarta.persistence.metamodel.CollectionAttribute;
 import jakarta.persistence.metamodel.ListAttribute;
@@ -48,8 +47,7 @@ public class SpecificationBuilder<T> {
 
     private final List<Specification<T>> specs = new ArrayList<>();
 
-    private SpecificationBuilder() {
-    }
+    private SpecificationBuilder() {}
 
     public static <T> SpecificationBuilder<T> builder() {
         return new SpecificationBuilder<>();
@@ -154,8 +152,7 @@ public class SpecificationBuilder<T> {
      */
     public SpecificationBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value) {
         String pattern = value != null ? "%" + value.toLowerCase() + "%" : null;
-        specs.add((root, query, cb) ->
-                cb.like(cb.lower(root.get(attr)), pattern));
+        specs.add((root, query, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
         return this;
     }
 
@@ -164,8 +161,8 @@ public class SpecificationBuilder<T> {
      * A {@code null} value is <em>not</em> skipped; {@code null} produces a {@code null} pattern
      * passed directly to the LIKE expression.
      */
-    public SpecificationBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value,
-                                                  boolean condition) {
+    public SpecificationBuilder<T> likeIgnoreCase(
+            SingularAttribute<? super T, String> attr, String value, boolean condition) {
         if (condition) {
             String pattern = value != null ? "%" + value.toLowerCase() + "%" : null;
             specs.add((root, query, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
@@ -177,8 +174,7 @@ public class SpecificationBuilder<T> {
     //  Comparison predicates
     // ------------------------------------------------------------------ //
 
-    public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(SingularAttribute<? super T, V> attr, V value) {
         specs.add((root, query, cb) -> cb.greaterThan(root.get(attr), value));
         return this;
     }
@@ -213,8 +209,7 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(SingularAttribute<? super T, V> attr, V value) {
         specs.add((root, query, cb) -> cb.lessThan(root.get(attr), value));
         return this;
     }
@@ -280,8 +275,8 @@ public class SpecificationBuilder<T> {
      * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
      * A {@code null} or empty collection is <em>not</em> skipped; the predicate is applied as-is.
      */
-    public <V> SpecificationBuilder<T> in(SingularAttribute<? super T, V> attr, Collection<V> values,
-                                          boolean condition) {
+    public <V> SpecificationBuilder<T> in(
+            SingularAttribute<? super T, V> attr, Collection<V> values, boolean condition) {
         if (condition) {
             specs.add((root, query, cb) -> root.get(attr).in(values));
         }
@@ -297,8 +292,8 @@ public class SpecificationBuilder<T> {
      * Conditional overload: adds the predicate only when {@code condition} is {@code true}.
      * A {@code null} or empty collection is <em>not</em> skipped; the predicate is applied as-is.
      */
-    public <V> SpecificationBuilder<T> notIn(SingularAttribute<? super T, V> attr, Collection<V> values,
-                                             boolean condition) {
+    public <V> SpecificationBuilder<T> notIn(
+            SingularAttribute<? super T, V> attr, Collection<V> values, boolean condition) {
         if (condition) {
             specs.add((root, query, cb) -> root.get(attr).in(values).not());
         }
@@ -338,9 +333,8 @@ public class SpecificationBuilder<T> {
      * @param configure callback to add predicates on the joined entity
      * @param <J>       the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(SingularAttribute<? super T, J> attr,
-                                            JoinType joinType,
-                                            JoinSpecification<J> configure) {
+    public <J> SpecificationBuilder<T> join(
+            SingularAttribute<? super T, J> attr, JoinType joinType, JoinSpecification<J> configure) {
         specs.add((root, query, cb) -> {
             Join<T, J> join = root.join(attr, joinType);
             List<Predicate> predicates = new ArrayList<>();
@@ -358,9 +352,8 @@ public class SpecificationBuilder<T> {
      * @param configure callback to add predicates on the joined entity
      * @param <J>       the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(ListAttribute<? super T, J> attr,
-                                            JoinType joinType,
-                                            JoinSpecification<J> configure) {
+    public <J> SpecificationBuilder<T> join(
+            ListAttribute<? super T, J> attr, JoinType joinType, JoinSpecification<J> configure) {
         specs.add((root, query, cb) -> {
             ListJoin<T, J> join = root.join(attr, joinType);
             List<Predicate> predicates = new ArrayList<>();
@@ -378,9 +371,8 @@ public class SpecificationBuilder<T> {
      * @param configure callback to add predicates on the joined entity
      * @param <J>       the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(SetAttribute<? super T, J> attr,
-                                            JoinType joinType,
-                                            JoinSpecification<J> configure) {
+    public <J> SpecificationBuilder<T> join(
+            SetAttribute<? super T, J> attr, JoinType joinType, JoinSpecification<J> configure) {
         specs.add((root, query, cb) -> {
             SetJoin<T, J> join = root.join(attr, joinType);
             List<Predicate> predicates = new ArrayList<>();
@@ -398,9 +390,8 @@ public class SpecificationBuilder<T> {
      * @param configure callback to add predicates on the joined entity
      * @param <J>       the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(CollectionAttribute<? super T, J> attr,
-                                            JoinType joinType,
-                                            JoinSpecification<J> configure) {
+    public <J> SpecificationBuilder<T> join(
+            CollectionAttribute<? super T, J> attr, JoinType joinType, JoinSpecification<J> configure) {
         specs.add((root, query, cb) -> {
             Join<T, J> join = root.join(attr, joinType);
             List<Predicate> predicates = new ArrayList<>();
@@ -435,9 +426,7 @@ public class SpecificationBuilder<T> {
      * @param onCondition  factory for the JOIN ON predicate
      * @param <J>          the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(Class<J> targetEntity,
-                                            JoinType joinType,
-                                            JoinCondition<T, J> onCondition) {
+    public <J> SpecificationBuilder<T> join(Class<J> targetEntity, JoinType joinType, JoinCondition<T, J> onCondition) {
         specs.add((root, query, cb) ->
                 JoinStrategyResolver.resolve().buildJoin(root, query, cb, targetEntity, joinType, onCondition));
         return this;
@@ -475,7 +464,6 @@ public class SpecificationBuilder<T> {
      */
     @FunctionalInterface
     public interface JoinSpecification<J> {
-        void configure(Join<?, J> join, CriteriaQuery<?> query,
-                       CriteriaBuilder cb, List<Predicate> predicates);
+        void configure(Join<?, J> join, CriteriaQuery<?> query, CriteriaBuilder cb, List<Predicate> predicates);
     }
 }

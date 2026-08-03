@@ -71,7 +71,7 @@ class NamingStrategyTest {
 
         EntityMeta orderMeta = EntityMetaReader.read(TOrder.class);
         assertThat(orderMeta.getColumnName("orderNo")).isEqualTo("order_no"); // from @Column
-        assertThat(orderMeta.getColumnName("userId")).isEqualTo("user_id");   // from @Column
+        assertThat(orderMeta.getColumnName("userId")).isEqualTo("user_id"); // from @Column
     }
 
     // ------------------------------------------------------------------ //
@@ -110,8 +110,8 @@ class NamingStrategyTest {
         // TOrder has explicit @Column annotations; they must not be overridden.
         EntityMeta meta = EntityMetaReader.read(TOrder.class);
         assertThat(meta.getColumnName("orderNo")).isEqualTo("order_no"); // @Column(name="order_no")
-        assertThat(meta.getColumnName("userId")).isEqualTo("user_id");   // @Column(name="user_id")
-        assertThat(meta.getTableName()).isEqualTo("t_order");            // @Table(name="t_order")
+        assertThat(meta.getColumnName("userId")).isEqualTo("user_id"); // @Column(name="user_id")
+        assertThat(meta.getTableName()).isEqualTo("t_order"); // @Table(name="t_order")
     }
 
     @Test
@@ -140,8 +140,7 @@ class NamingStrategyTest {
         JdbcDslConfig.setNamingStrategy(SnakeCaseNamingStrategy.INSTANCE);
 
         SelectSpec<TProductNoAnnotation, TProductNoAnnotation> spec =
-                SelectBuilder.from(TProductNoAnnotation.class)
-                        .mapToEntity();
+                SelectBuilder.from(TProductNoAnnotation.class).mapToEntity();
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("t.product_name AS productName");
@@ -153,10 +152,9 @@ class NamingStrategyTest {
     void snakeCaseStrategy_renderSelect_whereUsesConvertedColumnName() {
         JdbcDslConfig.setNamingStrategy(SnakeCaseNamingStrategy.INSTANCE);
 
-        SelectSpec<TProductNoAnnotation, TProductNoAnnotation> spec =
-                SelectBuilder.from(TProductNoAnnotation.class)
-                        .where(w -> w.eq(TProductNoAnnotation::getProductName, "Widget"))
-                        .mapToEntity();
+        SelectSpec<TProductNoAnnotation, TProductNoAnnotation> spec = SelectBuilder.from(TProductNoAnnotation.class)
+                .where(w -> w.eq(TProductNoAnnotation::getProductName, "Widget"))
+                .mapToEntity();
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("t.product_name = :p1");

@@ -216,9 +216,9 @@ class SqlFunctionsTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
         // Verify clause order
-        int whereIdx   = sql.indexOf("WHERE");
+        int whereIdx = sql.indexOf("WHERE");
         int groupByIdx = sql.indexOf("GROUP BY");
-        int havingIdx  = sql.indexOf("HAVING");
+        int havingIdx = sql.indexOf("HAVING");
         int orderByIdx = sql.indexOf("ORDER BY");
         assertThat(whereIdx).isLessThan(groupByIdx);
         assertThat(groupByIdx).isLessThan(havingIdx);
@@ -259,9 +259,8 @@ class SqlFunctionsTest {
     void nestedFunctions_upperOfTrim_rendered() {
         // UPPER(TRIM(t.username))
         FunctionExpression<String> nested = fn("UPPER", trim(TUser::getUsername));
-        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
-                .select(nested)
-                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> spec =
+                SelectBuilder.from(TUser.class).select(nested).mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         // Function expressions get no alias by default
@@ -277,8 +276,7 @@ class SqlFunctionsTest {
     void backwardCompat_sfunctionSelectAndWhere_unchanged() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w.eq(TUser::getStatus, "ACTIVE")
-                             .gt(TUser::getAge, 18))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").gt(TUser::getAge, 18))
                 .orderBy(JSort.byAsc(TUser::getUsername))
                 .mapTo(UserDto.class);
 
@@ -307,9 +305,8 @@ class SqlFunctionsTest {
 
     @Test
     void aliasedExpression_aggregateWithAs_rendersExplicitAlias() {
-        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
-                .select(countStar().as("cnt"))
-                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> spec =
+                SelectBuilder.from(TUser.class).select(countStar().as("cnt")).mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         assertThat(rendered.getSql()).contains("COUNT(*) AS cnt");

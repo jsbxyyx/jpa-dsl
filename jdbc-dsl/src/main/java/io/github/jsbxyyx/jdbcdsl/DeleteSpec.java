@@ -17,6 +17,11 @@ public final class DeleteSpec<T> {
         this.where = where;
     }
 
-    public Class<T> getEntityClass() { return entityClass; }
-    public PredicateNode getWhere() { return where; }
+    public Class<T> getEntityClass() {
+        return entityClass;
+    }
+
+    public PredicateNode getWhere() {
+        return where;
+    }
 }

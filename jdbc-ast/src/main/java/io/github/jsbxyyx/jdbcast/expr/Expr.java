@@ -36,9 +36,17 @@ import java.util.List;
  * @param <V> the Java type produced by this expression
  */
 public sealed interface Expr<V>
-        permits ColExpr, LiteralExpr, FunctionExpr, AggExpr,
-                WindowExpr, CaseExpr, CastExpr, SubqueryExpr,
-                AliasedExpr, StarExpr, RawExpr {
+        permits ColExpr,
+                LiteralExpr,
+                FunctionExpr,
+                AggExpr,
+                WindowExpr,
+                CaseExpr,
+                CastExpr,
+                SubqueryExpr,
+                AliasedExpr,
+                StarExpr,
+                RawExpr {
 
     // ------------------------------------------------------------------ //
     //  Alias
@@ -54,50 +62,96 @@ public sealed interface Expr<V>
     // ------------------------------------------------------------------ //
 
     /** Creates an ascending ORDER BY item for this expression. */
-    default OrderItem asc() { return new OrderItem(this, true,  null); }
+    default OrderItem asc() {
+        return new OrderItem(this, true, null);
+    }
 
     /** Creates a descending ORDER BY item for this expression. */
-    default OrderItem desc() { return new OrderItem(this, false, null); }
+    default OrderItem desc() {
+        return new OrderItem(this, false, null);
+    }
 
     // ------------------------------------------------------------------ //
     //  Equality / inequality
     // ------------------------------------------------------------------ //
 
-    default Condition eq(Object value)  { return new CompareCondition(this, Op.EQ,  value); }
-    default Condition ne(Object value)  { return new CompareCondition(this, Op.NE,  value); }
-    default Condition lt(Object value)  { return new CompareCondition(this, Op.LT,  value); }
-    default Condition lte(Object value) { return new CompareCondition(this, Op.LTE, value); }
-    default Condition gt(Object value)  { return new CompareCondition(this, Op.GT,  value); }
-    default Condition gte(Object value) { return new CompareCondition(this, Op.GTE, value); }
+    default Condition eq(Object value) {
+        return new CompareCondition(this, Op.EQ, value);
+    }
+
+    default Condition ne(Object value) {
+        return new CompareCondition(this, Op.NE, value);
+    }
+
+    default Condition lt(Object value) {
+        return new CompareCondition(this, Op.LT, value);
+    }
+
+    default Condition lte(Object value) {
+        return new CompareCondition(this, Op.LTE, value);
+    }
+
+    default Condition gt(Object value) {
+        return new CompareCondition(this, Op.GT, value);
+    }
+
+    default Condition gte(Object value) {
+        return new CompareCondition(this, Op.GTE, value);
+    }
 
     // ------------------------------------------------------------------ //
     //  NULL checks
     // ------------------------------------------------------------------ //
 
-    default Condition isNull()    { return new NullCondition(this, true);  }
-    default Condition isNotNull() { return new NullCondition(this, false); }
+    default Condition isNull() {
+        return new NullCondition(this, true);
+    }
+
+    default Condition isNotNull() {
+        return new NullCondition(this, false);
+    }
 
     // ------------------------------------------------------------------ //
     //  IN
     // ------------------------------------------------------------------ //
 
-    default Condition in(Collection<?> values)    { return new InCondition(this, false, List.copyOf(values)); }
-    default Condition notIn(Collection<?> values) { return new InCondition(this, true,  List.copyOf(values)); }
+    default Condition in(Collection<?> values) {
+        return new InCondition(this, false, List.copyOf(values));
+    }
 
-    default Condition in(Object... values)    { return new InCondition(this, false, Arrays.asList(values)); }
-    default Condition notIn(Object... values) { return new InCondition(this, true,  Arrays.asList(values)); }
+    default Condition notIn(Collection<?> values) {
+        return new InCondition(this, true, List.copyOf(values));
+    }
+
+    default Condition in(Object... values) {
+        return new InCondition(this, false, Arrays.asList(values));
+    }
+
+    default Condition notIn(Object... values) {
+        return new InCondition(this, true, Arrays.asList(values));
+    }
 
     // ------------------------------------------------------------------ //
     //  BETWEEN
     // ------------------------------------------------------------------ //
 
-    default Condition between(Object low, Object high)    { return new BetweenCondition(this, low, high, false); }
-    default Condition notBetween(Object low, Object high) { return new BetweenCondition(this, low, high, true);  }
+    default Condition between(Object low, Object high) {
+        return new BetweenCondition(this, low, high, false);
+    }
+
+    default Condition notBetween(Object low, Object high) {
+        return new BetweenCondition(this, low, high, true);
+    }
 
     // ------------------------------------------------------------------ //
     //  LIKE
     // ------------------------------------------------------------------ //
 
-    default Condition like(String pattern)    { return new LikeCondition(this, pattern, false); }
-    default Condition notLike(String pattern) { return new LikeCondition(this, pattern, true);  }
+    default Condition like(String pattern) {
+        return new LikeCondition(this, pattern, false);
+    }
+
+    default Condition notLike(String pattern) {
+        return new LikeCondition(this, pattern, true);
+    }
 }

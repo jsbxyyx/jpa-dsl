@@ -1,15 +1,12 @@
 package io.github.jsbxyyx.jpadsl.core;
 
-import io.github.jsbxyyx.jpadsl.spec.*;
 import io.github.jsbxyyx.jpadsl.join.JoinStrategyResolver;
+import io.github.jsbxyyx.jpadsl.spec.*;
 import jakarta.persistence.criteria.*;
-import jakarta.persistence.metamodel.ListAttribute;
-import jakarta.persistence.metamodel.SetAttribute;
 import jakarta.persistence.metamodel.SingularAttribute;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -62,14 +59,12 @@ public class SpecificationBuilder<T> {
         return this;
     }
 
-    public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> gt(SingularAttribute<? super T, V> attr, V value) {
         specifications.add(new GreaterThanSpecification<>(attr, value));
         return this;
     }
 
-    public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> SpecificationBuilder<T> lt(SingularAttribute<? super T, V> attr, V value) {
         specifications.add(new LessThanSpecification<>(attr, value));
         return this;
     }
@@ -155,9 +150,8 @@ public class SpecificationBuilder<T> {
      * @param onCondition  factory for the JOIN ON predicate
      * @param <J>          the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(Class<J> targetEntity,
-                                             jakarta.persistence.criteria.JoinType joinType,
-                                             JoinCondition<T, J> onCondition) {
+    public <J> SpecificationBuilder<T> join(
+            Class<J> targetEntity, jakarta.persistence.criteria.JoinType joinType, JoinCondition<T, J> onCondition) {
         specifications.add((root, query, cb) ->
                 JoinStrategyResolver.resolve().buildJoin(root, query, cb, targetEntity, joinType, onCondition));
         return this;

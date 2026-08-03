@@ -199,8 +199,8 @@ public final class DeleteBuilder<T> {
         PredicateNode where = whereNode();
         if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
             throw new IllegalStateException(
-                    "DeleteBuilder requires at least one where(...) condition to prevent accidental full-table deletes. " +
-                    "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");
+                    "DeleteBuilder requires at least one where(...) condition to prevent accidental full-table deletes. "
+                            + "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");
         }
         return new DeleteSpec<>(entityClass, where);
     }

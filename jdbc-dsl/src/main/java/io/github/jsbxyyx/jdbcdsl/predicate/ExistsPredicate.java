@@ -25,6 +25,11 @@ public final class ExistsPredicate implements PredicateNode {
         this.negated = negated;
     }
 
-    public SelectSpec<?, ?> getSubquery() { return subquery; }
-    public boolean isNegated() { return negated; }
+    public SelectSpec<?, ?> getSubquery() {
+        return subquery;
+    }
+
+    public boolean isNegated() {
+        return negated;
+    }
 }

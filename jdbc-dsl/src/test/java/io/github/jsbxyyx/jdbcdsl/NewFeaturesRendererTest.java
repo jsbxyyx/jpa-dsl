@@ -111,11 +111,14 @@ class NewFeaturesRendererTest {
     @Test
     void chainedSetOps_unionThenIntersectThenExcept() {
         SelectSpec<TUser, UserDto> a = SelectBuilder.from(TUser.class)
-                .select(TUser::getId, TUser::getUsername).mapTo(UserDto.class);
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
         SelectSpec<TUser, UserDto> b = SelectBuilder.from(TUser.class)
-                .select(TUser::getId, TUser::getUsername).mapTo(UserDto.class);
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
         SelectSpec<TUser, UserDto> c = SelectBuilder.from(TUser.class)
-                .select(TUser::getId, TUser::getUsername).mapTo(UserDto.class);
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
 
         UnionSpec<UserDto> spec = UnionSpec.of(a).union(b).intersect(c).build();
         String sql = SqlRenderer.renderUnion(spec).getSql();
@@ -153,9 +156,7 @@ class NewFeaturesRendererTest {
 
     @Test
     void doNothing_postgres_noConflictTarget_rendersOnConflictDoNothing() {
-        UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class)
-                .doNothing()
-                .build();
+        UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class).doNothing().build();
 
         RenderedSql rendered = new PostgresDialect().renderUpsert(spec, userMeta, colValues());
         assertThat(rendered.getSql()).contains("ON CONFLICT DO NOTHING");
@@ -163,9 +164,7 @@ class NewFeaturesRendererTest {
 
     @Test
     void doNothing_mysql_rendersInsertIgnore() {
-        UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class)
-                .doNothing()
-                .build();
+        UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class).doNothing().build();
 
         RenderedSql rendered = new MySqlDialect().renderUpsert(spec, userMeta, colValues());
         assertThat(rendered.getSql()).startsWith("INSERT IGNORE INTO t_user");
@@ -314,14 +313,13 @@ class NewFeaturesRendererTest {
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
                 .select(
                         col(TOrder::getUserId, "o"),
-                        sum(TOrder::getAmount).over(w -> w
-                                .partitionBy(TOrder::getUserId)
-                                .orderBy(JOrder.asc(TOrder::getId))
-                                .rowsBetween(
-                                        WindowExpression.FrameBound.unboundedPreceding(),
-                                        WindowExpression.FrameBound.currentRow())
-                        ).as("runningTotal")
-                )
+                        sum(TOrder::getAmount)
+                                .over(w -> w.partitionBy(TOrder::getUserId)
+                                        .orderBy(JOrder.asc(TOrder::getId))
+                                        .rowsBetween(
+                                                WindowExpression.FrameBound.unboundedPreceding(),
+                                                WindowExpression.FrameBound.currentRow()))
+                                .as("runningTotal"))
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
@@ -333,13 +331,12 @@ class NewFeaturesRendererTest {
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
                 .select(
                         col(TOrder::getUserId, "o"),
-                        sum(TOrder::getAmount).over(w -> w
-                                .orderBy(JOrder.asc(TOrder::getId))
-                                .rangeBetween(
-                                        WindowExpression.FrameBound.preceding(3),
-                                        WindowExpression.FrameBound.following(1))
-                        ).as("slidingTotal")
-                )
+                        sum(TOrder::getAmount)
+                                .over(w -> w.orderBy(JOrder.asc(TOrder::getId))
+                                        .rangeBetween(
+                                                WindowExpression.FrameBound.preceding(3),
+                                                WindowExpression.FrameBound.following(1)))
+                                .as("slidingTotal"))
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
@@ -349,14 +346,12 @@ class NewFeaturesRendererTest {
     @Test
     void windowFrame_rowsBetweenUnboundedPrecedingAndUnboundedFollowing() {
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
-                .select(
-                        sum(TOrder::getAmount).over(w -> w
-                                .partitionBy(TOrder::getUserId)
+                .select(sum(TOrder::getAmount)
+                        .over(w -> w.partitionBy(TOrder::getUserId)
                                 .rowsBetween(
                                         WindowExpression.FrameBound.unboundedPreceding(),
-                                        WindowExpression.FrameBound.unboundedFollowing())
-                        ).as("partitionTotal")
-                )
+                                        WindowExpression.FrameBound.unboundedFollowing()))
+                        .as("partitionTotal"))
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
@@ -366,12 +361,9 @@ class NewFeaturesRendererTest {
     @Test
     void windowFrame_noFrame_doesNotAppendFrameClause() {
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
-                .select(
-                        sum(TOrder::getAmount).over(w -> w
-                                .partitionBy(TOrder::getUserId)
-                                .orderBy(JOrder.asc(TOrder::getId))
-                        ).as("noFrame")
-                )
+                .select(sum(TOrder::getAmount)
+                        .over(w -> w.partitionBy(TOrder::getUserId).orderBy(JOrder.asc(TOrder::getId)))
+                        .as("noFrame"))
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
@@ -391,8 +383,7 @@ class NewFeaturesRendererTest {
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build();
 
-        RenderedSql rendered = SqlRenderer.renderUpdateReturning(spec,
-                java.util.List.of("id", "username", "status"));
+        RenderedSql rendered = SqlRenderer.renderUpdateReturning(spec, java.util.List.of("id", "username", "status"));
         String sql = rendered.getSql();
 
         assertThat(sql).contains("UPDATE t_user SET");
@@ -408,8 +399,7 @@ class NewFeaturesRendererTest {
                 .where(w -> w.eq(TUser::getStatus, "BANNED"))
                 .build();
 
-        RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec,
-                java.util.List.of("id", "username"));
+        RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, java.util.List.of("id", "username"));
         String sql = rendered.getSql();
 
         assertThat(sql).startsWith("DELETE FROM t_user");

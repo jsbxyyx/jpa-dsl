@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
@@ -16,9 +17,9 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
-import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 
 import java.beans.PropertyDescriptor;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.ResultSetMetaData;
@@ -95,7 +96,9 @@ public final class JdbcDslExecutor {
      * @param timeProvider the new time provider (must not be {@code null})
      */
     public void setTimeProvider(TimeProvider timeProvider) {
-        if (timeProvider == null) throw new IllegalArgumentException("timeProvider must not be null");
+        if (timeProvider == null) {
+            throw new IllegalArgumentException("timeProvider must not be null");
+        }
         this.timeProvider = timeProvider;
     }
 
@@ -183,8 +186,8 @@ public final class JdbcDslExecutor {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
         RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
-        String paginatedSql = dialect.applyPagination(
-                rendered.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
+        String paginatedSql =
+                dialect.applyPagination(rendered.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         return jdbc.query(paginatedSql, paginatedParams, mapper);
     }
@@ -276,8 +279,8 @@ public final class JdbcDslExecutor {
 
         RenderedSql selectSql = SqlRenderer.renderSelect(effectiveSpec);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(selectSql.getParams());
-        String paginatedSql = dialect.applyPagination(
-                selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
+        String paginatedSql =
+                dialect.applyPagination(selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
 
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         List<R> content = jdbc.query(paginatedSql, paginatedParams, mapper);
@@ -338,15 +341,13 @@ public final class JdbcDslExecutor {
         for (UpdateSpec<T> spec : specs) {
             UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
             RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
-            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
-                  .add(rendered.getParams());
+            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>()).add(rendered.getParams());
         }
         List<int[]> results = new ArrayList<>();
         for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
             String sql = entry.getKey();
-            MapSqlParameterSource[] batchParams = entry.getValue().stream()
-                    .map(MapSqlParameterSource::new)
-                    .toArray(MapSqlParameterSource[]::new);
+            MapSqlParameterSource[] batchParams =
+                    entry.getValue().stream().map(MapSqlParameterSource::new).toArray(MapSqlParameterSource[]::new);
             results.add(jdbc.batchUpdate(sql, batchParams));
         }
         int totalLen = results.stream().mapToInt(a -> a.length).sum();
@@ -377,15 +378,13 @@ public final class JdbcDslExecutor {
         LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         for (DeleteSpec<T> spec : specs) {
             RenderedSql rendered = SqlRenderer.renderDelete(spec);
-            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
-                  .add(rendered.getParams());
+            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>()).add(rendered.getParams());
         }
         List<int[]> results = new ArrayList<>();
         for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
             String sql = entry.getKey();
-            MapSqlParameterSource[] batchParams = entry.getValue().stream()
-                    .map(MapSqlParameterSource::new)
-                    .toArray(MapSqlParameterSource[]::new);
+            MapSqlParameterSource[] batchParams =
+                    entry.getValue().stream().map(MapSqlParameterSource::new).toArray(MapSqlParameterSource[]::new);
             results.add(jdbc.batchUpdate(sql, batchParams));
         }
         int totalLen = results.stream().mapToInt(a -> a.length).sum();
@@ -419,7 +418,8 @@ public final class JdbcDslExecutor {
         }
         // Build UPDATE ... SET deleted_col = deletedValue WHERE ...
         List<Map.Entry<String, Object>> assignments = new ArrayList<>();
-        assignments.add(new AbstractMap.SimpleImmutableEntry<>(ldPropName,
+        assignments.add(new AbstractMap.SimpleImmutableEntry<>(
+                ldPropName,
                 convertLogicalDeleteString(meta.getLogicalDeletedValue(), spec.getEntityClass(), ldPropName)));
         UpdateSpec<T> updateSpec = new UpdateSpec<>(spec.getEntityClass(), assignments, spec.getWhere());
         RenderedSql rendered = SqlRenderer.renderUpdate(updateSpec);
@@ -590,8 +590,7 @@ public final class JdbcDslExecutor {
         return jdbc.batchUpdate(rendered.getSql(), batchParams);
     }
 
-    private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta,
-                               LinkedHashMap<String, Object> colValues, T entity) {
+    private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, T entity) {
         RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, colValues);
         if (meta.isIdGeneratedByIdentity()) {
             MapSqlParameterSource paramSource = new MapSqlParameterSource(rendered.getParams());
@@ -625,16 +624,15 @@ public final class JdbcDslExecutor {
      * @return the list of returned rows (typically one row for a single-row INSERT)
      */
     @SafeVarargs
-    public final <T, R> List<R> saveReturning(T entity, Class<R> resultClass,
-                                               SFunction<T, ?>... returningProps) {
+    public final <T, R> List<R> saveReturning(T entity, Class<R> resultClass, SFunction<T, ?>... returningProps) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
         EntityMeta meta = EntityMetaReader.read(entityClass);
         injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         List<String> returningCols = resolveColumnNames(entityClass, meta, returningProps);
-        RenderedSql rendered = SqlRenderer.renderInsertReturning(
-                InsertSpec.of(entityClass), meta, colValues, returningCols);
+        RenderedSql rendered =
+                SqlRenderer.renderInsertReturning(InsertSpec.of(entityClass), meta, colValues, returningCols);
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -655,8 +653,8 @@ public final class JdbcDslExecutor {
      * @return the list of returned rows (one per affected row)
      */
     @SafeVarargs
-    public final <T, R> List<R> executeUpdateReturning(UpdateSpec<T> spec, Class<R> resultClass,
-                                                        SFunction<T, ?>... returningProps) {
+    public final <T, R> List<R> executeUpdateReturning(
+            UpdateSpec<T> spec, Class<R> resultClass, SFunction<T, ?>... returningProps) {
         UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
@@ -678,8 +676,8 @@ public final class JdbcDslExecutor {
      * @return the list of returned rows (one per deleted row)
      */
     @SafeVarargs
-    public final <T, R> List<R> executeDeleteReturning(DeleteSpec<T> spec, Class<R> resultClass,
-                                                        SFunction<T, ?>... returningProps) {
+    public final <T, R> List<R> executeDeleteReturning(
+            DeleteSpec<T> spec, Class<R> resultClass, SFunction<T, ?>... returningProps) {
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
         RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, returningCols);
@@ -692,8 +690,8 @@ public final class JdbcDslExecutor {
      * metadata for the mapping.
      */
     @SafeVarargs
-    private static <T> List<String> resolveColumnNames(Class<T> entityClass, EntityMeta meta,
-                                                        SFunction<T, ?>... props) {
+    private static <T> List<String> resolveColumnNames(
+            Class<T> entityClass, EntityMeta meta, SFunction<T, ?>... props) {
         List<String> cols = new ArrayList<>();
         for (SFunction<T, ?> prop : props) {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
@@ -711,14 +709,13 @@ public final class JdbcDslExecutor {
      * @param meta             entity metadata
      * @param skipIdentityPk   when {@code true}, the IDENTITY-generated primary key column is excluded
      */
-    private static <T> LinkedHashMap<String, Object> buildColumnValues(T entity, EntityMeta meta,
-                                                                        boolean skipIdentityPk) {
+    private static <T> LinkedHashMap<String, Object> buildColumnValues(
+            T entity, EntityMeta meta, boolean skipIdentityPk) {
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : meta.getPropertyToColumn().entrySet()) {
             String propName = entry.getKey();
             String colName = entry.getValue();
-            if (skipIdentityPk && meta.isIdGeneratedByIdentity()
-                    && propName.equals(meta.getIdPropertyName())) {
+            if (skipIdentityPk && meta.isIdGeneratedByIdentity() && propName.equals(meta.getIdPropertyName())) {
                 continue;
             }
             result.put(colName, getPropertyValue(entity, propName));
@@ -752,8 +749,7 @@ public final class JdbcDslExecutor {
         List<Map.Entry<String, Object>> assignments = new ArrayList<>();
         for (String propName : meta.getPropertyToColumn().keySet()) {
             if (!propName.equals(idPropName)) {
-                assignments.add(new AbstractMap.SimpleImmutableEntry<>(
-                        propName, getPropertyValue(entity, propName)));
+                assignments.add(new AbstractMap.SimpleImmutableEntry<>(propName, getPropertyValue(entity, propName)));
             }
         }
 
@@ -801,8 +797,7 @@ public final class JdbcDslExecutor {
             new ConcurrentHashMap<>();
 
     /** Per-class cache: lowercase-fieldName → accessible Field. */
-    private static final ConcurrentHashMap<Class<?>, Map<String, Field>> FIELD_CACHE =
-            new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Class<?>, Map<String, Field>> FIELD_CACHE = new ConcurrentHashMap<>();
 
     /** Per-class cache: bean type → reusable RowMapper. */
 
@@ -849,7 +844,9 @@ public final class JdbcDslExecutor {
                 if (label == null || label.isBlank()) {
                     label = meta.getColumnName(i);
                 }
-                if (label == null || label.isBlank()) continue;
+                if (label == null || label.isBlank()) {
+                    continue;
+                }
 
                 String key = label.toLowerCase(Locale.ROOT);
                 Object value = JdbcUtils.getResultSetValue(rs, i);
@@ -863,21 +860,21 @@ public final class JdbcDslExecutor {
                         writeMethod.invoke(instance, converted);
                     } catch (ReflectiveOperationException e) {
                         throw new RuntimeException(
-                                "Cannot invoke setter '" + writeMethod.getName() + "' on "
-                                + beanClass.getName(), e);
+                                "Cannot invoke setter '" + writeMethod.getName() + "' on " + beanClass.getName(), e);
                     }
                 } else {
                     Field f = fieldMap.get(key);
                     if (f != null) {
                         Object converted = convertValue(value, f.getType(), conversionService);
                         // Skip null injection into primitive fields to avoid NullPointerException
-                        if (converted == null && f.getType().isPrimitive()) continue;
+                        if (converted == null && f.getType().isPrimitive()) {
+                            continue;
+                        }
                         try {
                             f.set(instance, converted);
                         } catch (IllegalAccessException e) {
                             throw new RuntimeException(
-                                    "Cannot set field '" + f.getName() + "' on "
-                                    + beanClass.getName(), e);
+                                    "Cannot set field '" + f.getName() + "' on " + beanClass.getName(), e);
                         }
                     }
                 }
@@ -886,11 +883,16 @@ public final class JdbcDslExecutor {
         };
     }
 
-    private static Object convertValue(Object value, Class<?> targetType,
-                                       ConversionService cs) {
-        if (targetType == null) return value;
-        if (value == null) return null; // null is valid for reference types; callers guard primitives
-        if (targetType.isInstance(value)) return value;
+    private static Object convertValue(Object value, Class<?> targetType, ConversionService cs) {
+        if (targetType == null) {
+            return value;
+        }
+        if (value == null) {
+            return null; // null is valid for reference types; callers guard primitives
+        }
+        if (targetType.isInstance(value)) {
+            return value;
+        }
         if (cs.canConvert(value.getClass(), targetType)) {
             return cs.convert(value, targetType);
         }
@@ -930,13 +932,13 @@ public final class JdbcDslExecutor {
     @SuppressWarnings("unchecked")
     private static <R> R newInstance(Class<R> beanClass) throws SQLException {
         try {
-            java.lang.reflect.Constructor<R> ctor = beanClass.getDeclaredConstructor();
+            Constructor<R> ctor = beanClass.getDeclaredConstructor();
             ctor.setAccessible(true);
             return ctor.newInstance();
         } catch (ReflectiveOperationException e) {
             throw new SQLException(
                     "No no-arg constructor found on " + beanClass.getName()
-                    + ". Setter-based mapping requires a public (or accessible) no-arg constructor.",
+                            + ". Setter-based mapping requires a public (or accessible) no-arg constructor.",
                     e);
         }
     }
@@ -959,7 +961,8 @@ public final class JdbcDslExecutor {
                     } catch (ReflectiveOperationException e) {
                         throw new RuntimeException(
                                 "Cannot read property '" + propName + "' on "
-                                + entity.getClass().getName(), e);
+                                        + entity.getClass().getName(),
+                                e);
                     }
                 }
             }
@@ -976,7 +979,8 @@ public final class JdbcDslExecutor {
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(
                         "Cannot access field '" + propName + "' on "
-                        + entity.getClass().getName(), e);
+                                + entity.getClass().getName(),
+                        e);
             }
         }
         return null;
@@ -999,7 +1003,8 @@ public final class JdbcDslExecutor {
                     } catch (ReflectiveOperationException e) {
                         throw new RuntimeException(
                                 "Cannot set property '" + propName + "' on "
-                                + entity.getClass().getName(), e);
+                                        + entity.getClass().getName(),
+                                e);
                     }
                     return;
                 }
@@ -1019,7 +1024,8 @@ public final class JdbcDslExecutor {
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(
                         "Cannot set field '" + propName + "' on "
-                        + entity.getClass().getName(), e);
+                                + entity.getClass().getName(),
+                        e);
             }
         }
     }
@@ -1065,11 +1071,10 @@ public final class JdbcDslExecutor {
             return spec;
         }
         // Build a predicate: alias.deleted_col = normalValue
-        Object normalVal = convertLogicalDeleteString(meta.getLogicalDeleteNormalValue(),
-                spec.getEntityClass(), ldPropName);
+        Object normalVal =
+                convertLogicalDeleteString(meta.getLogicalDeleteNormalValue(), spec.getEntityClass(), ldPropName);
         PropertyRef propRef = new PropertyRef(spec.getEntityClass(), ldPropName);
-        LeafPredicate ldPredicate = LeafPredicate.of(propRef, spec.getAlias(),
-                LeafPredicate.Op.EQ, normalVal);
+        LeafPredicate ldPredicate = LeafPredicate.of(propRef, spec.getAlias(), LeafPredicate.Op.EQ, normalVal);
 
         PredicateNode combinedWhere;
         if (spec.getWhere() == null) {
@@ -1077,12 +1082,21 @@ public final class JdbcDslExecutor {
         } else {
             combinedWhere = new AndPredicate(List.of(spec.getWhere(), ldPredicate));
         }
-        return new SelectSpec<>(spec.getEntityClass(), spec.getAlias(),
-                spec.isDistinct(), spec.getSelectedExpressions(), combinedWhere,
-                spec.getJoins(), spec.getSort(), spec.getDtoClass(),
-                spec.getGroupByExpressions(), spec.getHaving(),
-                spec.getCteDefs(), spec.getTableNameOverride(),
-                spec.getSubqueryFrom(), spec.getLockMode());
+        return new SelectSpec<>(
+                spec.getEntityClass(),
+                spec.getAlias(),
+                spec.isDistinct(),
+                spec.getSelectedExpressions(),
+                combinedWhere,
+                spec.getJoins(),
+                spec.getSort(),
+                spec.getDtoClass(),
+                spec.getGroupByExpressions(),
+                spec.getHaving(),
+                spec.getCteDefs(),
+                spec.getTableNameOverride(),
+                spec.getSubqueryFrom(),
+                spec.getLockMode());
     }
 
     // ------------------------------------------------------------------ //
@@ -1114,9 +1128,8 @@ public final class JdbcDslExecutor {
         if (lmdProps.isEmpty()) {
             return spec;
         }
-        Set<String> assignedProps = spec.getAssignments().stream()
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
+        Set<String> assignedProps =
+                spec.getAssignments().stream().map(Map.Entry::getKey).collect(Collectors.toSet());
         List<Map.Entry<String, Object>> newAssignments = new ArrayList<>(spec.getAssignments());
         LocalDateTime now = timeProvider.now();
         for (String propName : lmdProps) {
@@ -1140,8 +1153,7 @@ public final class JdbcDslExecutor {
      *
      * @return the converted value, or {@code null} when {@code stringValue} is {@code null}
      */
-    private static Object convertLogicalDeleteString(String stringValue, Class<?> entityClass,
-                                                      String propName) {
+    private static Object convertLogicalDeleteString(String stringValue, Class<?> entityClass, String propName) {
         if (stringValue == null) {
             return null;
         }

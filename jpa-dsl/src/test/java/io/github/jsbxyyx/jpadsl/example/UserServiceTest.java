@@ -69,7 +69,8 @@ class UserServiceTest {
     @Test
     void testFindByNameOrEmail() {
         List<User> result = userService.findByNameOrEmail("John", "jane");
-        assertThat(result).hasSize(3); // John Doe (name), Bob Johnson (name contains "John"), Jane Smith (email like "jane")
+        assertThat(result)
+                .hasSize(3); // John Doe (name), Bob Johnson (name contains "John"), Jane Smith (email like "jane")
     }
 
     @Test

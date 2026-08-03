@@ -49,8 +49,7 @@ public interface Dialect {
      * @return the rendered SQL and its named parameters
      * @throws UnsupportedOperationException if this dialect does not support UPSERT
      */
-    default RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
-                                     LinkedHashMap<String, Object> colValues) {
+    default RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         throw new UnsupportedOperationException(
                 "UPSERT is not supported by dialect: " + getClass().getSimpleName());
     }

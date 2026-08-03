@@ -14,9 +14,16 @@ package io.github.jsbxyyx.jdbcast.condition;
  * }</pre>
  */
 public sealed interface Condition
-        permits CompareCondition, AndCondition, OrCondition, NotCondition,
-                InCondition, BetweenCondition, LikeCondition,
-                NullCondition, ExistsCondition, RawCondition {
+        permits CompareCondition,
+                AndCondition,
+                OrCondition,
+                NotCondition,
+                InCondition,
+                BetweenCondition,
+                LikeCondition,
+                NullCondition,
+                ExistsCondition,
+                RawCondition {
 
     /** Combines this condition with {@code other} using AND. */
     default Condition and(Condition other) {

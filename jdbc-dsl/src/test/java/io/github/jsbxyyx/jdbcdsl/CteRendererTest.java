@@ -42,8 +42,7 @@ class CteRendererTest {
 
     @Test
     void withCte_fromCteUsesCteName_notEntityTable() {
-        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class).mapToEntity();
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("active_users", TUser.class)
                 .withCte("active_users", cteBody)
@@ -103,9 +102,7 @@ class CteRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        assertThat(rendered.getParams())
-                .containsEntry("p1", "ACTIVE")
-                .containsEntry("p2", 20);
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("p2", 20);
     }
 
     @Test
@@ -133,8 +130,7 @@ class CteRendererTest {
 
     @Test
     void withCte_outerOrderBy_preservedAfterCte() {
-        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class).mapToEntity();
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("all_users", TUser.class)
                 .withCte("all_users", cteBody)
@@ -150,8 +146,7 @@ class CteRendererTest {
 
     @Test
     void withCte_customAlias_usedInSelectAndFrom() {
-        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
-                .mapToEntity();
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class).mapToEntity();
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("active_users", TUser.class, "u")
                 .withCte("active_users", cteBody)

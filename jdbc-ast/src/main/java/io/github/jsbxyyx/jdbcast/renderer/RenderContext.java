@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class RenderContext {
 
-    private final Map<String, Object> params  = new LinkedHashMap<>();
-    private final AtomicInteger       counter = new AtomicInteger(0);
+    private final Map<String, Object> params = new LinkedHashMap<>();
+    private final AtomicInteger counter = new AtomicInteger(0);
 
     /**
      * Registers a value as a named parameter and returns its placeholder (e.g., {@code :p3}).

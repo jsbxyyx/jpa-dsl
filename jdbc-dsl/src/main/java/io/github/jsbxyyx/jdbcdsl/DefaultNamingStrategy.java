@@ -12,8 +12,7 @@ public final class DefaultNamingStrategy implements NamingStrategy {
 
     public static final DefaultNamingStrategy INSTANCE = new DefaultNamingStrategy();
 
-    private DefaultNamingStrategy() {
-    }
+    private DefaultNamingStrategy() {}
 
     @Override
     public String propertyToColumn(String propertyName) {

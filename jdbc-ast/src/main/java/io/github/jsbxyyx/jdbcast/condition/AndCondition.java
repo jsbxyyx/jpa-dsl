@@ -6,7 +6,9 @@ import java.util.List;
 public record AndCondition(List<Condition> children) implements Condition {
 
     public AndCondition {
-        if (children.size() < 2) throw new IllegalArgumentException("AND requires at least 2 children");
+        if (children.size() < 2) {
+            throw new IllegalArgumentException("AND requires at least 2 children");
+        }
         children = List.copyOf(children);
     }
 }

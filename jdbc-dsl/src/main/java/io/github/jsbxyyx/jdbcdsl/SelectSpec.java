@@ -47,20 +47,21 @@ public final class SelectSpec<T, R> {
     private final LockMode lockMode;
 
     /** Full canonical constructor. */
-    SelectSpec(Class<T> entityClass,
-               String alias,
-               boolean distinct,
-               List<SqlExpression<?>> selectedExpressions,
-               PredicateNode where,
-               List<JoinSpec> joins,
-               JSort<T> sort,
-               Class<R> dtoClass,
-               List<SqlExpression<?>> groupByExpressions,
-               PredicateNode having,
-               List<CteDef> cteDefs,
-               String tableNameOverride,
-               SelectSpec<?, ?> subqueryFrom,
-               LockMode lockMode) {
+    SelectSpec(
+            Class<T> entityClass,
+            String alias,
+            boolean distinct,
+            List<SqlExpression<?>> selectedExpressions,
+            PredicateNode where,
+            List<JoinSpec> joins,
+            JSort<T> sort,
+            Class<R> dtoClass,
+            List<SqlExpression<?>> groupByExpressions,
+            PredicateNode having,
+            List<CteDef> cteDefs,
+            String tableNameOverride,
+            SelectSpec<?, ?> subqueryFrom,
+            LockMode lockMode) {
         this.entityClass = entityClass;
         this.alias = alias;
         this.distinct = distinct;
@@ -77,39 +78,78 @@ public final class SelectSpec<T, R> {
         this.lockMode = lockMode;
     }
 
-    public Class<T> getEntityClass() { return entityClass; }
-    public String getAlias() { return alias; }
-    public boolean isDistinct() { return distinct; }
-    public List<SqlExpression<?>> getSelectedExpressions() { return selectedExpressions; }
-    public PredicateNode getWhere() { return where; }
-    public List<JoinSpec> getJoins() { return joins; }
-    public JSort<T> getSort() { return sort; }
-    public Class<R> getDtoClass() { return dtoClass; }
-    public List<SqlExpression<?>> getGroupByExpressions() { return groupByExpressions; }
-    public PredicateNode getHaving() { return having; }
+    public Class<T> getEntityClass() {
+        return entityClass;
+    }
+
+    public String getAlias() {
+        return alias;
+    }
+
+    public boolean isDistinct() {
+        return distinct;
+    }
+
+    public List<SqlExpression<?>> getSelectedExpressions() {
+        return selectedExpressions;
+    }
+
+    public PredicateNode getWhere() {
+        return where;
+    }
+
+    public List<JoinSpec> getJoins() {
+        return joins;
+    }
+
+    public JSort<T> getSort() {
+        return sort;
+    }
+
+    public Class<R> getDtoClass() {
+        return dtoClass;
+    }
+
+    public List<SqlExpression<?>> getGroupByExpressions() {
+        return groupByExpressions;
+    }
+
+    public PredicateNode getHaving() {
+        return having;
+    }
 
     /** Returns the CTE definitions attached to this spec's WITH clause (may be empty). */
-    public List<CteDef> getCteDefs() { return cteDefs; }
+    public List<CteDef> getCteDefs() {
+        return cteDefs;
+    }
 
     /**
      * Returns the FROM-clause table-name override, or {@code null} if the entity's
      * {@code @Table} name should be used.
      */
-    public String getTableNameOverride() { return tableNameOverride; }
+    public String getTableNameOverride() {
+        return tableNameOverride;
+    }
 
     /**
      * Returns the derived-table subquery used in the FROM clause, or {@code null} when the
      * FROM clause references a plain table or CTE name.
      */
-    public SelectSpec<?, ?> getSubqueryFrom() { return subqueryFrom; }
+    public SelectSpec<?, ?> getSubqueryFrom() {
+        return subqueryFrom;
+    }
 
     /**
      * Returns the row-level locking mode, or {@code null} when no locking is requested.
      *
      * @see LockMode
      */
-    public LockMode getLockMode() { return lockMode; }
+    public LockMode getLockMode() {
+        return lockMode;
+    }
 
     /** Returns {@code true} if any row-level lock should be appended to the SELECT SQL. */
-    public boolean isForUpdate() { return lockMode != null; }
+    public boolean isForUpdate() {
+        return lockMode != null;
+    }
 }

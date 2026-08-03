@@ -28,8 +28,7 @@ public final class MySqlDialect implements Dialect {
     }
 
     @Override
-    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
-                                    LinkedHashMap<String, Object> colValues) {
+    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
 
         StringJoiner colJoiner = new StringJoiner(", ");
@@ -42,8 +41,8 @@ public final class MySqlDialect implements Dialect {
 
         // DO NOTHING: MySQL uses INSERT IGNORE to silently skip duplicate rows.
         if (spec.isDoNothing()) {
-            String sql = "INSERT IGNORE INTO " + meta.getTableName()
-                    + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
+            String sql =
+                    "INSERT IGNORE INTO " + meta.getTableName() + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
             return new RenderedSql(sql, params);
         }
 

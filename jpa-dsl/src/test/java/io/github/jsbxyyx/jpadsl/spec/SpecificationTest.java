@@ -28,10 +28,9 @@ class SpecificationTest {
     void setUp() {
         userRepository.deleteAll();
         userRepository.saveAll(Arrays.asList(
-            new User("John Doe", "john@example.com", 25, "ACTIVE", "ADMIN"),
-            new User("Jane Smith", "jane@example.com", 30, "ACTIVE", "USER"),
-            new User("Bob Johnson", "bob@example.com", 17, "INACTIVE", "USER")
-        ));
+                new User("John Doe", "john@example.com", 25, "ACTIVE", "ADMIN"),
+                new User("Jane Smith", "jane@example.com", 30, "ACTIVE", "USER"),
+                new User("Bob Johnson", "bob@example.com", 17, "INACTIVE", "USER")));
     }
 
     @Test
@@ -87,9 +86,7 @@ class SpecificationTest {
     @Test
     void testAndSpecification() {
         Specification<User> spec = new AndSpecification<>(
-            new EqualSpecification<>(User_.status, "ACTIVE"),
-            new GreaterThanSpecification<>(User_.age, 28)
-        );
+                new EqualSpecification<>(User_.status, "ACTIVE"), new GreaterThanSpecification<>(User_.age, 28));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Jane(30, ACTIVE)
     }
@@ -97,26 +94,22 @@ class SpecificationTest {
     @Test
     void testOrSpecification() {
         Specification<User> spec = new OrSpecification<>(
-            new EqualSpecification<>(User_.status, "INACTIVE"),
-            new LikeSpecification<>(User_.name, "Jane")
-        );
+                new EqualSpecification<>(User_.status, "INACTIVE"), new LikeSpecification<>(User_.name, "Jane"));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2);
     }
 
     @Test
     void testNotSpecification() {
-        Specification<User> spec = new NotSpecification<>(
-            new EqualSpecification<>(User_.status, "ACTIVE")
-        );
+        Specification<User> spec = new NotSpecification<>(new EqualSpecification<>(User_.status, "ACTIVE"));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(1); // Bob(INACTIVE)
     }
 
     @Test
     void testSpecificationDslChaining() {
-        Specification<User> spec = SpecificationDsl.<User, String>eq(User_.status, "ACTIVE")
-                .and(SpecificationDsl.gt(User_.age, 24));
+        Specification<User> spec =
+                SpecificationDsl.<User, String>eq(User_.status, "ACTIVE").and(SpecificationDsl.gt(User_.age, 24));
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(2); // John(25), Jane(30)
     }

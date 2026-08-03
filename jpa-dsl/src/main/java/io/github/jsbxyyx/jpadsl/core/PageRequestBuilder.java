@@ -24,13 +24,17 @@ public class PageRequestBuilder {
     }
 
     public PageRequestBuilder page(int page) {
-        if (page < 0) throw new IllegalArgumentException("Page index must not be less than zero");
+        if (page < 0) {
+            throw new IllegalArgumentException("Page index must not be less than zero");
+        }
         this.page = page;
         return this;
     }
 
     public PageRequestBuilder size(int size) {
-        if (size < 1) throw new IllegalArgumentException("Page size must not be less than one");
+        if (size < 1) {
+            throw new IllegalArgumentException("Page size must not be less than one");
+        }
         this.size = size;
         return this;
     }
@@ -41,17 +45,20 @@ public class PageRequestBuilder {
     }
 
     public PageRequestBuilder asc(String... properties) {
-        for (String property : properties) orders.add(Sort.Order.asc(property));
+        for (String property : properties) {
+            orders.add(Sort.Order.asc(property));
+        }
         return this;
     }
 
     public PageRequestBuilder desc(String... properties) {
-        for (String property : properties) orders.add(Sort.Order.desc(property));
+        for (String property : properties) {
+            orders.add(Sort.Order.desc(property));
+        }
         return this;
     }
 
     public Pageable build() {
-        return orders.isEmpty() ? PageRequest.of(page, size)
-                : PageRequest.of(page, size, Sort.by(orders));
+        return orders.isEmpty() ? PageRequest.of(page, size) : PageRequest.of(page, size, Sort.by(orders));
     }
 }

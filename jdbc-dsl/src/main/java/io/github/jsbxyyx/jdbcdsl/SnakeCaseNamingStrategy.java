@@ -32,8 +32,7 @@ public final class SnakeCaseNamingStrategy implements NamingStrategy {
 
     public static final SnakeCaseNamingStrategy INSTANCE = new SnakeCaseNamingStrategy();
 
-    private SnakeCaseNamingStrategy() {
-    }
+    private SnakeCaseNamingStrategy() {}
 
     @Override
     public String propertyToColumn(String propertyName) {

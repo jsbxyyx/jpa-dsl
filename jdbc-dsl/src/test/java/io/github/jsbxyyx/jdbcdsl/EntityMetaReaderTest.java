@@ -1,7 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl;
 
-import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import io.github.jsbxyyx.jdbcdsl.entity.TOrder;
+import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

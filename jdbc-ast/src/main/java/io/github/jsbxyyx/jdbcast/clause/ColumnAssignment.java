@@ -9,5 +9,4 @@ import io.github.jsbxyyx.jdbcast.expr.Expr;
  * @param getter  method reference identifying the column
  * @param value   the expression to assign (typically a {@link io.github.jsbxyyx.jdbcast.expr.LiteralExpr})
  */
-public record ColumnAssignment(SFunction<?, ?> getter, Expr<?> value) {
-}
+public record ColumnAssignment(SFunction<?, ?> getter, Expr<?> value) {}

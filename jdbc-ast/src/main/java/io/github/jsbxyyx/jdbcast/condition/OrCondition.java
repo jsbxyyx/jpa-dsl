@@ -6,7 +6,9 @@ import java.util.List;
 public record OrCondition(List<Condition> children) implements Condition {
 
     public OrCondition {
-        if (children.size() < 2) throw new IllegalArgumentException("OR requires at least 2 children");
+        if (children.size() < 2) {
+            throw new IllegalArgumentException("OR requires at least 2 children");
+        }
         children = List.copyOf(children);
     }
 }

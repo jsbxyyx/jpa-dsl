@@ -40,8 +40,11 @@ public final class OffsetFetchDialect implements PaginationDialect {
             sb.append(" OFFSET ").append(ctx.addParam(offset)).append(" ROWS");
         } else if (limit != null) {
             // Both limit and offset
-            sb.append(" OFFSET ").append(ctx.addParam(offset))
-              .append(" ROWS FETCH NEXT ").append(ctx.addParam(limit)).append(" ROWS ONLY");
+            sb.append(" OFFSET ")
+                    .append(ctx.addParam(offset))
+                    .append(" ROWS FETCH NEXT ")
+                    .append(ctx.addParam(limit))
+                    .append(" ROWS ONLY");
         }
     }
 }

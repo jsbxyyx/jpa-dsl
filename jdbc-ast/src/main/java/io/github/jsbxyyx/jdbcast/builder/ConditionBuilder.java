@@ -70,7 +70,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder eq(Expr<V> col, V value, boolean when) {
-        if (when) predicates.add(new CompareCondition(col, Op.EQ, value));
+        if (when) {
+            predicates.add(new CompareCondition(col, Op.EQ, value));
+        }
         return this;
     }
 
@@ -85,7 +87,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder ne(Expr<V> col, V value, boolean when) {
-        if (when) predicates.add(new CompareCondition(col, Op.NE, value));
+        if (when) {
+            predicates.add(new CompareCondition(col, Op.NE, value));
+        }
         return this;
     }
 
@@ -103,7 +107,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder gt(Expr<V> col, V value, boolean when) {
-        if (when) predicates.add(new CompareCondition(col, Op.GT, value));
+        if (when) {
+            predicates.add(new CompareCondition(col, Op.GT, value));
+        }
         return this;
     }
 
@@ -117,7 +123,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder gte(Expr<V> col, V value, boolean when) {
-        if (when) predicates.add(new CompareCondition(col, Op.GTE, value));
+        if (when) {
+            predicates.add(new CompareCondition(col, Op.GTE, value));
+        }
         return this;
     }
 
@@ -131,7 +139,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder lt(Expr<V> col, V value, boolean when) {
-        if (when) predicates.add(new CompareCondition(col, Op.LT, value));
+        if (when) {
+            predicates.add(new CompareCondition(col, Op.LT, value));
+        }
         return this;
     }
 
@@ -145,7 +155,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder lte(Expr<V> col, V value, boolean when) {
-        if (when) predicates.add(new CompareCondition(col, Op.LTE, value));
+        if (when) {
+            predicates.add(new CompareCondition(col, Op.LTE, value));
+        }
         return this;
     }
 
@@ -163,7 +175,9 @@ public final class ConditionBuilder {
     }
 
     public ConditionBuilder like(Expr<String> col, String pattern, boolean when) {
-        if (when) predicates.add(new LikeCondition(col, pattern, false));
+        if (when) {
+            predicates.add(new LikeCondition(col, pattern, false));
+        }
         return this;
     }
 
@@ -172,7 +186,9 @@ public final class ConditionBuilder {
     }
 
     public ConditionBuilder notLike(Expr<String> col, String pattern, boolean when) {
-        if (when) predicates.add(new LikeCondition(col, pattern, true));
+        if (when) {
+            predicates.add(new LikeCondition(col, pattern, true));
+        }
         return this;
     }
 
@@ -185,7 +201,9 @@ public final class ConditionBuilder {
     }
 
     public ConditionBuilder isNull(Expr<?> col, boolean when) {
-        if (when) predicates.add(new NullCondition(col, true));
+        if (when) {
+            predicates.add(new NullCondition(col, true));
+        }
         return this;
     }
 
@@ -194,7 +212,9 @@ public final class ConditionBuilder {
     }
 
     public ConditionBuilder isNotNull(Expr<?> col, boolean when) {
-        if (when) predicates.add(new NullCondition(col, false));
+        if (when) {
+            predicates.add(new NullCondition(col, false));
+        }
         return this;
     }
 
@@ -207,7 +227,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder in(Expr<V> col, Collection<? extends V> values, boolean when) {
-        if (when) predicates.add(new InCondition(col, false, List.copyOf(values)));
+        if (when) {
+            predicates.add(new InCondition(col, false, List.copyOf(values)));
+        }
         return this;
     }
 
@@ -222,7 +244,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder notIn(Expr<V> col, Collection<? extends V> values, boolean when) {
-        if (when) predicates.add(new InCondition(col, true, List.copyOf(values)));
+        if (when) {
+            predicates.add(new InCondition(col, true, List.copyOf(values)));
+        }
         return this;
     }
 
@@ -241,7 +265,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder between(Expr<V> col, V lo, V hi, boolean when) {
-        if (when) predicates.add(new BetweenCondition(col, lo, hi, false));
+        if (when) {
+            predicates.add(new BetweenCondition(col, lo, hi, false));
+        }
         return this;
     }
 
@@ -250,7 +276,9 @@ public final class ConditionBuilder {
     }
 
     public <V> ConditionBuilder notBetween(Expr<V> col, V lo, V hi, boolean when) {
-        if (when) predicates.add(new BetweenCondition(col, lo, hi, true));
+        if (when) {
+            predicates.add(new BetweenCondition(col, lo, hi, true));
+        }
         return this;
     }
 
@@ -277,7 +305,9 @@ public final class ConditionBuilder {
     }
 
     public ConditionBuilder raw(String sql, boolean when) {
-        if (when) predicates.add(RawCondition.of(sql));
+        if (when) {
+            predicates.add(RawCondition.of(sql));
+        }
         return this;
     }
 
@@ -286,7 +316,9 @@ public final class ConditionBuilder {
     }
 
     public ConditionBuilder raw(String sql, Map<String, Object> params, boolean when) {
-        if (when) predicates.add(RawCondition.of(sql, params));
+        if (when) {
+            predicates.add(RawCondition.of(sql, params));
+        }
         return this;
     }
 
@@ -311,7 +343,9 @@ public final class ConditionBuilder {
         ConditionBuilder sub = new ConditionBuilder();
         nested.accept(sub);
         Condition c = sub.build();
-        if (c != null) predicates.add(c);
+        if (c != null) {
+            predicates.add(c);
+        }
         return this;
     }
 
@@ -332,9 +366,10 @@ public final class ConditionBuilder {
         ConditionBuilder sub = new ConditionBuilder();
         nested.accept(sub);
         if (!sub.predicates.isEmpty()) {
-            predicates.add(sub.predicates.size() == 1
-                    ? sub.predicates.get(0)
-                    : new OrCondition(new ArrayList<>(sub.predicates)));
+            predicates.add(
+                    sub.predicates.size() == 1
+                            ? sub.predicates.get(0)
+                            : new OrCondition(new ArrayList<>(sub.predicates)));
         }
         return this;
     }
@@ -355,7 +390,9 @@ public final class ConditionBuilder {
         ConditionBuilder sub = new ConditionBuilder();
         nested.accept(sub);
         Condition inner = sub.build();
-        if (inner != null) predicates.add(new NotCondition(inner));
+        if (inner != null) {
+            predicates.add(new NotCondition(inner));
+        }
         return this;
     }
 
@@ -364,12 +401,16 @@ public final class ConditionBuilder {
      * {@link Expr} fluent methods, e.g. {@code u.col(TUser::getAge).between(18, 65)}).
      */
     public ConditionBuilder condition(Condition condition) {
-        if (condition != null) predicates.add(condition);
+        if (condition != null) {
+            predicates.add(condition);
+        }
         return this;
     }
 
     public ConditionBuilder condition(Condition condition, boolean when) {
-        if (when && condition != null) predicates.add(condition);
+        if (when && condition != null) {
+            predicates.add(condition);
+        }
         return this;
     }
 
@@ -382,8 +423,12 @@ public final class ConditionBuilder {
      * Returns {@code null} if no predicates were added (indicates no WHERE clause).
      */
     public Condition build() {
-        if (predicates.isEmpty()) return null;
-        if (predicates.size() == 1) return predicates.get(0);
+        if (predicates.isEmpty()) {
+            return null;
+        }
+        if (predicates.size() == 1) {
+            return predicates.get(0);
+        }
         return new AndCondition(new ArrayList<>(predicates));
     }
 }

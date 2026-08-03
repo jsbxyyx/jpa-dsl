@@ -37,8 +37,7 @@ public final class EntityMetaReader {
 
     private static final ConcurrentMap<Class<?>, EntityMeta> CACHE = new ConcurrentHashMap<>();
 
-    private EntityMetaReader() {
-    }
+    private EntityMetaReader() {}
 
     /**
      * Returns (and caches) the {@link EntityMeta} for the given entity class.
@@ -169,11 +168,18 @@ public final class EntityMetaReader {
             current = current.getSuperclass();
         }
 
-        return new EntityMeta(tableName, propertyToColumn, idPropertyName, idColumnName,
+        return new EntityMeta(
+                tableName,
+                propertyToColumn,
+                idPropertyName,
+                idColumnName,
                 idGeneratedByIdentity,
-                logicalDeletePropertyName, logicalDeleteColumnName,
-                logicalDeletedValue, logicalDeleteNormalValue,
-                createdDateProps, lastModifiedDateProps);
+                logicalDeletePropertyName,
+                logicalDeleteColumnName,
+                logicalDeletedValue,
+                logicalDeleteNormalValue,
+                createdDateProps,
+                lastModifiedDateProps);
     }
 
     private static String resolveColumnName(Column colAnn, String propName, NamingStrategy naming) {

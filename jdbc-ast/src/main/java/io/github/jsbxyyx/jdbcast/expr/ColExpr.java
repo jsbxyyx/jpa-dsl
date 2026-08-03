@@ -10,5 +10,4 @@ import io.github.jsbxyyx.jdbcast.SFunction;
  *
  * @param <V> the Java type of the column
  */
-public record ColExpr<V>(SFunction<?, V> getter, String tableAlias) implements Expr<V> {
-}
+public record ColExpr<V>(SFunction<?, V> getter, String tableAlias) implements Expr<V> {}

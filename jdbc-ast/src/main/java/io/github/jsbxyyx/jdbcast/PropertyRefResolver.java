@@ -14,8 +14,7 @@ public final class PropertyRefResolver {
 
     private static final ConcurrentMap<Class<?>, PropertyRef> CACHE = new ConcurrentHashMap<>();
 
-    private PropertyRefResolver() {
-    }
+    private PropertyRefResolver() {}
 
     public static <T, R> PropertyRef resolve(SFunction<T, R> fn) {
         return CACHE.computeIfAbsent(fn.getClass(), k -> doResolve(fn));
@@ -26,8 +25,8 @@ public final class PropertyRefResolver {
         String implMethodName = sl.getImplMethodName();
         if (implMethodName.startsWith("lambda$")) {
             throw new IllegalArgumentException(
-                    "SFunction must be a method reference (e.g. User::getName), not a lambda body. "
-                    + "Got: " + implMethodName);
+                    "SFunction must be a method reference (e.g. User::getName), not a lambda body. " + "Got: "
+                            + implMethodName);
         }
         String propertyName = methodNameToPropertyName(implMethodName);
         String implClass = sl.getImplClass().replace('/', '.');

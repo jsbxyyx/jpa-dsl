@@ -27,12 +27,13 @@ public class HibernateJoinStrategy implements JoinStrategy {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T, J> Predicate buildJoin(Root<T> root,
-                                       CriteriaQuery<?> query,
-                                       CriteriaBuilder cb,
-                                       Class<J> targetEntity,
-                                       JoinType joinType,
-                                       JoinCondition<T, J> onCondition) {
+    public <T, J> Predicate buildJoin(
+            Root<T> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb,
+            Class<J> targetEntity,
+            JoinType joinType,
+            JoinCondition<T, J> onCondition) {
         // At runtime, Hibernate's Root<T> is JpaRoot<T> which extends JpaFrom<T,T>.
         JpaFrom<T, T> jpaFrom = (JpaFrom<T, T>) root;
         JpaEntityJoin<J> entityJoin = jpaFrom.join(targetEntity, SqmJoinType.from(joinType));

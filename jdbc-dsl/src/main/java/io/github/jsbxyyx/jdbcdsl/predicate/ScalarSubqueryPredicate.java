@@ -23,7 +23,14 @@ import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
  */
 public final class ScalarSubqueryPredicate implements PredicateNode {
 
-    public enum Op { EQ, NE, GT, GTE, LT, LTE }
+    public enum Op {
+        EQ,
+        NE,
+        GT,
+        GTE,
+        LT,
+        LTE
+    }
 
     private final SqlExpression<?> lhs;
     private final Op op;
@@ -35,7 +42,15 @@ public final class ScalarSubqueryPredicate implements PredicateNode {
         this.subquery = subquery;
     }
 
-    public SqlExpression<?> getLhs() { return lhs; }
-    public Op getOp() { return op; }
-    public SelectSpec<?, ?> getSubquery() { return subquery; }
+    public SqlExpression<?> getLhs() {
+        return lhs;
+    }
+
+    public Op getOp() {
+        return op;
+    }
+
+    public SelectSpec<?, ?> getSubquery() {
+        return subquery;
+    }
 }

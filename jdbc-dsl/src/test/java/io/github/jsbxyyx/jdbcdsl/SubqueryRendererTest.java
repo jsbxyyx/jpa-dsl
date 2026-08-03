@@ -74,9 +74,7 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        assertThat(rendered.getSql())
-                .contains("EXISTS (SELECT")
-                .contains("FROM t_order o");
+        assertThat(rendered.getSql()).contains("EXISTS (SELECT").contains("FROM t_order o");
         assertThat(rendered.getParams()).containsEntry("p1", "PAID");
     }
 
@@ -146,19 +144,13 @@ class SubqueryRendererTest {
 
         SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
-                .where(w -> w
-                        .eq(TUser::getStatus, "ACTIVE")
-                        .inSubquery(col(TUser::getId), inner))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").inSubquery(col(TUser::getId), inner))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
         // Outer param is :p1, inner param is :p2 — no collision
-        assertThat(rendered.getParams())
-                .containsEntry("p1", "ACTIVE")
-                .containsEntry("p2", "PAID");
-        assertThat(rendered.getSql())
-                .contains("t.status = :p1")
-                .contains("o.status = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("p2", "PAID");
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("o.status = :p2");
     }
 
     // ------------------------------------------------------------------ //

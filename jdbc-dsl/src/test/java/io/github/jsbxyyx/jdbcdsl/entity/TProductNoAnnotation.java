@@ -31,11 +31,31 @@ public class TProductNoAnnotation {
 
     public TProductNoAnnotation() {}
 
-    public Long getId() { return id; }
-    public String getProductName() { return productName; }
-    public void setProductName(String productName) { this.productName = productName; }
-    public BigDecimal getUnitPrice() { return unitPrice; }
-    public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
-    public Integer getStockQty() { return stockQty; }
-    public void setStockQty(Integer stockQty) { this.stockQty = stockQty; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public BigDecimal getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(BigDecimal unitPrice) {
+        this.unitPrice = unitPrice;
+    }
+
+    public Integer getStockQty() {
+        return stockQty;
+    }
+
+    public void setStockQty(Integer stockQty) {
+        this.stockQty = stockQty;
+    }
 }

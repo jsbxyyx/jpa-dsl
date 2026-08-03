@@ -15,23 +15,27 @@ class JdbcDslRepositoryTest {
         TestUserRepository repository = new TestUserRepository(executor);
 
         assertThat(repository.getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository.selectBuilder()
-                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
-                .mapToEntity()
-                .getEntityClass()).isEqualTo(TUser.class);
+        assertThat(repository
+                        .selectBuilder()
+                        .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                        .mapToEntity()
+                        .getEntityClass())
+                .isEqualTo(TUser.class);
         assertThat(repository.insertBuilder().build().getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository.updateBuilder()
-                .where(w -> w.eq(TUser::getId, 1L))
-                .build()
-                .getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository.deleteBuilder()
-                .where(w -> w.eq(TUser::getId, 1L))
-                .build()
-                .getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository.upsertBuilder()
-                .onConflict(TUser::getId)
-                .build()
-                .getEntityClass()).isEqualTo(TUser.class);
+        assertThat(repository
+                        .updateBuilder()
+                        .where(w -> w.eq(TUser::getId, 1L))
+                        .build()
+                        .getEntityClass())
+                .isEqualTo(TUser.class);
+        assertThat(repository
+                        .deleteBuilder()
+                        .where(w -> w.eq(TUser::getId, 1L))
+                        .build()
+                        .getEntityClass())
+                .isEqualTo(TUser.class);
+        assertThat(repository.upsertBuilder().onConflict(TUser::getId).build().getEntityClass())
+                .isEqualTo(TUser.class);
     }
 
     @Test
@@ -40,9 +44,8 @@ class JdbcDslRepositoryTest {
         TestUserRepository repository = new TestUserRepository(executor);
         TUser user = new TUser();
 
-        UpsertSpec<TUser> upsertSpec = repository.upsertBuilder()
-                .onConflict(TUser::getId)
-                .build();
+        UpsertSpec<TUser> upsertSpec =
+                repository.upsertBuilder().onConflict(TUser::getId).build();
 
         repository.save(user);
         repository.upsert(upsertSpec, user);

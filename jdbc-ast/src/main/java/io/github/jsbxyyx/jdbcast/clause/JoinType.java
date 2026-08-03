@@ -10,7 +10,11 @@ public enum JoinType {
 
     private final String keyword;
 
-    JoinType(String keyword) { this.keyword = keyword; }
+    JoinType(String keyword) {
+        this.keyword = keyword;
+    }
 
-    public String keyword() { return keyword; }
+    public String keyword() {
+        return keyword;
+    }
 }

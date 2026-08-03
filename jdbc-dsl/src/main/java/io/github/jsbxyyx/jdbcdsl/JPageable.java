@@ -19,8 +19,12 @@ public final class JPageable<T> {
     private final JSort<T> sort;
 
     private JPageable(int page, int size, JSort<T> sort) {
-        if (page < 0) throw new IllegalArgumentException("Page index must not be negative");
-        if (size < 1) throw new IllegalArgumentException("Page size must be positive");
+        if (page < 0) {
+            throw new IllegalArgumentException("Page index must not be negative");
+        }
+        if (size < 1) {
+            throw new IllegalArgumentException("Page size must be positive");
+        }
         this.page = page;
         this.size = size;
         this.sort = sort != null ? sort : JSort.unsorted();
@@ -45,8 +49,7 @@ public final class JPageable<T> {
      * (mirrors {@code PageRequest.of(page, size, Direction, String...)}).
      */
     @SafeVarargs
-    public static <T> JPageable<T> of(int page, int size,
-                                      JOrder.Direction direction, SFunction<T, ?>... props) {
+    public static <T> JPageable<T> of(int page, int size, JOrder.Direction direction, SFunction<T, ?>... props) {
         return new JPageable<>(page, size, JSort.by(direction, props));
     }
 

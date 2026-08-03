@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",   executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class JoinIntegrationTest {
 
@@ -65,21 +65,14 @@ class JoinIntegrationTest {
         // → only alice has both a PAID and a PENDING order
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(col(TUser::getId, "u"), col(TUser::getUsername, "u"))
-                .join(TOrder.class, "o1", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o1"))
-                .join(TOrder.class, "o2", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o2"))
-                .where(w -> w
-                        .eq(TOrder::getStatus, "o1", "PAID")
-                        .eq(TOrder::getStatus, "o2", "PENDING"))
+                .join(TOrder.class, "o1", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o1"))
+                .join(TOrder.class, "o2", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o2"))
+                .where(w -> w.eq(TOrder::getStatus, "o1", "PAID").eq(TOrder::getStatus, "o2", "PENDING"))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result)
-                .hasSize(1)
-                .extracting(UserDto::getUsername)
-                .containsExactly("alice");
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -87,8 +80,7 @@ class JoinIntegrationTest {
         // COUNT for a multi-join spec must use COUNT(DISTINCT pk) to avoid inflated counts
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(col(TUser::getId, "u"), col(TUser::getUsername, "u"))
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .mapTo(UserDto.class);
 
         long count = executor.count(spec);
@@ -108,10 +100,8 @@ class JoinIntegrationTest {
                         col(TUser::getUsername, "u"),
                         col(TOrder::getOrderNo, "o"),
                         col(TOrder::getAmount, "o"),
-                        col(TOrder::getStatus, "o").as("orderStatus")
-                )
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                        col(TOrder::getStatus, "o").as("orderStatus"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .orderBy(JSort.by(JOrder.asc(col(TOrder::getOrderNo, "o"))))
                 .mapTo(UserOrderDto.class);
 
@@ -119,22 +109,15 @@ class JoinIntegrationTest {
 
         // alice has 2 orders, bob has 1 → 3 rows total
         assertThat(result).hasSize(3);
-        assertThat(result).extracting(UserOrderDto::getOrderNo)
-                .containsExactly("ORD-001", "ORD-002", "ORD-003");
-        assertThat(result).extracting(UserOrderDto::getUsername)
-                .containsExactly("alice", "alice", "bob");
+        assertThat(result).extracting(UserOrderDto::getOrderNo).containsExactly("ORD-001", "ORD-002", "ORD-003");
+        assertThat(result).extracting(UserOrderDto::getUsername).containsExactly("alice", "alice", "bob");
     }
 
     @Test
     void crossTableProjection_leftJoin_includesUsersWithNoOrders() {
         SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
-                .select(
-                        col(TUser::getUsername, "u"),
-                        col(TOrder::getOrderNo, "o"),
-                        col(TOrder::getAmount, "o")
-                )
-                .join(TOrder.class, "o", JoinType.LEFT,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .select(col(TUser::getUsername, "u"), col(TOrder::getOrderNo, "o"), col(TOrder::getAmount, "o"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "u"))))
                 .mapTo(UserOrderDto.class);
 
@@ -154,20 +137,16 @@ class JoinIntegrationTest {
     @Test
     void crossTableProjection_withWhereOnJoinedColumn_filtersCorrectly() {
         SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
-                .select(
-                        col(TUser::getUsername, "u"),
-                        col(TOrder::getOrderNo, "o"),
-                        col(TOrder::getAmount, "o")
-                )
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .select(col(TUser::getUsername, "u"), col(TOrder::getOrderNo, "o"), col(TOrder::getAmount, "o"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .where(w -> w.eq(TOrder::getStatus, "o", "PAID"))
                 .mapTo(UserOrderDto.class);
 
         List<UserOrderDto> result = executor.select(spec);
 
         // ORD-001 (alice, PAID) + ORD-003 (bob, PAID) → 2 rows
-        assertThat(result).hasSize(2)
+        assertThat(result)
+                .hasSize(2)
                 .extracting(UserOrderDto::getOrderNo)
                 .containsExactlyInAnyOrder("ORD-001", "ORD-003");
     }
@@ -180,10 +159,8 @@ class JoinIntegrationTest {
         SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(
                         col(TUser::getUsername, "u"),
-                        SqlFunctions.sum(TOrder::getAmount).as("amount")
-                )
-                .join(TOrder.class, "o", JoinType.INNER,
-                        on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                        SqlFunctions.sum(TOrder::getAmount).as("amount"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
                 .groupBy(col(TUser::getUsername, "u"))
                 .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "u"))))
                 .mapTo(UserOrderDto.class);
@@ -209,28 +186,21 @@ class JoinIntegrationTest {
         // WHERE u2.username = 'alice'
         // → alice (ACTIVE matches ACTIVE) and charlie (ACTIVE matches ACTIVE)
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
-                .select(
-                        col(TUser::getId, "u1"),
-                        col(TUser::getUsername, "u1")
-                )
-                .join(TUser.class, "u2", JoinType.INNER,
-                        on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
+                .select(col(TUser::getId, "u1"), col(TUser::getUsername, "u1"))
+                .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
                 .where(w -> w.eq(TUser::getUsername, "u2", "alice"))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(2)
-                .extracting(UserDto::getUsername)
-                .containsExactlyInAnyOrder("alice", "charlie");
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
     void selfJoin_count_deduplicatesWithDistinct() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
                 .select(col(TUser::getId, "u1"), col(TUser::getUsername, "u1"))
-                .join(TUser.class, "u2", JoinType.INNER,
-                        on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
+                .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
                 .where(w -> w.eq(TUser::getUsername, "u2", "alice"))
                 .mapTo(UserDto.class);
 
@@ -256,16 +226,14 @@ class JoinIntegrationTest {
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
-                .leftJoinSubquery(orderCount, TOrder.class, "o",
-                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+                .leftJoinSubquery(orderCount, TOrder.class, "o", on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "t"))))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
         // all 3 users: LEFT JOIN keeps charlie even though he has no orders
         assertThat(result).hasSize(3);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactly("alice", "bob", "charlie");
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("alice", "bob", "charlie");
     }
 
     @Test
@@ -279,15 +247,14 @@ class JoinIntegrationTest {
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
-                .innerJoinSubquery(paidOrders, TOrder.class, "o",
-                        on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
+                .innerJoinSubquery(
+                        paidOrders, TOrder.class, "o", on -> on.eq(TOrder::getUserId, "o", TUser::getId, "t"))
                 .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "t"))))
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername)
-                .containsExactly("alice", "bob");
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("alice", "bob");
     }
 
     @Test
@@ -296,12 +263,15 @@ class JoinIntegrationTest {
         // INNER JOIN (SELECT * FROM t_order) o ON o.userId = t.id AND o.status = 'PAID'
         // WHERE t.username = 'alice'
         // → alice has 1 PAID order and 1 PENDING; INNER JOIN with status filter returns 1 row
-        SelectSpec<TOrder, TOrder> allOrders = SelectBuilder.from(TOrder.class)
-                .mapToEntity();
+        SelectSpec<TOrder, TOrder> allOrders = SelectBuilder.from(TOrder.class).mapToEntity();
 
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
                 .select(col(TUser::getId, "t"), col(TUser::getUsername, "t"))
-                .joinSubquery(allOrders, TOrder.class, "o", JoinType.INNER,
+                .joinSubquery(
+                        allOrders,
+                        TOrder.class,
+                        "o",
+                        JoinType.INNER,
                         on -> on.raw("o.userId = t.id AND o.status = 'PAID'"))
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapTo(UserDto.class);

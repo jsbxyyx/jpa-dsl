@@ -22,21 +22,21 @@ class WindowFunctionRendererTest {
     @Test
     void rowNumber_emptyOver_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        rowNumber().over().as("rn"))
+                .select(col(TUser::getUsername), rowNumber().over().as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("ROW_NUMBER() OVER ()")
-                .contains("AS rn");
+        assertThat(rendered.getSql()).contains("ROW_NUMBER() OVER ()").contains("AS rn");
     }
 
     @Test
     void rowNumber_overOrderBy_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        rowNumber().over(w -> w.orderBy(JOrder.asc(TUser::getAge))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        rowNumber()
+                                .over(w -> w.orderBy(JOrder.asc(TUser::getAge)))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -48,10 +48,11 @@ class WindowFunctionRendererTest {
     @Test
     void rowNumber_overPartitionByAndOrderBy_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        rowNumber().over(w -> w
-                                .partitionBy(TUser::getStatus)
-                                .orderBy(JOrder.asc(TUser::getAge))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        rowNumber()
+                                .over(w -> w.partitionBy(TUser::getStatus).orderBy(JOrder.asc(TUser::getAge)))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -67,7 +68,8 @@ class WindowFunctionRendererTest {
     @Test
     void rank_overOrderBy_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         rank().over(w -> w.orderBy(JOrder.asc(TUser::getAge))).as("rn"))
                 .mapTo(UserRnDto.class);
 
@@ -78,15 +80,15 @@ class WindowFunctionRendererTest {
     @Test
     void denseRank_overPartitionBy_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        denseRank().over(w -> w
-                                .partitionBy(TUser::getStatus)
-                                .orderBy(JOrder.desc(TUser::getAge))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        denseRank()
+                                .over(w -> w.partitionBy(TUser::getStatus).orderBy(JOrder.desc(TUser::getAge)))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("DENSE_RANK() OVER (PARTITION BY t.status ORDER BY t.age DESC)");
+        assertThat(rendered.getSql()).contains("DENSE_RANK() OVER (PARTITION BY t.status ORDER BY t.age DESC)");
     }
 
     // ------------------------------------------------------------------ //
@@ -96,7 +98,8 @@ class WindowFunctionRendererTest {
     @Test
     void ntile_overOrderBy_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         ntile(4).over(w -> w.orderBy(JOrder.asc(TUser::getAge))).as("rn"))
                 .mapTo(UserRnDto.class);
 
@@ -111,8 +114,11 @@ class WindowFunctionRendererTest {
     @Test
     void lag_withOffset_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        lag(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        lag(TUser::getAge, 1)
+                                .over(w -> w.orderBy(JOrder.asc(TUser::getId)))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -122,8 +128,11 @@ class WindowFunctionRendererTest {
     @Test
     void lead_withOffset_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        lead(TUser::getAge, 1).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        lead(TUser::getAge, 1)
+                                .over(w -> w.orderBy(JOrder.asc(TUser::getId)))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -137,10 +146,11 @@ class WindowFunctionRendererTest {
     @Test
     void sum_overPartitionBy_rendersCorrectly() {
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o")
-                .select(col(TOrder::getOrderNo, "o"),
-                        sum(TOrder::getAmount).over(w -> w
-                                .partitionBy(TOrder::getUserId)
-                                .orderBy(JOrder.asc(TOrder::getId))).as("runningTotal"))
+                .select(
+                        col(TOrder::getOrderNo, "o"),
+                        sum(TOrder::getAmount)
+                                .over(w -> w.partitionBy(TOrder::getUserId).orderBy(JOrder.asc(TOrder::getId)))
+                                .as("runningTotal"))
                 .mapToEntity();
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -152,14 +162,11 @@ class WindowFunctionRendererTest {
     @Test
     void count_overEmptyWindow_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        count(TUser::getId).over().as("rn"))
+                .select(col(TUser::getUsername), count(TUser::getId).over().as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("COUNT(t.id) OVER ()")
-                .contains("AS rn");
+        assertThat(rendered.getSql()).contains("COUNT(t.id) OVER ()").contains("AS rn");
     }
 
     // ------------------------------------------------------------------ //
@@ -169,8 +176,11 @@ class WindowFunctionRendererTest {
     @Test
     void firstValue_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        firstValue(TUser::getAge).over(w -> w.orderBy(JOrder.asc(TUser::getId))).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        firstValue(TUser::getAge)
+                                .over(w -> w.orderBy(JOrder.asc(TUser::getId)))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
@@ -189,16 +199,14 @@ class WindowFunctionRendererTest {
                 .mapToEntity();
 
         SelectSpec<TUser, UserOrderCountDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         SqlFunctions.<Long>subquery(countSpec).as("orderCount"))
                 .mapTo(UserOrderCountDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
-        assertThat(sql)
-                .contains("(SELECT COUNT(*)")
-                .contains("FROM t_order o")
-                .contains("AS orderCount");
+        assertThat(sql).contains("(SELECT COUNT(*)").contains("FROM t_order o").contains("AS orderCount");
     }
 
     @Test
@@ -210,7 +218,8 @@ class WindowFunctionRendererTest {
                 .mapToEntity();
 
         SelectSpec<TUser, UserOrderCountDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
+                .select(
+                        col(TUser::getUsername),
                         SqlFunctions.<Long>subquery(countSpec).as("orderCount"))
                 .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
                 .mapTo(UserOrderCountDto.class);
@@ -218,12 +227,8 @@ class WindowFunctionRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         // SELECT clause is rendered before WHERE, so the scalar subquery's param is :p1
         // and the outer WHERE param is :p2.
-        assertThat(rendered.getParams())
-                .containsEntry("p1", "PAID")
-                .containsEntry("p2", "ACTIVE");
-        assertThat(rendered.getSql())
-                .contains("o.status = :p1")
-                .contains("t.status = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID").containsEntry("p2", "ACTIVE");
+        assertThat(rendered.getSql()).contains("o.status = :p1").contains("t.status = :p2");
     }
 
     // ------------------------------------------------------------------ //
@@ -233,13 +238,14 @@ class WindowFunctionRendererTest {
     @Test
     void windowOrderBy_nullsFirst_rendersCorrectly() {
         SelectSpec<TUser, UserRnDto> spec = SelectBuilder.from(TUser.class)
-                .select(col(TUser::getUsername),
-                        rowNumber().over(w -> w
-                                .orderBy(JOrder.asc(TUser::getAge).nullsFirst())).as("rn"))
+                .select(
+                        col(TUser::getUsername),
+                        rowNumber()
+                                .over(w -> w.orderBy(JOrder.asc(TUser::getAge).nullsFirst()))
+                                .as("rn"))
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("ROW_NUMBER() OVER (ORDER BY t.age ASC NULLS FIRST)");
+        assertThat(rendered.getSql()).contains("ROW_NUMBER() OVER (ORDER BY t.age ASC NULLS FIRST)");
     }
 }

@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jpadsl.codegen;
 
 import javax.sql.DataSource;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -45,8 +46,7 @@ public final class EntityGenerator {
 
     private static final Logger LOG = Logger.getLogger(EntityGenerator.class.getName());
 
-    private EntityGenerator() {
-    }
+    private EntityGenerator() {}
 
     // -------------------------------------------------------------------------
     // Builder API
@@ -71,8 +71,7 @@ public final class EntityGenerator {
         private String repositoryPackage = null;
         private boolean repositoryOverride = false;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         /** Sets the JDBC data source (required). */
         public Builder dataSource(DataSource dataSource) {
@@ -156,8 +155,15 @@ public final class EntityGenerator {
             if (entityPackage == null || entityPackage.isEmpty()) {
                 throw new IllegalStateException("entityPackage is required");
             }
-            EntityGenerator.doGenerate(dataSource, entityPackage, outputDir, useLombok, prefixes, tableNames,
-                    repositoryPackage, repositoryOverride);
+            EntityGenerator.doGenerate(
+                    dataSource,
+                    entityPackage,
+                    outputDir,
+                    useLombok,
+                    prefixes,
+                    tableNames,
+                    repositoryPackage,
+                    repositoryOverride);
         }
     }
 
@@ -174,7 +180,11 @@ public final class EntityGenerator {
      *                      created automatically
      */
     public static void generate(DataSource dataSource, String entityPackage, String outputDir) {
-        builder().dataSource(dataSource).entityPackage(entityPackage).outputDir(outputDir).generate();
+        builder()
+                .dataSource(dataSource)
+                .entityPackage(entityPackage)
+                .outputDir(outputDir)
+                .generate();
     }
 
     /**
@@ -185,20 +195,31 @@ public final class EntityGenerator {
      * @param outputDir     the root source directory
      * @param tableNames    the tables to generate; when {@code null} or empty all tables are generated
      */
-    public static void generate(DataSource dataSource, String entityPackage, String outputDir,
-                                String... tableNames) {
-        builder().dataSource(dataSource).entityPackage(entityPackage).outputDir(outputDir).generate(tableNames);
+    public static void generate(DataSource dataSource, String entityPackage, String outputDir, String... tableNames) {
+        builder()
+                .dataSource(dataSource)
+                .entityPackage(entityPackage)
+                .outputDir(outputDir)
+                .generate(tableNames);
     }
 
     // -------------------------------------------------------------------------
     // Core implementation
     // -------------------------------------------------------------------------
 
-    private static void doGenerate(DataSource dataSource, String entityPackage, String outputDir,
-                                   boolean useLombok, String[] prefixes, String[] tableNames,
-                                   String repositoryPackage, boolean repositoryOverride) {
-        LOG.log(Level.INFO, "EntityGenerator starting: entityPackage={0}, outputDir={1}, useLombok={2}, prefixes={3}, repositoryPackage={4}",
-                new Object[]{entityPackage, outputDir, useLombok, Arrays.toString(prefixes), repositoryPackage});
+    private static void doGenerate(
+            DataSource dataSource,
+            String entityPackage,
+            String outputDir,
+            boolean useLombok,
+            String[] prefixes,
+            String[] tableNames,
+            String repositoryPackage,
+            boolean repositoryOverride) {
+        LOG.log(
+                Level.INFO,
+                "EntityGenerator starting: entityPackage={0}, outputDir={1}, useLombok={2}, prefixes={3}, repositoryPackage={4}",
+                new Object[] {entityPackage, outputDir, useLombok, Arrays.toString(prefixes), repositoryPackage});
         long startTime = System.currentTimeMillis();
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
@@ -206,36 +227,47 @@ public final class EntityGenerator {
             String schema = conn.getSchema();
 
             List<String> tables = resolveTables(meta, catalog, schema, tableNames);
-            LOG.log(Level.INFO, "Resolved {0} table(s): {1}", new Object[]{tables.size(), tables});
+            LOG.log(Level.INFO, "Resolved {0} table(s): {1}", new Object[] {tables.size(), tables});
             int processed = 0;
             for (String table : tables) {
                 LOG.log(Level.INFO, "Processing table: {0}", table);
                 List<ColumnInfo> columns = readColumns(meta, catalog, schema, table);
                 Set<String> primaryKeys = readPrimaryKeys(meta, catalog, schema, table);
-                LOG.log(Level.FINE, "Table {0}: {1} column(s), {2} primary key(s): {3}",
-                        new Object[]{table, columns.size(), primaryKeys.size(), primaryKeys});
+                LOG.log(Level.FINE, "Table {0}: {1} column(s), {2} primary key(s): {3}", new Object[] {
+                    table, columns.size(), primaryKeys.size(), primaryKeys
+                });
                 try {
                     writeEntity(entityPackage, outputDir, table, columns, primaryKeys, useLombok, prefixes);
                 } catch (IOException e) {
-                    LOG.log(Level.SEVERE, "Failed to write entity for table {0}: {1}",
-                            new Object[]{table, e.getMessage()});
+                    LOG.log(Level.SEVERE, "Failed to write entity for table {0}: {1}", new Object[] {
+                        table, e.getMessage()
+                    });
                     throw e;
                 }
                 if (repositoryPackage != null && !repositoryPackage.isEmpty()) {
                     try {
-                        writeRepository(entityPackage, repositoryPackage, outputDir, table, columns,
-                                primaryKeys, prefixes, repositoryOverride);
+                        writeRepository(
+                                entityPackage,
+                                repositoryPackage,
+                                outputDir,
+                                table,
+                                columns,
+                                primaryKeys,
+                                prefixes,
+                                repositoryOverride);
                     } catch (IOException e) {
-                        LOG.log(Level.SEVERE, "Failed to write repository for table {0}: {1}",
-                                new Object[]{table, e.getMessage()});
+                        LOG.log(Level.SEVERE, "Failed to write repository for table {0}: {1}", new Object[] {
+                            table, e.getMessage()
+                        });
                         throw e;
                     }
                 }
                 processed++;
             }
             long elapsed = System.currentTimeMillis() - startTime;
-            LOG.log(Level.INFO, "EntityGenerator completed: {0} table(s) processed in {1} ms",
-                    new Object[]{processed, elapsed});
+            LOG.log(Level.INFO, "EntityGenerator completed: {0} table(s) processed in {1} ms", new Object[] {
+                processed, elapsed
+            });
         } catch (SQLException | IOException e) {
             throw new RuntimeException("EntityGenerator failed", e);
         }
@@ -245,15 +277,15 @@ public final class EntityGenerator {
     // Metadata helpers
     // -------------------------------------------------------------------------
 
-    private static List<String> resolveTables(DatabaseMetaData meta, String catalog, String schema,
-                                               String[] requested) throws SQLException {
+    private static List<String> resolveTables(DatabaseMetaData meta, String catalog, String schema, String[] requested)
+            throws SQLException {
         List<String> result = new ArrayList<>();
         if (requested != null && requested.length > 0) {
             result.addAll(Arrays.asList(requested));
             return result;
         }
         // Use null for catalog/schema to search across all schemas portably.
-        try (ResultSet rs = meta.getTables(null, null, "%", new String[]{"TABLE"})) {
+        try (ResultSet rs = meta.getTables(null, null, "%", new String[] {"TABLE"})) {
             while (rs.next()) {
                 result.add(rs.getString("TABLE_NAME"));
             }
@@ -261,8 +293,8 @@ public final class EntityGenerator {
         return result;
     }
 
-    private static List<ColumnInfo> readColumns(DatabaseMetaData meta, String catalog, String schema,
-                                                 String tableName) throws SQLException {
+    private static List<ColumnInfo> readColumns(DatabaseMetaData meta, String catalog, String schema, String tableName)
+            throws SQLException {
         List<ColumnInfo> cols = new ArrayList<>();
         // Pass null for catalog/schema to be portable across databases (e.g. H2, MySQL, PostgreSQL).
         try (ResultSet rs = meta.getColumns(null, null, tableName, "%")) {
@@ -296,8 +328,8 @@ public final class EntityGenerator {
         return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition, comment);
     }
 
-    private static Set<String> readPrimaryKeys(DatabaseMetaData meta, String catalog, String schema,
-                                                String tableName) throws SQLException {
+    private static Set<String> readPrimaryKeys(DatabaseMetaData meta, String catalog, String schema, String tableName)
+            throws SQLException {
         Set<String> pks = new LinkedHashSet<>();
         // Pass null for catalog/schema to be portable across databases.
         try (ResultSet rs = meta.getPrimaryKeys(null, null, tableName)) {
@@ -320,9 +352,15 @@ public final class EntityGenerator {
     // Code-generation
     // -------------------------------------------------------------------------
 
-    private static void writeEntity(String pkg, String outputDir, String tableName,
-                                    List<ColumnInfo> columns, Set<String> primaryKeys,
-                                    boolean useLombok, String[] prefixes) throws IOException {
+    private static void writeEntity(
+            String pkg,
+            String outputDir,
+            String tableName,
+            List<ColumnInfo> columns,
+            Set<String> primaryKeys,
+            boolean useLombok,
+            String[] prefixes)
+            throws IOException {
         // Normalize names to lowercase so generated annotations are DB-case-agnostic.
         String lowerTable = tableName.toLowerCase();
         // Apply prefix trimming before converting to class name.
@@ -346,8 +384,8 @@ public final class EntityGenerator {
         imports.add("jakarta.persistence.Table");
 
         boolean hasPk = !pkLower.isEmpty();
-        boolean hasAutoIncrement = columns.stream()
-                .anyMatch(c -> pkLower.contains(c.name.toLowerCase()) && c.autoIncrement);
+        boolean hasAutoIncrement =
+                columns.stream().anyMatch(c -> pkLower.contains(c.name.toLowerCase()) && c.autoIncrement);
 
         if (hasPk) {
             imports.add("jakarta.persistence.Id");
@@ -390,8 +428,8 @@ public final class EntityGenerator {
         }
         File file = new File(dir, className + ".java");
 
-        try (PrintWriter w = new PrintWriter(
-                new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
+        try (PrintWriter w =
+                new PrintWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
 
             w.println("package " + pkg + ";");
             w.println();
@@ -455,8 +493,8 @@ public final class EntityGenerator {
                     w.println();
 
                     // Chain setter (returns this)
-                    w.println("    public " + className + " set" + pascalField
-                            + "(" + simpleType + " " + fieldName + ") {");
+                    w.println("    public " + className + " set" + pascalField + "(" + simpleType + " " + fieldName
+                            + ") {");
                     w.println("        this." + fieldName + " = " + fieldName + ";");
                     w.println("        return this;");
                     w.println("    }");
@@ -469,9 +507,16 @@ public final class EntityGenerator {
         LOG.log(Level.INFO, "Entity file written: {0}", file.getAbsolutePath());
     }
 
-    private static void writeRepository(String entityPackage, String repositoryPackage, String outputDir,
-                                        String tableName, List<ColumnInfo> columns, Set<String> primaryKeys,
-                                        String[] prefixes, boolean override) throws IOException {
+    private static void writeRepository(
+            String entityPackage,
+            String repositoryPackage,
+            String outputDir,
+            String tableName,
+            List<ColumnInfo> columns,
+            Set<String> primaryKeys,
+            String[] prefixes,
+            boolean override)
+            throws IOException {
         String trimmedName = applyTrimPrefix(tableName, prefixes);
         String entityClassName = toPascalCase(trimmedName);
         String repositoryClassName = entityClassName + "Repository";
@@ -493,8 +538,8 @@ public final class EntityGenerator {
             return;
         }
 
-        try (PrintWriter w = new PrintWriter(
-                new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
+        try (PrintWriter w =
+                new PrintWriter(new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8))) {
             w.println("package " + repositoryPackage + ";");
             w.println();
             Set<String> repoImports = new LinkedHashSet<>();
@@ -615,8 +660,7 @@ public final class EntityGenerator {
         }
         String lowerName = tableName.toLowerCase();
         for (String prefix : prefixes) {
-            if (prefix != null && !prefix.isEmpty()
-                    && lowerName.startsWith(prefix.toLowerCase())) {
+            if (prefix != null && !prefix.isEmpty() && lowerName.startsWith(prefix.toLowerCase())) {
                 return tableName.substring(prefix.length());
             }
         }
@@ -647,7 +691,7 @@ public final class EntityGenerator {
             case "NCHAR":
             case "NCLOB":
             case "LONGNVARCHAR":
-            case "CHARACTER VARYING":   // H2 / PostgreSQL
+            case "CHARACTER VARYING": // H2 / PostgreSQL
             case "CHARACTER":
             case "TINYTEXT":
             case "MEDIUMTEXT":
@@ -750,8 +794,13 @@ public final class EntityGenerator {
         final int ordinalPosition;
         final String comment;
 
-        ColumnInfo(String name, String typeName, boolean nullable, boolean autoIncrement, int ordinalPosition,
-                   String comment) {
+        ColumnInfo(
+                String name,
+                String typeName,
+                boolean nullable,
+                boolean autoIncrement,
+                int ordinalPosition,
+                String comment) {
             this.name = name;
             this.typeName = typeName;
             this.nullable = nullable;

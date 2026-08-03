@@ -25,7 +25,8 @@ class JdbcDslAutoConfigurationTest {
                     DataSourceAutoConfiguration.class,
                     JdbcTemplateAutoConfiguration.class,
                     JdbcDslAutoConfiguration.class))
-            .withPropertyValues("spring.datasource.url=jdbc:h2:mem:jdbcdsl_autoconfig_test;DB_CLOSE_DELAY=-1",
+            .withPropertyValues(
+                    "spring.datasource.url=jdbc:h2:mem:jdbcdsl_autoconfig_test;DB_CLOSE_DELAY=-1",
                     "spring.datasource.driver-class-name=org.h2.Driver");
 
     @AfterEach
@@ -48,22 +49,18 @@ class JdbcDslAutoConfigurationTest {
 
     @Test
     void whenJdbcDslEnabled_explicitly_beansAreRegistered() {
-        contextRunner
-                .withPropertyValues("jdbcdsl.enabled=true")
-                .run(context -> {
-                    assertThat(context).hasSingleBean(JdbcDslExecutor.class);
-                    assertThat(context).hasSingleBean(Dialect.class);
-                });
+        contextRunner.withPropertyValues("jdbcdsl.enabled=true").run(context -> {
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
+            assertThat(context).hasSingleBean(Dialect.class);
+        });
     }
 
     @Test
     void whenJdbcDslDisabled_noBeansAreRegistered() {
-        contextRunner
-                .withPropertyValues("jdbcdsl.enabled=false")
-                .run(context -> {
-                    assertThat(context).doesNotHaveBean(JdbcDslExecutor.class);
-                    assertThat(context).doesNotHaveBean(Dialect.class);
-                });
+        contextRunner.withPropertyValues("jdbcdsl.enabled=false").run(context -> {
+            assertThat(context).doesNotHaveBean(JdbcDslExecutor.class);
+            assertThat(context).doesNotHaveBean(Dialect.class);
+        });
     }
 
     // ------------------------------------------------------------------ //
@@ -80,24 +77,20 @@ class JdbcDslAutoConfigurationTest {
 
     @Test
     void whenCustomDialectProvided_autoDetectionIsSkipped() {
-        contextRunner
-                .withUserConfiguration(CustomDialectConfig.class)
-                .run(context -> {
-                    assertThat(context).hasSingleBean(Dialect.class);
-                    assertThat(context.getBean(Dialect.class)).isInstanceOf(MySqlDialect.class);
-                    // JdbcDslExecutor should still be created using the custom dialect
-                    assertThat(context).hasSingleBean(JdbcDslExecutor.class);
-                });
+        contextRunner.withUserConfiguration(CustomDialectConfig.class).run(context -> {
+            assertThat(context).hasSingleBean(Dialect.class);
+            assertThat(context.getBean(Dialect.class)).isInstanceOf(MySqlDialect.class);
+            // JdbcDslExecutor should still be created using the custom dialect
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
+        });
     }
 
     @Test
     void whenCustomExecutorProvided_autoConfigExecutorIsSkipped() {
-        contextRunner
-                .withUserConfiguration(CustomExecutorConfig.class)
-                .run(context -> {
-                    // Only one executor bean (the custom one)
-                    assertThat(context).hasSingleBean(JdbcDslExecutor.class);
-                });
+        contextRunner.withUserConfiguration(CustomExecutorConfig.class).run(context -> {
+            // Only one executor bean (the custom one)
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
+        });
     }
 
     // ------------------------------------------------------------------ //
@@ -121,8 +114,7 @@ class JdbcDslAutoConfigurationTest {
             // Verify via the publicly observable behaviour: H2Dialect uses LIMIT/OFFSET syntax,
             // Sql2008Dialect uses "OFFSET … ROWS FETCH NEXT … ROWS ONLY".
             // We inspect the Dialect directly through reflection to keep the test simple.
-            java.lang.reflect.Field dialectField =
-                    JdbcDslExecutor.class.getDeclaredField("dialect");
+            java.lang.reflect.Field dialectField = JdbcDslExecutor.class.getDeclaredField("dialect");
             dialectField.setAccessible(true);
             Dialect detected = (Dialect) dialectField.get(executorUnderTest);
             assertThat(detected).isInstanceOf(H2Dialect.class);
@@ -137,45 +129,38 @@ class JdbcDslAutoConfigurationTest {
     void allowEmptyWhere_defaultFalse_updateBuilder_noWhere_throwsIllegalState() {
         // Default: JdbcDslConfig.allowEmptyWhere = false; UpdateBuilder.build() without WHERE must throw
         contextRunner.run(context -> {
-            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                    UpdateBuilder.from(TUser.class)
+            org.junit.jupiter.api.Assertions.assertThrows(
+                    IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
                             .set(TUser::getStatus, "X")
-                            .build()
-            );
+                            .build());
         });
     }
 
     @Test
     void allowEmptyWhere_setTrue_updateBuilder_noWhere_doesNotThrow() {
-        contextRunner
-                .withPropertyValues("jdbcdsl.allow-empty-where=true")
-                .run(context -> {
-                    // After context loads, JdbcDslConfig.isAllowEmptyWhere() must be true
-                    assertThat(JdbcDslConfig.isAllowEmptyWhere()).isTrue();
-                    UpdateSpec<?> spec = UpdateBuilder.from(TUser.class)
-                            .set(TUser::getStatus, "X")
-                            .build();
-                    assertThat(spec).isNotNull();
-                });
+        contextRunner.withPropertyValues("jdbcdsl.allow-empty-where=true").run(context -> {
+            // After context loads, JdbcDslConfig.isAllowEmptyWhere() must be true
+            assertThat(JdbcDslConfig.isAllowEmptyWhere()).isTrue();
+            UpdateSpec<?> spec =
+                    UpdateBuilder.from(TUser.class).set(TUser::getStatus, "X").build();
+            assertThat(spec).isNotNull();
+        });
     }
 
     @Test
     void allowEmptyWhere_setTrue_deleteBuilder_noWhere_doesNotThrow() {
-        contextRunner
-                .withPropertyValues("jdbcdsl.allow-empty-where=true")
-                .run(context -> {
-                    DeleteSpec<?> spec = DeleteBuilder.from(TUser.class)
-                            .build();
-                    assertThat(spec).isNotNull();
-                });
+        contextRunner.withPropertyValues("jdbcdsl.allow-empty-where=true").run(context -> {
+            DeleteSpec<?> spec = DeleteBuilder.from(TUser.class).build();
+            assertThat(spec).isNotNull();
+        });
     }
 
     @Test
     void allowEmptyWhere_defaultFalse_deleteBuilder_noWhere_throwsIllegalState() {
         contextRunner.run(context -> {
-            org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-                    DeleteBuilder.from(TUser.class).build()
-            );
+            org.junit.jupiter.api.Assertions.assertThrows(
+                    IllegalStateException.class,
+                    () -> DeleteBuilder.from(TUser.class).build());
         });
     }
 
@@ -194,8 +179,7 @@ class JdbcDslAutoConfigurationTest {
     @Configuration
     static class CustomExecutorConfig {
         @Bean
-        public JdbcDslExecutor myExecutor(
-                org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc) {
+        public JdbcDslExecutor myExecutor(org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc) {
             return new JdbcDslExecutor(jdbc, new MySqlDialect());
         }
     }

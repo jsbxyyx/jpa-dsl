@@ -39,18 +39,23 @@ public final class JoinSpec {
     }
 
     /** Factory for subquery-based joins: {@code JOIN (SELECT ...) alias ON ...}. */
-    public static JoinSpec ofSubquery(SelectSpec<?, ?> subquery,
-                                      Class<?> entityClass,
-                                      String alias,
-                                      JoinType joinType,
-                                      List<PredicateNode> onConditions) {
+    public static JoinSpec ofSubquery(
+            SelectSpec<?, ?> subquery,
+            Class<?> entityClass,
+            String alias,
+            JoinType joinType,
+            List<PredicateNode> onConditions) {
         JoinSpec js = new JoinSpec(entityClass, alias, joinType, onConditions);
         // Use the private field directly — work around immutability via a companion constructor.
         return new JoinSpec(entityClass, alias, joinType, onConditions, subquery);
     }
 
-    private JoinSpec(Class<?> joinEntityClass, String alias, JoinType joinType,
-                     List<PredicateNode> onConditions, SelectSpec<?, ?> subqueryJoin) {
+    private JoinSpec(
+            Class<?> joinEntityClass,
+            String alias,
+            JoinType joinType,
+            List<PredicateNode> onConditions,
+            SelectSpec<?, ?> subqueryJoin) {
         this.joinEntityClass = joinEntityClass;
         this.alias = alias;
         this.joinType = joinType;
@@ -58,13 +63,26 @@ public final class JoinSpec {
         this.subqueryJoin = subqueryJoin;
     }
 
-    public Class<?> getJoinEntityClass() { return joinEntityClass; }
-    public String getAlias() { return alias; }
-    public JoinType getJoinType() { return joinType; }
-    public List<PredicateNode> getOnConditions() { return onConditions; }
+    public Class<?> getJoinEntityClass() {
+        return joinEntityClass;
+    }
+
+    public String getAlias() {
+        return alias;
+    }
+
+    public JoinType getJoinType() {
+        return joinType;
+    }
+
+    public List<PredicateNode> getOnConditions() {
+        return onConditions;
+    }
 
     /**
      * Returns the inner subquery for a subquery join, or {@code null} for plain entity joins.
      */
-    public SelectSpec<?, ?> getSubqueryJoin() { return subqueryJoin; }
+    public SelectSpec<?, ?> getSubqueryJoin() {
+        return subqueryJoin;
+    }
 }

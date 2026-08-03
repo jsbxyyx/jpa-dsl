@@ -30,7 +30,7 @@ public final class TableRef<T> {
 
     private TableRef(Class<T> entityClass, String alias) {
         this.entityClass = entityClass;
-        this.alias       = alias;
+        this.alias = alias;
     }
 
     /** Creates a table reference with an explicit alias (required for joins and self-joins). */
@@ -43,8 +43,13 @@ public final class TableRef<T> {
         return new TableRef<>(entityClass, null);
     }
 
-    public Class<T> entityClass() { return entityClass; }
-    public String alias()         { return alias; }
+    public Class<T> entityClass() {
+        return entityClass;
+    }
+
+    public String alias() {
+        return alias;
+    }
 
     /**
      * Creates a column expression referencing a property of this entity, qualified by this

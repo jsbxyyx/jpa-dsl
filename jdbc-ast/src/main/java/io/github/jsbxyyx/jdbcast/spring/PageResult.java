@@ -20,23 +20,24 @@ import java.util.List;
  *
  * @param <T> row type
  */
-public record PageResult<T>(
-        List<T> content,
-        long    total,
-        long    pageNumber,
-        long    pageSize
-) {
+public record PageResult<T>(List<T> content, long total, long pageNumber, long pageSize) {
     /** Total number of pages. */
     public long totalPages() {
         return pageSize == 0 ? 1 : (total + pageSize - 1) / pageSize;
     }
 
     /** Whether this is the first page. */
-    public boolean isFirst() { return pageNumber == 0; }
+    public boolean isFirst() {
+        return pageNumber == 0;
+    }
 
     /** Whether this is the last page. */
-    public boolean isLast() { return pageNumber >= totalPages() - 1; }
+    public boolean isLast() {
+        return pageNumber >= totalPages() - 1;
+    }
 
     /** Whether there is a next page. */
-    public boolean hasNext() { return pageNumber < totalPages() - 1; }
+    public boolean hasNext() {
+        return pageNumber < totalPages() - 1;
+    }
 }

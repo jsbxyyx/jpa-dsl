@@ -23,8 +23,8 @@ public final class OnBuilder {
      * @param rightProp  method reference to the right-hand property
      * @param rightAlias table alias for the right-hand property
      */
-    public <A, B, V> OnBuilder eq(SFunction<A, V> leftProp, String leftAlias,
-                                  SFunction<B, V> rightProp, String rightAlias) {
+    public <A, B, V> OnBuilder eq(
+            SFunction<A, V> leftProp, String leftAlias, SFunction<B, V> rightProp, String rightAlias) {
         PropertyRef leftRef = PropertyRefResolver.resolve(leftProp);
         PropertyRef rightRef = PropertyRefResolver.resolve(rightProp);
         conditions.add(new OnEqPredicate(leftRef, leftAlias, rightRef, rightAlias));
@@ -63,17 +63,27 @@ public final class OnBuilder {
         private final PropertyRef rightRef;
         private final String rightAlias;
 
-        OnEqPredicate(PropertyRef leftRef, String leftAlias,
-                      PropertyRef rightRef, String rightAlias) {
+        OnEqPredicate(PropertyRef leftRef, String leftAlias, PropertyRef rightRef, String rightAlias) {
             this.leftRef = leftRef;
             this.leftAlias = leftAlias;
             this.rightRef = rightRef;
             this.rightAlias = rightAlias;
         }
 
-        public PropertyRef getLeftRef() { return leftRef; }
-        public String getLeftAlias() { return leftAlias; }
-        public PropertyRef getRightRef() { return rightRef; }
-        public String getRightAlias() { return rightAlias; }
+        public PropertyRef getLeftRef() {
+            return leftRef;
+        }
+
+        public String getLeftAlias() {
+            return leftAlias;
+        }
+
+        public PropertyRef getRightRef() {
+            return rightRef;
+        }
+
+        public String getRightAlias() {
+            return rightAlias;
+        }
     }
 }

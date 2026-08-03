@@ -36,6 +36,6 @@ public interface MetaResolver {
      * the concrete resolver. Override for custom resolution.
      */
     default String columnName(Class<?> entityClass, String propertyName) {
-        return propertyName;   // safe fallback; concrete resolvers override this
+        return propertyName; // safe fallback; concrete resolvers override this
     }
 }

@@ -10,23 +10,31 @@ import java.util.List;
  */
 public final class DeleteStatement {
 
-    private final Class<?>     entity;
-    private final String       tableAlias;
-    private final Condition    where;
+    private final Class<?> entity;
+    private final String tableAlias;
+    private final Condition where;
     private final List<String> returningCols;
 
-    public DeleteStatement(Class<?> entity,
-                    String tableAlias,
-                    Condition where,
-                    List<String> returningCols) {
-        this.entity        = entity;
-        this.tableAlias    = tableAlias;
-        this.where         = where;
+    public DeleteStatement(Class<?> entity, String tableAlias, Condition where, List<String> returningCols) {
+        this.entity = entity;
+        this.tableAlias = tableAlias;
+        this.where = where;
         this.returningCols = List.copyOf(returningCols);
     }
 
-    public Class<?>     entity()        { return entity; }
-    public String       tableAlias()    { return tableAlias; }
-    public Condition    where()         { return where; }
-    public List<String> returningCols() { return returningCols; }
+    public Class<?> entity() {
+        return entity;
+    }
+
+    public String tableAlias() {
+        return tableAlias;
+    }
+
+    public Condition where() {
+        return where;
+    }
+
+    public List<String> returningCols() {
+        return returningCols;
+    }
 }

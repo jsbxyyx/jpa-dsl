@@ -30,8 +30,7 @@ public class PageRequestBuilder {
     private int size = 20;
     private final List<Sort.Order> orders = new ArrayList<>();
 
-    private PageRequestBuilder() {
-    }
+    private PageRequestBuilder() {}
 
     public static PageRequestBuilder builder() {
         return new PageRequestBuilder();

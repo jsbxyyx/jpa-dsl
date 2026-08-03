@@ -1,9 +1,10 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
+
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
-import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 
 /**
  * Resolves an {@link SFunction} method reference to a {@link PropertyRef}.
@@ -25,8 +26,7 @@ public final class PropertyRefResolver {
         cacheManager = manager;
     }
 
-    private PropertyRefResolver() {
-    }
+    private PropertyRefResolver() {}
 
     /**
      * 内部统一获取缓存管理器
@@ -63,8 +63,8 @@ public final class PropertyRefResolver {
         String implMethodName = sl.getImplMethodName();
         if (implMethodName.startsWith("lambda$")) {
             throw new IllegalArgumentException(
-                    "SFunction must be a method reference (e.g. User::getName), not a lambda body. "
-                    + "Got: " + implMethodName);
+                    "SFunction must be a method reference (e.g. User::getName), not a lambda body. " + "Got: "
+                            + implMethodName);
         }
         String propertyName = methodNameToPropertyName(implMethodName);
         String implClass = sl.getImplClass().replace('/', '.');
@@ -109,7 +109,13 @@ public final class PropertyRefResolver {
     }
 
     private static String buildCacheKey(SFunction<?, ?> fn) {
-        SerializedLambda lambda = resolveLambda(fn);
+        Class<?> lambdaClass = fn.getClass();
+
+        // Use two-level cache: Lambda Class -> SerializedLambda -> PropertyRef
+        // This avoids repeated reflection calls to writeReplace()
+        SerializedLambda lambda =
+                getCacheManager().getSerializedLambdaCache().get(lambdaClass, cls -> resolveLambda(fn));
+
         String className = lambda.getImplClass().replace('/', '.');
         return className + "#" + lambda.getImplMethodName() + "#" + lambda.getImplMethodSignature();
     }

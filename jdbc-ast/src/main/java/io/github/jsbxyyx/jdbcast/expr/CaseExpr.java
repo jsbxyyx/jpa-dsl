@@ -18,10 +18,10 @@ import java.util.List;
  * @param <V> the result type
  */
 public record CaseExpr<V>(
-        Expr<?> operand,         // null → searched CASE
+        Expr<?> operand, // null → searched CASE
         List<WhenThen<V>> whens,
-        Expr<V> elseExpr         // null → no ELSE clause
-) implements Expr<V> {
+        Expr<V> elseExpr // null → no ELSE clause
+        ) implements Expr<V> {
 
     public CaseExpr {
         whens = List.copyOf(whens);
@@ -77,7 +77,9 @@ public record CaseExpr<V>(
         private final List<WhenThen<V>> whens = new ArrayList<>();
         private Expr<V> elseExpr = null;
 
-        private SimpleBuilder(Expr<?> operand) { this.operand = operand; }
+        private SimpleBuilder(Expr<?> operand) {
+            this.operand = operand;
+        }
 
         public SimpleBuilder<V> when(Expr<?> value, Expr<V> then) {
             whens.add(new WhenThen<>(value, then));

@@ -29,9 +29,9 @@ import java.util.List;
  */
 public final class InsertBuilder<T> {
 
-    private final Class<T>              entity;
-    private final List<ColumnAssignment> assignments    = new ArrayList<>();
-    private final List<String>          returningCols  = new ArrayList<>();
+    private final Class<T> entity;
+    private final List<ColumnAssignment> assignments = new ArrayList<>();
+    private final List<String> returningCols = new ArrayList<>();
 
     InsertBuilder(Class<T> entity) {
         this.entity = entity;

@@ -8,7 +8,6 @@ import io.github.jsbxyyx.jdbcast.condition.ExistsCondition;
 import io.github.jsbxyyx.jdbcast.meta.JpaMetaResolver;
 import io.github.jsbxyyx.jdbcast.renderer.AnsiSqlRenderer;
 import io.github.jsbxyyx.jdbcast.renderer.RenderedSql;
-import io.github.jsbxyyx.jdbcast.renderer.dialect.LimitOffsetDialect;
 import io.github.jsbxyyx.jdbcast.renderer.dialect.OffsetFetchDialect;
 import io.github.jsbxyyx.jdbcast.stmt.DeleteStatement;
 import io.github.jsbxyyx.jdbcast.stmt.InsertStatement;
@@ -34,30 +33,73 @@ class AnsiSqlRendererTest {
 
     @Table(name = "t_user")
     static class User {
-        @Id @Column(name = "id")       private Long    id;
-        @Column(name = "username")     private String  username;
-        @Column(name = "status")       private String  status;
-        @Column(name = "age")          private Integer age;
-        @Column(name = "email")        private String  email;
+        @Id
+        @Column(name = "id")
+        private Long id;
 
-        public Long    getId()       { return id; }
-        public String  getUsername() { return username; }
-        public String  getStatus()   { return status; }
-        public Integer getAge()      { return age; }
-        public String  getEmail()    { return email; }
+        @Column(name = "username")
+        private String username;
+
+        @Column(name = "status")
+        private String status;
+
+        @Column(name = "age")
+        private Integer age;
+
+        @Column(name = "email")
+        private String email;
+
+        public Long getId() {
+            return id;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public Integer getAge() {
+            return age;
+        }
+
+        public String getEmail() {
+            return email;
+        }
     }
 
     @Table(name = "t_order")
     static class Order {
-        @Id @Column(name = "id")       private Long   id;
-        @Column(name = "user_id")      private Long   userId;
-        @Column(name = "amount")       private Double amount;
-        @Column(name = "order_no")     private String orderNo;
+        @Id
+        @Column(name = "id")
+        private Long id;
 
-        public Long   getId()      { return id; }
-        public Long   getUserId()  { return userId; }
-        public Double getAmount()  { return amount; }
-        public String getOrderNo() { return orderNo; }
+        @Column(name = "user_id")
+        private Long userId;
+
+        @Column(name = "amount")
+        private Double amount;
+
+        @Column(name = "order_no")
+        private String orderNo;
+
+        public Long getId() {
+            return id;
+        }
+
+        public Long getUserId() {
+            return userId;
+        }
+
+        public Double getAmount() {
+            return amount;
+        }
+
+        public String getOrderNo() {
+            return orderNo;
+        }
     }
 
     // ------------------------------------------------------------------ //
@@ -65,7 +107,7 @@ class AnsiSqlRendererTest {
     // ------------------------------------------------------------------ //
 
     private AnsiSqlRenderer renderer;
-    private TableRef<User>  u;
+    private TableRef<User> u;
     private TableRef<Order> o;
 
     @BeforeEach
@@ -88,8 +130,7 @@ class AnsiSqlRendererTest {
 
         RenderedSql r = renderer.render(stmt);
 
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.id, u.username FROM t_user u WHERE u.status = :p1");
+        assertThat(r.sql()).isEqualTo("SELECT u.id, u.username FROM t_user u WHERE u.status = :p1");
         assertThat(r.params()).hasSize(1).containsEntry("p1", "ACTIVE");
     }
 
@@ -103,10 +144,8 @@ class AnsiSqlRendererTest {
 
     @Test
     void selectDistinct_prefixesDistinct() {
-        SelectStatement stmt = SQL.from(u)
-                .distinct()
-                .select(u.col(User::getStatus))
-                .build();
+        SelectStatement stmt =
+                SQL.from(u).distinct().select(u.col(User::getStatus)).build();
 
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).startsWith("SELECT DISTINCT");
@@ -115,9 +154,8 @@ class AnsiSqlRendererTest {
 
     @Test
     void selectWithAlias_addsAsClause() {
-        SelectStatement stmt = SQL.from(u)
-                .select(u.col(User::getUsername).as("name"))
-                .build();
+        SelectStatement stmt =
+                SQL.from(u).select(u.col(User::getUsername).as("name")).build();
 
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).contains("u.username AS name");
@@ -130,7 +168,8 @@ class AnsiSqlRendererTest {
     @Test
     void innerJoin_generatesCorrectOnClause() {
         SelectStatement stmt = SQL.from(u)
-                .join(o).on(u.col(User::getId).eq(o.col(Order::getUserId)))
+                .join(o)
+                .on(u.col(User::getId).eq(o.col(Order::getUserId)))
                 .select(u.col(User::getUsername), o.col(Order::getAmount))
                 .build();
 
@@ -143,7 +182,8 @@ class AnsiSqlRendererTest {
     @Test
     void leftJoin_usesLeftKeyword() {
         SelectStatement stmt = SQL.from(u)
-                .leftJoin(o).on(u.col(User::getId).eq(o.col(Order::getUserId)))
+                .leftJoin(o)
+                .on(u.col(User::getId).eq(o.col(Order::getUserId)))
                 .select(u.col(User::getUsername))
                 .build();
 
@@ -159,7 +199,8 @@ class AnsiSqlRendererTest {
     void whereWithAnd_wrapsEachChildInParens() {
         SelectStatement stmt = SQL.from(u)
                 .select(u.col(User::getId))
-                .where(u.col(User::getStatus).eq("ACTIVE")
+                .where(u.col(User::getStatus)
+                        .eq("ACTIVE")
                         .and(u.col(User::getAge).gte(18)))
                 .build();
 
@@ -173,7 +214,8 @@ class AnsiSqlRendererTest {
     void whereWithOr_wrapsEachChildInParens() {
         SelectStatement stmt = SQL.from(u)
                 .select(u.col(User::getId))
-                .where(u.col(User::getStatus).eq("ACTIVE")
+                .where(u.col(User::getStatus)
+                        .eq("ACTIVE")
                         .or(u.col(User::getStatus).eq("PENDING")))
                 .build();
 
@@ -318,11 +360,8 @@ class AnsiSqlRendererTest {
 
     @Test
     void limitAndOffset() {
-        SelectStatement stmt = SQL.from(u)
-                .select(u.col(User::getId))
-                .limit(10)
-                .offset(20)
-                .build();
+        SelectStatement stmt =
+                SQL.from(u).select(u.col(User::getId)).limit(10).offset(20).build();
 
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).contains("LIMIT :p1");
@@ -336,10 +375,8 @@ class AnsiSqlRendererTest {
 
     @Test
     void forUpdate() {
-        SelectStatement stmt = SQL.from(u)
-                .select(u.col(User::getId))
-                .forUpdate()
-                .build();
+        SelectStatement stmt =
+                SQL.from(u).select(u.col(User::getId)).forUpdate().build();
 
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).endsWith("FOR UPDATE");
@@ -369,10 +406,8 @@ class AnsiSqlRendererTest {
 
     @Test
     void forShare() {
-        SelectStatement stmt = SQL.from(u)
-                .select(u.col(User::getId))
-                .forUpdate(LockMode.SHARE)
-                .build();
+        SelectStatement stmt =
+                SQL.from(u).select(u.col(User::getId)).forUpdate(LockMode.SHARE).build();
 
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).endsWith("FOR SHARE");
@@ -384,8 +419,14 @@ class AnsiSqlRendererTest {
 
     @Test
     void union() {
-        SelectStatement active   = SQL.from(u).select(u.col(User::getId)).where(u.col(User::getStatus).eq("ACTIVE")).build();
-        SelectStatement inactive = SQL.from(u).select(u.col(User::getId)).where(u.col(User::getStatus).eq("INACTIVE")).build();
+        SelectStatement active = SQL.from(u)
+                .select(u.col(User::getId))
+                .where(u.col(User::getStatus).eq("ACTIVE"))
+                .build();
+        SelectStatement inactive = SQL.from(u)
+                .select(u.col(User::getId))
+                .where(u.col(User::getStatus).eq("INACTIVE"))
+                .build();
 
         RenderedSql r = renderer.render(active.union(inactive));
         assertThat(r.sql()).contains(" UNION ");
@@ -403,8 +444,14 @@ class AnsiSqlRendererTest {
 
     @Test
     void intersect() {
-        SelectStatement a = SQL.from(u).select(u.col(User::getId)).where(u.col(User::getStatus).eq("ACTIVE")).build();
-        SelectStatement b = SQL.from(u).select(u.col(User::getId)).where(u.col(User::getAge).gte(30)).build();
+        SelectStatement a = SQL.from(u)
+                .select(u.col(User::getId))
+                .where(u.col(User::getStatus).eq("ACTIVE"))
+                .build();
+        SelectStatement b = SQL.from(u)
+                .select(u.col(User::getId))
+                .where(u.col(User::getAge).gte(30))
+                .build();
 
         RenderedSql r = renderer.render(a.intersect(b));
         assertThat(r.sql()).contains(" INTERSECT ");
@@ -413,7 +460,10 @@ class AnsiSqlRendererTest {
     @Test
     void except() {
         SelectStatement a = SQL.from(u).select(u.col(User::getId)).build();
-        SelectStatement b = SQL.from(u).select(u.col(User::getId)).where(u.col(User::getStatus).eq("INACTIVE")).build();
+        SelectStatement b = SQL.from(u)
+                .select(u.col(User::getId))
+                .where(u.col(User::getStatus).eq("INACTIVE"))
+                .build();
 
         RenderedSql r = renderer.render(a.except(b));
         assertThat(r.sql()).contains(" EXCEPT ");
@@ -441,12 +491,15 @@ class AnsiSqlRendererTest {
 
     @Test
     void notExistsSubquery() {
-        SelectStatement sub = SQL.from(o).select(val(1))
-                .where(o.col(Order::getUserId).eq(u.col(User::getId))).build();
+        SelectStatement sub = SQL.from(o)
+                .select(val(1))
+                .where(o.col(Order::getUserId).eq(u.col(User::getId)))
+                .build();
 
-        RenderedSql r = renderer.render(
-                SQL.from(u).select(u.col(User::getId))
-                        .where(ExistsCondition.notExists(sub)).build());
+        RenderedSql r = renderer.render(SQL.from(u)
+                .select(u.col(User::getId))
+                .where(ExistsCondition.notExists(sub))
+                .build());
 
         assertThat(r.sql()).contains("NOT EXISTS (SELECT");
     }
@@ -460,11 +513,10 @@ class AnsiSqlRendererTest {
         SelectStatement stmt = SQL.from(u)
                 .select(
                         u.col(User::getUsername),
-                        rowNumber().over(w -> w
-                                .partitionBy(u.col(User::getStatus))   // explicit col with alias
-                                .orderBy(u.col(User::getAge).desc())
-                        ).as("rn")
-                )
+                        rowNumber()
+                                .over(w -> w.partitionBy(u.col(User::getStatus)) // explicit col with alias
+                                        .orderBy(u.col(User::getAge).desc()))
+                                .as("rn"))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
@@ -476,17 +528,17 @@ class AnsiSqlRendererTest {
         SelectStatement stmt = SQL.from(o)
                 .select(
                         o.col(Order::getOrderNo),
-                        sum(o.col(Order::getAmount)).over(w -> w
-                                .partitionBy(o.col(Order::getUserId))
-                                .orderBy(o.col(Order::getId).asc())
-                                .rowsBetween(FrameBound.unboundedPreceding(), FrameBound.currentRow())
-                        ).as("running_total")
-                )
+                        sum(o.col(Order::getAmount))
+                                .over(w -> w.partitionBy(o.col(Order::getUserId))
+                                        .orderBy(o.col(Order::getId).asc())
+                                        .rowsBetween(FrameBound.unboundedPreceding(), FrameBound.currentRow()))
+                                .as("running_total"))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("SUM(o.amount) OVER (PARTITION BY o.user_id ORDER BY o.id ASC "
-                + "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total");
+        assertThat(r.sql())
+                .contains("SUM(o.amount) OVER (PARTITION BY o.user_id ORDER BY o.id ASC "
+                        + "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total");
     }
 
     @Test
@@ -501,9 +553,7 @@ class AnsiSqlRendererTest {
 
     @Test
     void aggregateCountStar() {
-        SelectStatement stmt = SQL.from(u)
-                .select(countStar().as("total"))
-                .build();
+        SelectStatement stmt = SQL.from(u).select(countStar().as("total")).build();
 
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).contains("COUNT(*) AS total");
@@ -526,9 +576,10 @@ class AnsiSqlRendererTest {
         assertThat(r.sql()).contains("status = :p1");
         assertThat(r.sql()).contains("age = :p2");
         assertThat(r.sql()).contains("WHERE u.id = :p3");
-        assertThat(r.params()).containsEntry("p1", "INACTIVE")
-                              .containsEntry("p2", 99)
-                              .containsEntry("p3", 1L);
+        assertThat(r.params())
+                .containsEntry("p1", "INACTIVE")
+                .containsEntry("p2", 99)
+                .containsEntry("p3", 1L);
     }
 
     @Test
@@ -558,9 +609,10 @@ class AnsiSqlRendererTest {
         RenderedSql r = renderer.render(stmt);
         assertThat(r.sql()).startsWith("INSERT INTO t_user (");
         assertThat(r.sql()).contains(") VALUES (");
-        assertThat(r.params()).containsValue("alice")
-                              .containsValue("alice@example.com")
-                              .containsValue(30);
+        assertThat(r.params())
+                .containsValue("alice")
+                .containsValue("alice@example.com")
+                .containsValue(30);
     }
 
     // ================================================================== //
@@ -674,25 +726,20 @@ class AnsiSqlRendererTest {
     void conditionBuilder_multiplePredicatesAnd() {
         SelectStatement stmt = SQL.from(u)
                 .select(u.star())
-                .where(w -> w
-                        .eq(u.col(User::getStatus), "ACTIVE")
-                        .gte(u.col(User::getAge), 18))
+                .where(w -> w.eq(u.col(User::getStatus), "ACTIVE").gte(u.col(User::getAge), 18))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE (u.status = :p1) AND (u.age >= :p2)");
+        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE (u.status = :p1) AND (u.age >= :p2)");
         assertThat(r.params()).containsEntry("p1", "ACTIVE").containsEntry("p2", 18);
     }
 
     @Test
     void conditionBuilder_whenFalse_skipsCondition() {
-        String status = null;  // null → skip
+        String status = null; // null → skip
         SelectStatement stmt = SQL.from(u)
                 .select(u.star())
-                .where(w -> w
-                        .eq(u.col(User::getStatus), status, status != null)
-                        .gte(u.col(User::getAge), 18))
+                .where(w -> w.eq(u.col(User::getStatus), status, status != null).gte(u.col(User::getAge), 18))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
@@ -717,16 +764,13 @@ class AnsiSqlRendererTest {
     void conditionBuilder_nestedOrGroup() {
         SelectStatement stmt = SQL.from(u)
                 .select(u.star())
-                .where(w -> w
-                        .eq(u.col(User::getStatus), "ACTIVE")
-                        .or(sub -> sub
-                                .eq(u.col(User::getAge), 18)
-                                .eq(u.col(User::getAge), 21)))
+                .where(w -> w.eq(u.col(User::getStatus), "ACTIVE")
+                        .or(sub -> sub.eq(u.col(User::getAge), 18).eq(u.col(User::getAge), 21)))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age = :p2) OR (u.age = :p3))");
+        assertThat(r.sql())
+                .isEqualTo("SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age = :p2) OR (u.age = :p3))");
         assertThat(r.params()).hasSize(3);
     }
 
@@ -734,16 +778,13 @@ class AnsiSqlRendererTest {
     void conditionBuilder_nestedAndGroup() {
         SelectStatement stmt = SQL.from(u)
                 .select(u.star())
-                .where(w -> w
-                        .eq(u.col(User::getStatus), "ACTIVE")
-                        .and(sub -> sub
-                                .gte(u.col(User::getAge), 18)
-                                .lte(u.col(User::getAge), 65)))
+                .where(w -> w.eq(u.col(User::getStatus), "ACTIVE")
+                        .and(sub -> sub.gte(u.col(User::getAge), 18).lte(u.col(User::getAge), 65)))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age >= :p2) AND (u.age <= :p3))");
+        assertThat(r.sql())
+                .isEqualTo("SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age >= :p2) AND (u.age <= :p3))");
         assertThat(r.params()).hasSize(3);
     }
 
@@ -751,13 +792,11 @@ class AnsiSqlRendererTest {
     void conditionBuilder_nestedNotGroup() {
         SelectStatement stmt = SQL.from(u)
                 .select(u.star())
-                .where(w -> w
-                        .not(sub -> sub.eq(u.col(User::getStatus), "DELETED")))
+                .where(w -> w.not(sub -> sub.eq(u.col(User::getStatus), "DELETED")))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE NOT (u.status = :p1)");
+        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE NOT (u.status = :p1)");
         assertThat(r.params()).containsEntry("p1", "DELETED");
     }
 
@@ -769,8 +808,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE u.status IN (:p1, :p2)");
+        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE u.status IN (:p1, :p2)");
         assertThat(r.params()).hasSize(2);
     }
 
@@ -801,14 +839,11 @@ class AnsiSqlRendererTest {
     void conditionBuilder_updateWhere() {
         UpdateStatement stmt = SQL.update(User.class)
                 .set(User::getStatus, "INACTIVE")
-                .where(w -> w
-                        .eq(u.col(User::getId), 1L)
-                        .ne(u.col(User::getStatus), "DELETED", true))
+                .where(w -> w.eq(u.col(User::getId), 1L).ne(u.col(User::getStatus), "DELETED", true))
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "UPDATE t_user SET status = :p1 WHERE (u.id = :p2) AND (u.status <> :p3)");
+        assertThat(r.sql()).isEqualTo("UPDATE t_user SET status = :p1 WHERE (u.id = :p2) AND (u.status <> :p3)");
         assertThat(r.params()).hasSize(3);
     }
 
@@ -819,8 +854,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "DELETE FROM t_user WHERE u.status = :p1");
+        assertThat(r.sql()).isEqualTo("DELETE FROM t_user WHERE u.status = :p1");
         assertThat(r.params()).containsEntry("p1", "DELETED");
     }
 
@@ -833,8 +867,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.status, COUNT(u.id) AS cnt FROM t_user u GROUP BY u.status HAVING COUNT(u.id) > :p1");
+        assertThat(r.sql())
+                .isEqualTo(
+                        "SELECT u.status, COUNT(u.id) AS cnt FROM t_user u GROUP BY u.status HAVING COUNT(u.id) > :p1");
         assertThat(r.params()).containsEntry("p1", 5L);
     }
 
@@ -844,15 +879,17 @@ class AnsiSqlRendererTest {
 
     @Test
     void limitOffset_defaultDialect_limitAndOffset() {
-        SelectStatement stmt = SQL.from(u).select(u.star())
+        SelectStatement stmt = SQL.from(u)
+                .select(u.star())
                 .where(w -> w.eq(u.col(User::getStatus), "ACTIVE"))
                 .orderBy(u.col(User::getId).asc())
-                .limit(20).offset(40)
+                .limit(20)
+                .offset(40)
                 .build();
 
-        RenderedSql r = renderer.render(stmt);  // renderer uses LimitOffsetDialect by default
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC LIMIT :p2 OFFSET :p3");
+        RenderedSql r = renderer.render(stmt); // renderer uses LimitOffsetDialect by default
+        assertThat(r.sql())
+                .isEqualTo("SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC LIMIT :p2 OFFSET :p3");
         assertThat(r.params()).containsEntry("p2", 20L).containsEntry("p3", 40L);
     }
 
@@ -887,26 +924,26 @@ class AnsiSqlRendererTest {
 
     @Test
     void offsetFetch_limitAndOffset() {
-        AnsiSqlRenderer sqlServerRenderer =
-                new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
+        AnsiSqlRenderer sqlServerRenderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
 
-        SelectStatement stmt = SQL.from(u).select(u.star())
+        SelectStatement stmt = SQL.from(u)
+                .select(u.star())
                 .where(w -> w.eq(u.col(User::getStatus), "ACTIVE"))
                 .orderBy(u.col(User::getId).asc())
-                .limit(20).offset(40)
+                .limit(20)
+                .offset(40)
                 .build();
 
         RenderedSql r = sqlServerRenderer.render(stmt);
-        assertThat(r.sql()).isEqualTo(
-                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC"
-                + " OFFSET :p2 ROWS FETCH NEXT :p3 ROWS ONLY");
+        assertThat(r.sql())
+                .isEqualTo("SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC"
+                        + " OFFSET :p2 ROWS FETCH NEXT :p3 ROWS ONLY");
         assertThat(r.params()).containsEntry("p2", 40L).containsEntry("p3", 20L);
     }
 
     @Test
     void offsetFetch_limitOnly_prepends_offset0() {
-        AnsiSqlRenderer sqlServerRenderer =
-                new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
+        AnsiSqlRenderer sqlServerRenderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
 
         SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).build();
         RenderedSql r = sqlServerRenderer.render(stmt);
@@ -915,8 +952,7 @@ class AnsiSqlRendererTest {
 
     @Test
     void offsetFetch_offsetOnly() {
-        AnsiSqlRenderer sqlServerRenderer =
-                new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
+        AnsiSqlRenderer sqlServerRenderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, OffsetFetchDialect.INSTANCE);
 
         SelectStatement stmt = SQL.from(u).select(u.star()).offset(5).build();
         RenderedSql r = sqlServerRenderer.render(stmt);
@@ -927,11 +963,10 @@ class AnsiSqlRendererTest {
     @Test
     void customDialect_lambda() {
         // Custom dialect: SAP HANA / Sybase IQ style
-        AnsiSqlRenderer customRenderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE,
-                (sb, limit, offset, ctx) -> {
-                    if (offset != null) sb.append(" START AT ").append(ctx.addParam(offset + 1));
-                    if (limit  != null) sb.append(" LIMIT ").append(ctx.addParam(limit));
-                });
+        AnsiSqlRenderer customRenderer = new AnsiSqlRenderer(JpaMetaResolver.INSTANCE, (sb, limit, offset, ctx) -> {
+            if (offset != null) sb.append(" START AT ").append(ctx.addParam(offset + 1));
+            if (limit != null) sb.append(" LIMIT ").append(ctx.addParam(limit));
+        });
 
         SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).offset(20).build();
         RenderedSql r = customRenderer.render(stmt);

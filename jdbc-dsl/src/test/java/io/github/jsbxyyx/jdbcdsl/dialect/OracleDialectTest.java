@@ -31,14 +31,10 @@ class OracleDialectTest {
     void oracle12c_firstPage_generatesOffsetFetch() {
         Map<String, Object> params = new LinkedHashMap<>();
         String paginated = oracle12c.applyPagination(
-                "SELECT t.id, t.username FROM t_user t ORDER BY t.username ASC",
-                0, 10, params);
+                "SELECT t.id, t.username FROM t_user t ORDER BY t.username ASC", 0, 10, params);
 
-        assertThat(paginated)
-                .endsWith("OFFSET :_offset ROWS FETCH NEXT :_limit ROWS ONLY");
-        assertThat(params)
-                .containsEntry("_offset", 0L)
-                .containsEntry("_limit", 10);
+        assertThat(paginated).endsWith("OFFSET :_offset ROWS FETCH NEXT :_limit ROWS ONLY");
+        assertThat(params).containsEntry("_offset", 0L).containsEntry("_limit", 10);
     }
 
     @Test
@@ -46,9 +42,7 @@ class OracleDialectTest {
         Map<String, Object> params = new LinkedHashMap<>();
         oracle12c.applyPagination("SELECT t.id FROM t_user t", 10, 5, params);
 
-        assertThat(params)
-                .containsEntry("_offset", 10L)
-                .containsEntry("_limit", 5);
+        assertThat(params).containsEntry("_offset", 10L).containsEntry("_limit", 5);
     }
 
     @Test
@@ -94,17 +88,14 @@ class OracleDialectTest {
     void oracle11g_firstPage_generatesNestedRownum() {
         Map<String, Object> params = new LinkedHashMap<>();
         String paginated = oracle11g.applyPagination(
-                "SELECT t.id, t.username FROM t_user t ORDER BY t.username ASC",
-                0, 10, params);
+                "SELECT t.id, t.username FROM t_user t ORDER BY t.username ASC", 0, 10, params);
 
         assertThat(paginated)
                 .startsWith("SELECT * FROM (")
                 .contains("SELECT _q_.*, ROWNUM _rn_ FROM (")
                 .contains("WHERE ROWNUM <= :_end")
                 .endsWith(") WHERE _rn_ > :_offset");
-        assertThat(params)
-                .containsEntry("_offset", 0L)
-                .containsEntry("_end", 10L);
+        assertThat(params).containsEntry("_offset", 0L).containsEntry("_end", 10L);
     }
 
     @Test
@@ -113,9 +104,7 @@ class OracleDialectTest {
         oracle11g.applyPagination("SELECT t.id FROM t_user t", 10, 5, params);
 
         // offset=10, limit=5 → end=15, offset=10
-        assertThat(params)
-                .containsEntry("_offset", 10L)
-                .containsEntry("_end", 15L);
+        assertThat(params).containsEntry("_offset", 10L).containsEntry("_end", 15L);
     }
 
     @Test
@@ -173,9 +162,7 @@ class OracleDialectTest {
     void dialectDetector_oracleProductName_returnsOracleDialect() {
         // Simulate what DialectDetector would do if DatabaseMetaData reports "Oracle"
         String productName = "Oracle";
-        Dialect detected = productName.toLowerCase().contains("oracle")
-                ? new OracleDialect()
-                : new Sql2008Dialect();
+        Dialect detected = productName.toLowerCase().contains("oracle") ? new OracleDialect() : new Sql2008Dialect();
 
         assertThat(detected).isInstanceOf(OracleDialect.class);
     }

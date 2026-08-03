@@ -17,14 +17,14 @@ public record WindowExpr<V>(
         Expr<?> function,
         List<Expr<?>> partitionBy,
         List<OrderItem> orderBy,
-        FrameType frameType,   // null = no explicit frame clause
+        FrameType frameType, // null = no explicit frame clause
         FrameBound frameStart, // null = no explicit frame clause
-        FrameBound frameEnd    // null = no explicit frame clause
-) implements Expr<V> {
+        FrameBound frameEnd // null = no explicit frame clause
+        ) implements Expr<V> {
 
     public WindowExpr {
         partitionBy = List.copyOf(partitionBy);
-        orderBy     = List.copyOf(orderBy);
+        orderBy = List.copyOf(orderBy);
     }
 
     // ------------------------------------------------------------------ //
@@ -34,12 +34,14 @@ public record WindowExpr<V>(
     public static final class Builder<V> {
         private final Expr<V> function;
         private final List<Expr<?>> partitionBy = new ArrayList<>();
-        private final List<OrderItem> orderBy   = new ArrayList<>();
-        private FrameType  frameType  = null;
+        private final List<OrderItem> orderBy = new ArrayList<>();
+        private FrameType frameType = null;
         private FrameBound frameStart = null;
-        private FrameBound frameEnd   = null;
+        private FrameBound frameEnd = null;
 
-        Builder(Expr<V> function) { this.function = function; }
+        Builder(Expr<V> function) {
+            this.function = function;
+        }
 
         @SafeVarargs
         public final <T> Builder<V> partitionBy(SFunction<T, ?>... getters) {
@@ -61,15 +63,24 @@ public record WindowExpr<V>(
         }
 
         public Builder<V> rowsBetween(FrameBound start, FrameBound end) {
-            frameType = FrameType.ROWS; frameStart = start; frameEnd = end; return this;
+            frameType = FrameType.ROWS;
+            frameStart = start;
+            frameEnd = end;
+            return this;
         }
 
         public Builder<V> rangeBetween(FrameBound start, FrameBound end) {
-            frameType = FrameType.RANGE; frameStart = start; frameEnd = end; return this;
+            frameType = FrameType.RANGE;
+            frameStart = start;
+            frameEnd = end;
+            return this;
         }
 
         public Builder<V> groupsBetween(FrameBound start, FrameBound end) {
-            frameType = FrameType.GROUPS; frameStart = start; frameEnd = end; return this;
+            frameType = FrameType.GROUPS;
+            frameStart = start;
+            frameEnd = end;
+            return this;
         }
 
         public WindowExpr<V> build() {

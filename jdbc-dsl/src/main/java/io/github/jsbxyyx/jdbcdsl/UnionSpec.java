@@ -2,7 +2,6 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
 
 /**
  * Specification for a {@code UNION} or {@code UNION ALL} query composed of multiple
@@ -62,13 +61,19 @@ public final class UnionSpec<R> {
     }
 
     /** Returns all branches in order. The first branch's {@code unionType} is unused. */
-    public List<Branch<R>> getBranches() { return branches; }
+    public List<Branch<R>> getBranches() {
+        return branches;
+    }
 
     /** Returns the DTO class from the first branch. */
-    public Class<R> getDtoClass() { return branches.get(0).spec().getDtoClass(); }
+    public Class<R> getDtoClass() {
+        return branches.get(0).spec().getDtoClass();
+    }
 
     /** Returns the ORDER BY sort applied to the combined union result (may be unsorted). */
-    public JSort<?> getSort() { return sort; }
+    public JSort<?> getSort() {
+        return sort;
+    }
 
     // ------------------------------------------------------------------ //
 

@@ -11,5 +11,4 @@ import io.github.jsbxyyx.jdbcast.expr.Expr;
  *   <li>An {@link Expr} — rendered as an expression (e.g. column, subquery).</li>
  * </ul>
  */
-public record CompareCondition(Expr<?> left, Op op, Object right) implements Condition {
-}
+public record CompareCondition(Expr<?> left, Op op, Object right) implements Condition {}

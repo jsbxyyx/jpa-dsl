@@ -63,46 +63,98 @@ public final class SQL {
     // ------------------------------------------------------------------ //
 
     /** {@code SELECT *} wildcard. */
-    public static StarExpr star() { return StarExpr.ALL; }
+    public static StarExpr star() {
+        return StarExpr.ALL;
+    }
 
     /** A literal value bound as a named parameter. */
-    public static <V> LiteralExpr<V> val(V value) { return new LiteralExpr<>(value); }
+    public static <V> LiteralExpr<V> val(V value) {
+        return new LiteralExpr<>(value);
+    }
 
     /** A raw SQL fragment (escape hatch). */
-    public static <V> RawExpr<V> raw(String sql) { return RawExpr.of(sql); }
-    public static <V> RawExpr<V> raw(String sql, Map<String, Object> params) { return RawExpr.of(sql, params); }
+    public static <V> RawExpr<V> raw(String sql) {
+        return RawExpr.of(sql);
+    }
+
+    public static <V> RawExpr<V> raw(String sql, Map<String, Object> params) {
+        return RawExpr.of(sql, params);
+    }
 
     /** {@code CAST(expr AS sqlType)} */
-    public static <V> CastExpr<V> cast(Expr<?> expr, String sqlType) { return new CastExpr<>(expr, sqlType); }
+    public static <V> CastExpr<V> cast(Expr<?> expr, String sqlType) {
+        return new CastExpr<>(expr, sqlType);
+    }
 
     /** A scalar subquery expression: {@code (SELECT ...)}. */
-    public static <V> SubqueryExpr<V> subquery(SelectStatement q) { return new SubqueryExpr<>(q); }
+    public static <V> SubqueryExpr<V> subquery(SelectStatement q) {
+        return new SubqueryExpr<>(q);
+    }
 
     // ------------------------------------------------------------------ //
     //  Aggregate functions
     // ------------------------------------------------------------------ //
 
-    public static <V> AggExpr<V> count(Expr<V> expr) { return AggExpr.of("COUNT", expr); }
-    public static AggExpr<Long>  countStar()          { return AggExpr.of("COUNT", StarExpr.ALL); }
-    public static <V> AggExpr<V> sum(Expr<V> expr)    { return AggExpr.of("SUM",   expr); }
-    public static <V> AggExpr<V> avg(Expr<V> expr)    { return AggExpr.of("AVG",   expr); }
-    public static <V> AggExpr<V> min(Expr<V> expr)    { return AggExpr.of("MIN",   expr); }
-    public static <V> AggExpr<V> max(Expr<V> expr)    { return AggExpr.of("MAX",   expr); }
+    public static <V> AggExpr<V> count(Expr<V> expr) {
+        return AggExpr.of("COUNT", expr);
+    }
+
+    public static AggExpr<Long> countStar() {
+        return AggExpr.of("COUNT", StarExpr.ALL);
+    }
+
+    public static <V> AggExpr<V> sum(Expr<V> expr) {
+        return AggExpr.of("SUM", expr);
+    }
+
+    public static <V> AggExpr<V> avg(Expr<V> expr) {
+        return AggExpr.of("AVG", expr);
+    }
+
+    public static <V> AggExpr<V> min(Expr<V> expr) {
+        return AggExpr.of("MIN", expr);
+    }
+
+    public static <V> AggExpr<V> max(Expr<V> expr) {
+        return AggExpr.of("MAX", expr);
+    }
 
     /** {@code COUNT(DISTINCT expr)} */
-    public static <V> AggExpr<V> countDistinct(Expr<V> expr) { return AggExpr.distinct("COUNT", expr); }
+    public static <V> AggExpr<V> countDistinct(Expr<V> expr) {
+        return AggExpr.distinct("COUNT", expr);
+    }
 
     // ------------------------------------------------------------------ //
     //  Scalar / window functions
     // ------------------------------------------------------------------ //
 
-    public static AggExpr<Long> rowNumber()          { return AggExpr.of("ROW_NUMBER"); }
-    public static AggExpr<Long> rank()               { return AggExpr.of("RANK"); }
-    public static AggExpr<Long> denseRank()          { return AggExpr.of("DENSE_RANK"); }
-    public static <V> AggExpr<V> lag(Expr<V> expr, int offset)  { return AggExpr.of("LAG",  expr, val(offset)); }
-    public static <V> AggExpr<V> lead(Expr<V> expr, int offset) { return AggExpr.of("LEAD", expr, val(offset)); }
-    public static <V> AggExpr<V> firstValue(Expr<V> expr)       { return AggExpr.of("FIRST_VALUE", expr); }
-    public static <V> AggExpr<V> lastValue(Expr<V> expr)        { return AggExpr.of("LAST_VALUE",  expr); }
+    public static AggExpr<Long> rowNumber() {
+        return AggExpr.of("ROW_NUMBER");
+    }
+
+    public static AggExpr<Long> rank() {
+        return AggExpr.of("RANK");
+    }
+
+    public static AggExpr<Long> denseRank() {
+        return AggExpr.of("DENSE_RANK");
+    }
+
+    public static <V> AggExpr<V> lag(Expr<V> expr, int offset) {
+        return AggExpr.of("LAG", expr, val(offset));
+    }
+
+    public static <V> AggExpr<V> lead(Expr<V> expr, int offset) {
+        return AggExpr.of("LEAD", expr, val(offset));
+    }
+
+    public static <V> AggExpr<V> firstValue(Expr<V> expr) {
+        return AggExpr.of("FIRST_VALUE", expr);
+    }
+
+    public static <V> AggExpr<V> lastValue(Expr<V> expr) {
+        return AggExpr.of("LAST_VALUE", expr);
+    }
 
     public static <V> FunctionExpr<V> fn(String name, Expr<?>... args) {
         return FunctionExpr.of(name, args);
@@ -112,10 +164,19 @@ public final class SQL {
     //  Condition factories
     // ------------------------------------------------------------------ //
 
-    public static ExistsCondition exists(SelectStatement q)    { return ExistsCondition.exists(q);    }
-    public static ExistsCondition notExists(SelectStatement q) { return ExistsCondition.notExists(q); }
-    public static RawCondition    rawCond(String sql)          { return RawCondition.of(sql);          }
-    public static RawCondition    rawCond(String sql, Map<String, Object> params) {
+    public static ExistsCondition exists(SelectStatement q) {
+        return ExistsCondition.exists(q);
+    }
+
+    public static ExistsCondition notExists(SelectStatement q) {
+        return ExistsCondition.notExists(q);
+    }
+
+    public static RawCondition rawCond(String sql) {
+        return RawCondition.of(sql);
+    }
+
+    public static RawCondition rawCond(String sql, Map<String, Object> params) {
         return RawCondition.of(sql, params);
     }
 }

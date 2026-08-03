@@ -170,8 +170,7 @@ public class UpdateBuilder<T> {
      * A {@code null} value is <em>not</em> skipped; {@code null} produces a {@code null} pattern
      * passed directly to the LIKE expression.
      */
-    public UpdateBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value,
-                                           boolean condition) {
+    public UpdateBuilder<T> likeIgnoreCase(SingularAttribute<? super T, String> attr, String value, boolean condition) {
         if (condition) {
             String pattern = value != null ? "%" + value.toLowerCase() + "%" : null;
             whereConditions.add((root, cb) -> cb.like(cb.lower(root.get(attr)), pattern));
@@ -179,8 +178,7 @@ public class UpdateBuilder<T> {
         return this;
     }
 
-    public <V extends Comparable<? super V>> UpdateBuilder<T> gt(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> UpdateBuilder<T> gt(SingularAttribute<? super T, V> attr, V value) {
         whereConditions.add((root, cb) -> cb.greaterThan(root.get(attr), value));
         return this;
     }
@@ -197,8 +195,7 @@ public class UpdateBuilder<T> {
         return this;
     }
 
-    public <V extends Comparable<? super V>> UpdateBuilder<T> gte(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> UpdateBuilder<T> gte(SingularAttribute<? super T, V> attr, V value) {
         whereConditions.add((root, cb) -> cb.greaterThanOrEqualTo(root.get(attr), value));
         return this;
     }
@@ -215,8 +212,7 @@ public class UpdateBuilder<T> {
         return this;
     }
 
-    public <V extends Comparable<? super V>> UpdateBuilder<T> lt(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> UpdateBuilder<T> lt(SingularAttribute<? super T, V> attr, V value) {
         whereConditions.add((root, cb) -> cb.lessThan(root.get(attr), value));
         return this;
     }
@@ -233,8 +229,7 @@ public class UpdateBuilder<T> {
         return this;
     }
 
-    public <V extends Comparable<? super V>> UpdateBuilder<T> lte(
-            SingularAttribute<? super T, V> attr, V value) {
+    public <V extends Comparable<? super V>> UpdateBuilder<T> lte(SingularAttribute<? super T, V> attr, V value) {
         whereConditions.add((root, cb) -> cb.lessThanOrEqualTo(root.get(attr), value));
         return this;
     }
@@ -330,8 +325,7 @@ public class UpdateBuilder<T> {
      */
     int execute(EntityManager em) {
         if (setClauses.isEmpty()) {
-            throw new IllegalStateException(
-                    "At least one SET clause is required before calling execute()");
+            throw new IllegalStateException("At least one SET clause is required before calling execute()");
         }
 
         CriteriaBuilder cb = em.getCriteriaBuilder();

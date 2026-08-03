@@ -3,9 +3,9 @@ package io.github.jsbxyyx.jpadsl;
 import io.github.jsbxyyx.jpadsl.testmodel.Order;
 import io.github.jsbxyyx.jpadsl.testmodel.Order_;
 import io.github.jsbxyyx.jpadsl.testmodel.TestOrderRepository;
+import io.github.jsbxyyx.jpadsl.testmodel.TestUserRepository;
 import io.github.jsbxyyx.jpadsl.testmodel.User;
 import io.github.jsbxyyx.jpadsl.testmodel.User_;
-import io.github.jsbxyyx.jpadsl.testmodel.TestUserRepository;
 import jakarta.persistence.criteria.JoinType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 class SpecificationBuilderTest {
@@ -49,13 +48,10 @@ class SpecificationBuilderTest {
 
     @Test
     void builder_eqPredicate() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, "ACTIVE")
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -65,9 +61,7 @@ class SpecificationBuilderTest {
                 .gt(User_.age, 35)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Charlie");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
@@ -77,20 +71,15 @@ class SpecificationBuilderTest {
                 .gte(User_.age, 30)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Alice");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
     void builder_between() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .between(User_.age, 25, 30)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().between(User_.age, 25, 30).build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -99,9 +88,7 @@ class SpecificationBuilderTest {
                 .in(User_.name, Arrays.asList("Alice", "Charlie"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -110,50 +97,36 @@ class SpecificationBuilderTest {
                 .notIn(User_.name, Arrays.asList("Alice", "Bob"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Charlie");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
     void builder_isNullAndIsNotNull() {
-        Specification<User> nullEmail = SpecificationBuilder.<User>builder()
-                .isNull(User_.email)
-                .build();
+        Specification<User> nullEmail =
+                SpecificationBuilder.<User>builder().isNull(User_.email).build();
         List<User> withNullEmail = userRepository.findAll(nullEmail);
-        assertThat(withNullEmail).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Charlie");
+        assertThat(withNullEmail).hasSize(1).extracting(User::getName).containsExactly("Charlie");
 
-        Specification<User> notNullEmail = SpecificationBuilder.<User>builder()
-                .isNotNull(User_.email)
-                .build();
+        Specification<User> notNullEmail =
+                SpecificationBuilder.<User>builder().isNotNull(User_.email).build();
         List<User> withEmail = userRepository.findAll(notNullEmail);
-        assertThat(withEmail).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(withEmail).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void builder_ne() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .ne(User_.status, "ACTIVE")
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().ne(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Bob");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
     void builder_lte() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .lte(User_.age, 30)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().lte(User_.age, 30).build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -162,62 +135,53 @@ class SpecificationBuilderTest {
                 .likeIgnoreCase(User_.name, "alice")
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Alice");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
     void builder_orComposition() {
         Specification<User> orSpec = SpecificationDsl.or(
-                SpecificationDsl.eq(User_.name, "Alice"),
-                SpecificationDsl.eq(User_.name, "Charlie")
-        );
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .predicate(orSpec)
-                .build();
+                SpecificationDsl.eq(User_.name, "Alice"), SpecificationDsl.eq(User_.name, "Charlie"));
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().predicate(orSpec).build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void builder_leftJoin_findOrdersByUserStatus() {
         Specification<Order> spec = SpecificationBuilder.<Order>builder()
-                .join(Order_.user, JoinType.LEFT,
-                        (join, query, cb, predicates) ->
-                                predicates.add(cb.equal(join.get(User_.status), "ACTIVE")))
+                .join(
+                        Order_.user,
+                        JoinType.LEFT,
+                        (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(User_.status), "ACTIVE")))
                 .build();
         List<Order> result = orderRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(Order::getOrderNo)
-                .containsExactlyInAnyOrder("ORD-001", "ORD-002");
+        assertThat(result).hasSize(2).extracting(Order::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-002");
     }
 
     @Test
     void builder_innerJoin_findOrdersByUserName() {
         Specification<Order> spec = SpecificationBuilder.<Order>builder()
-                .join(Order_.user, JoinType.INNER,
-                        (join, query, cb, predicates) ->
-                                predicates.add(cb.equal(join.get(User_.name), "Bob")))
+                .join(
+                        Order_.user,
+                        JoinType.INNER,
+                        (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(User_.name), "Bob")))
                 .build();
         List<Order> result = orderRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(Order::getOrderNo)
-                .containsExactly("ORD-003");
+        assertThat(result).hasSize(1).extracting(Order::getOrderNo).containsExactly("ORD-003");
     }
 
     @Test
     void builder_pluralJoin_findUsersWithPaidOrders() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .join(User_.orders, JoinType.INNER,
-                        (join, query, cb, predicates) ->
-                                predicates.add(cb.equal(join.get(Order_.status), "PAID")))
+                .join(
+                        User_.orders,
+                        JoinType.INNER,
+                        (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(Order_.status), "PAID")))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -235,8 +199,7 @@ class SpecificationBuilderTest {
     @Test
     void builder_emptyBuilder_returnsAll() {
         // An empty builder (no predicates) returns every row — no safety guard
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .build();
+        Specification<User> spec = SpecificationBuilder.<User>builder().build();
         List<User> result = userRepository.findAll(spec);
         assertThat(result).hasSize(3);
     }
@@ -252,22 +215,18 @@ class SpecificationBuilderTest {
                 .eq(User_.status, "ACTIVE", true)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void builder_condition_falseSkipsPredicate_otherPredicateStillActive() {
         // condition=false: predicate is skipped; the other predicate still applies
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, "INACTIVE", false)  // skipped
-                .eq(User_.name, "Alice", true)         // applied
+                .eq(User_.status, "INACTIVE", false) // skipped
+                .eq(User_.name, "Alice", true) // applied
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Alice");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
@@ -279,9 +238,7 @@ class SpecificationBuilderTest {
                 .eq(User_.name, "Bob", true)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Bob");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
@@ -300,27 +257,32 @@ class SpecificationBuilderTest {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .like(User_.name, "Ali", true)
                 .build();
-        assertThat(userRepository.findAll(spec)).hasSize(1)
-                .extracting(User::getName).containsExactly("Alice");
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Alice");
     }
 
     @Test
     void builder_condition_gtConditionTrue() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .gt(User_.age, 35, true)
-                .build();
-        assertThat(userRepository.findAll(spec)).hasSize(1)
-                .extracting(User::getName).containsExactly("Charlie");
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().gt(User_.age, 35, true).build();
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Charlie");
     }
 
     @Test
     void builder_condition_betweenConditionFalse_otherPredicateApplied() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .between(User_.age, 1, 2, false)   // skipped
+                .between(User_.age, 1, 2, false) // skipped
                 .eq(User_.status, "INACTIVE", true) // applied
                 .build();
-        assertThat(userRepository.findAll(spec)).hasSize(1)
-                .extracting(User::getName).containsExactly("Bob");
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Bob");
     }
 
     @Test
@@ -328,27 +290,32 @@ class SpecificationBuilderTest {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .in(User_.name, Arrays.asList("Alice", "Bob"), true)
                 .build();
-        assertThat(userRepository.findAll(spec)).hasSize(2)
-                .extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(userRepository.findAll(spec))
+                .hasSize(2)
+                .extracting(User::getName)
+                .containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void builder_condition_isNullConditionTrue() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .isNull(User_.email, true)
-                .build();
-        assertThat(userRepository.findAll(spec)).hasSize(1)
-                .extracting(User::getName).containsExactly("Charlie");
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().isNull(User_.email, true).build();
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Charlie");
     }
 
     @Test
     void builder_condition_isNullConditionFalse_otherPredicateApplied() {
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .isNull(User_.email, false)          // skipped
-                .eq(User_.status, "ACTIVE", true)   // applied
+                .isNull(User_.email, false) // skipped
+                .eq(User_.status, "ACTIVE", true) // applied
                 .build();
-        assertThat(userRepository.findAll(spec)).hasSize(2)
-                .extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(userRepository.findAll(spec))
+                .hasSize(2)
+                .extracting(User::getName)
+                .containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -357,7 +324,7 @@ class SpecificationBuilderTest {
         // build() must not throw the full-table guard because the predicate was registered.
         // The query may return 0 rows (JPA `= null` semantics), but it must execute cleanly.
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, (String) null, true)  // null value, condition=true → predicate added
+                .eq(User_.status, (String) null, true) // null value, condition=true → predicate added
                 .build();
         // Should not throw — just returns whatever JPA produces for "status = NULL"
         List<User> result = userRepository.findAll(spec);
@@ -369,8 +336,8 @@ class SpecificationBuilderTest {
         // Verify that with condition=true the full-table guard is not triggered even with null value,
         // and that a second non-null predicate works correctly alongside it.
         Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.email, (String) null, true)   // null value, condition=true → predicate IS added
-                .eq(User_.status, "ACTIVE", false)      // condition=false → skipped
+                .eq(User_.email, (String) null, true) // null value, condition=true → predicate IS added
+                .eq(User_.status, "ACTIVE", false) // condition=false → skipped
                 .build();
         // build() should not throw — the first predicate (with null value) counts as added
         List<User> result = userRepository.findAll(spec);

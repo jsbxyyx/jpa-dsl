@@ -28,7 +28,15 @@ public final class InSubqueryPredicate implements PredicateNode {
         this.negated = negated;
     }
 
-    public SqlExpression<?> getLhs() { return lhs; }
-    public SelectSpec<?, ?> getSubquery() { return subquery; }
-    public boolean isNegated() { return negated; }
+    public SqlExpression<?> getLhs() {
+        return lhs;
+    }
+
+    public SelectSpec<?, ?> getSubquery() {
+        return subquery;
+    }
+
+    public boolean isNegated() {
+        return negated;
+    }
 }

@@ -18,5 +18,4 @@ package io.github.jsbxyyx.jdbcdsl;
  * @param name the CTE name used in the WITH clause and referenced in FROM / JOIN clauses
  * @param body the SELECT spec for the CTE body (ORDER BY is omitted in the CTE body)
  */
-public record CteDef(String name, SelectSpec<?, ?> body) {
-}
+public record CteDef(String name, SelectSpec<?, ?> body) {}

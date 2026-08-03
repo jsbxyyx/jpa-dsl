@@ -12,10 +12,19 @@ import io.github.jsbxyyx.jdbcast.expr.Expr;
 public record OrderItem(Expr<?> expr, boolean asc, Boolean nullsFirst) {
 
     /** Creates an ascending order item with database-default NULLS placement. */
-    public static OrderItem asc(Expr<?> expr)  { return new OrderItem(expr, true,  null); }
+    public static OrderItem asc(Expr<?> expr) {
+        return new OrderItem(expr, true, null);
+    }
     /** Creates a descending order item with database-default NULLS placement. */
-    public static OrderItem desc(Expr<?> expr) { return new OrderItem(expr, false, null); }
+    public static OrderItem desc(Expr<?> expr) {
+        return new OrderItem(expr, false, null);
+    }
 
-    public OrderItem withNullsFirst() { return new OrderItem(expr, asc, true);  }
-    public OrderItem withNullsLast()  { return new OrderItem(expr, asc, false); }
+    public OrderItem withNullsFirst() {
+        return new OrderItem(expr, asc, true);
+    }
+
+    public OrderItem withNullsLast() {
+        return new OrderItem(expr, asc, false);
+    }
 }

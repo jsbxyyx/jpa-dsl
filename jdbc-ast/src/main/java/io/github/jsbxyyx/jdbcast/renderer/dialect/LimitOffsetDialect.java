@@ -25,7 +25,11 @@ public final class LimitOffsetDialect implements PaginationDialect {
 
     @Override
     public void renderPage(StringBuilder sb, Long limit, Long offset, RenderContext ctx) {
-        if (limit  != null) sb.append(" LIMIT " ).append(ctx.addParam(limit));
-        if (offset != null) sb.append(" OFFSET ").append(ctx.addParam(offset));
+        if (limit != null) {
+            sb.append(" LIMIT ").append(ctx.addParam(limit));
+        }
+        if (offset != null) {
+            sb.append(" OFFSET ").append(ctx.addParam(offset));
+        }
     }
 }

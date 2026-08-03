@@ -36,11 +36,10 @@ import java.util.concurrent.ConcurrentMap;
 public final class SpringDataRelationalMetaResolver implements MetaResolver {
 
     /** Shared singleton. */
-    public static final SpringDataRelationalMetaResolver INSTANCE =
-            new SpringDataRelationalMetaResolver();
+    public static final SpringDataRelationalMetaResolver INSTANCE = new SpringDataRelationalMetaResolver();
 
-    private final ConcurrentMap<Class<?>, String> tableCache  = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, String>   columnCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Class<?>, String> tableCache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> columnCache = new ConcurrentHashMap<>();
 
     private SpringDataRelationalMetaResolver() {}
 
@@ -62,8 +61,7 @@ public final class SpringDataRelationalMetaResolver implements MetaResolver {
     @Override
     public String columnName(Class<?> entityClass, String propertyName) {
         String key = entityClass.getName() + "#" + propertyName;
-        return columnCache.computeIfAbsent(key,
-                k -> resolveColumnName(new PropertyRef(entityClass, propertyName)));
+        return columnCache.computeIfAbsent(key, k -> resolveColumnName(new PropertyRef(entityClass, propertyName)));
     }
 
     // ------------------------------------------------------------------ //
@@ -72,16 +70,22 @@ public final class SpringDataRelationalMetaResolver implements MetaResolver {
 
     private String resolveTableName(Class<?> cls) {
         // 1. Spring Data Relational @Table(value / schema)
-        String sdName = readAnnotationStringAttr(cls,
-                "org.springframework.data.relational.core.mapping.Table", "value");
-        if (sdName != null && !sdName.isEmpty()) return sdName;
+        String sdName =
+                readAnnotationStringAttr(cls, "org.springframework.data.relational.core.mapping.Table", "value");
+        if (sdName != null && !sdName.isEmpty()) {
+            return sdName;
+        }
 
         // 2. Jakarta / javax @Table(name)
         String jpaName = readAnnotationStringAttr(cls, "jakarta.persistence.Table", "name");
-        if (jpaName != null && !jpaName.isEmpty()) return jpaName;
+        if (jpaName != null && !jpaName.isEmpty()) {
+            return jpaName;
+        }
 
         String jpaName2 = readAnnotationStringAttr(cls, "javax.persistence.Table", "name");
-        if (jpaName2 != null && !jpaName2.isEmpty()) return jpaName2;
+        if (jpaName2 != null && !jpaName2.isEmpty()) {
+            return jpaName2;
+        }
 
         // 3. Fallback: snake_case of simple class name
         return toSnakeCase(cls.getSimpleName());
@@ -95,16 +99,22 @@ public final class SpringDataRelationalMetaResolver implements MetaResolver {
         Field field = findField(ref.ownerClass(), ref.propertyName());
         if (field != null) {
             // 1. Spring Data Relational @Column(value)
-            String sdCol = readAnnotationStringAttr(field,
-                    "org.springframework.data.relational.core.mapping.Column", "value");
-            if (sdCol != null && !sdCol.isEmpty()) return sdCol;
+            String sdCol =
+                    readAnnotationStringAttr(field, "org.springframework.data.relational.core.mapping.Column", "value");
+            if (sdCol != null && !sdCol.isEmpty()) {
+                return sdCol;
+            }
 
             // 2. Jakarta / javax @Column(name)
             String jpaCol = readAnnotationStringAttr(field, "jakarta.persistence.Column", "name");
-            if (jpaCol != null && !jpaCol.isEmpty()) return jpaCol;
+            if (jpaCol != null && !jpaCol.isEmpty()) {
+                return jpaCol;
+            }
 
             String jpaCol2 = readAnnotationStringAttr(field, "javax.persistence.Column", "name");
-            if (jpaCol2 != null && !jpaCol2.isEmpty()) return jpaCol2;
+            if (jpaCol2 != null && !jpaCol2.isEmpty()) {
+                return jpaCol2;
+            }
         }
         // 3. Fallback: snake_case of property name (Spring Data JDBC DefaultNamingStrategy)
         return toSnakeCase(ref.propertyName());
@@ -119,7 +129,9 @@ public final class SpringDataRelationalMetaResolver implements MetaResolver {
             @SuppressWarnings("unchecked")
             Class<Annotation> annClass = (Class<Annotation>) Class.forName(annotationFqn);
             Annotation ann = cls.getAnnotation(annClass);
-            if (ann == null) return null;
+            if (ann == null) {
+                return null;
+            }
             Method m = annClass.getMethod(method);
             return (String) m.invoke(ann);
         } catch (Exception ignored) {
@@ -132,7 +144,9 @@ public final class SpringDataRelationalMetaResolver implements MetaResolver {
             @SuppressWarnings("unchecked")
             Class<Annotation> annClass = (Class<Annotation>) Class.forName(annotationFqn);
             Annotation ann = field.getAnnotation(annClass);
-            if (ann == null) return null;
+            if (ann == null) {
+                return null;
+            }
             Method m = annClass.getMethod(method);
             return (String) m.invoke(ann);
         } catch (Exception ignored) {
@@ -170,7 +184,9 @@ public final class SpringDataRelationalMetaResolver implements MetaResolver {
      * </ul>
      */
     public static String toSnakeCase(String name) {
-        if (name == null || name.isEmpty()) return name;
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);

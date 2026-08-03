@@ -3,9 +3,9 @@ package io.github.jsbxyyx.jpadsl;
 import io.github.jsbxyyx.jpadsl.testmodel.Order;
 import io.github.jsbxyyx.jpadsl.testmodel.Order_;
 import io.github.jsbxyyx.jpadsl.testmodel.TestOrderRepository;
+import io.github.jsbxyyx.jpadsl.testmodel.TestUserRepository;
 import io.github.jsbxyyx.jpadsl.testmodel.User;
 import io.github.jsbxyyx.jpadsl.testmodel.User_;
-import io.github.jsbxyyx.jpadsl.testmodel.TestUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,10 +24,10 @@ import static io.github.jsbxyyx.jpadsl.SpecificationDsl.gte;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.in;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.isNotNull;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.isNull;
-import static io.github.jsbxyyx.jpadsl.SpecificationDsl.lt;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.like;
-import static io.github.jsbxyyx.jpadsl.SpecificationDsl.not;
+import static io.github.jsbxyyx.jpadsl.SpecificationDsl.lt;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.ne;
+import static io.github.jsbxyyx.jpadsl.SpecificationDsl.not;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.notIn;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.or;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,158 +63,118 @@ class SpecificationDslTest {
     void eq_shouldFilterByStatus() {
         Specification<User> spec = eq(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void ne_shouldExcludeStatus() {
         Specification<User> spec = ne(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Bob");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
     void like_shouldFilterByName() {
         Specification<User> spec = like(User_.name, "lic");
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Alice");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
     void gt_shouldFilterByAge() {
         Specification<User> spec = gt(User_.age, 25);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void lt_shouldFilterByAge() {
         Specification<User> spec = lt(User_.age, 30);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Bob");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
     void gte_shouldFilterByAge() {
         Specification<User> spec = gte(User_.age, 30);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void between_shouldFilterByAge() {
         Specification<User> spec = between(User_.age, 25, 30);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void in_shouldFilterByNames() {
         Specification<User> spec = in(User_.name, Arrays.asList("Alice", "Bob"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void in_collection_shouldFilterByNames() {
         Specification<User> spec = in(User_.name, List.of("Alice", "Charlie"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void notIn_shouldExcludeNames() {
         Specification<User> spec = notIn(User_.name, Arrays.asList("Alice", "Bob"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Charlie");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
     void isNull_shouldFindUsersWithNullEmail() {
         Specification<User> spec = isNull(User_.email);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Charlie");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
     void isNotNull_shouldFindUsersWithNonNullEmail() {
         Specification<User> spec = isNotNull(User_.email);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void and_shouldCombinePredicates() {
         Specification<User> spec = and(eq(User_.status, "ACTIVE"), gt(User_.age, 35));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Charlie");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
     void or_shouldCombinePredicates() {
         Specification<User> spec = or(eq(User_.name, "Alice"), eq(User_.name, "Bob"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Bob");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void not_shouldNegateSpec() {
         Specification<User> spec = not(eq(User_.status, "ACTIVE"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1)
-                .extracting(User::getName)
-                .containsExactly("Bob");
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
     void nestedAndOr_shouldWorkCorrectly() {
-        Specification<User> spec = and(
-                eq(User_.status, "ACTIVE"),
-                or(
-                        gt(User_.age, 35),
-                        like(User_.name, "lic")
-                )
-        );
+        Specification<User> spec = and(eq(User_.status, "ACTIVE"), or(gt(User_.age, 35), like(User_.name, "lic")));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(User::getName)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
     void orderQuery_amountBetween() {
         Specification<Order> spec = between(Order_.amount, new BigDecimal("50.00"), new BigDecimal("200.00"));
         List<Order> result = orderRepository.findAll(spec);
-        assertThat(result).hasSize(2)
-                .extracting(Order::getOrderNo)
-                .containsExactlyInAnyOrder("ORD-001", "ORD-003");
+        assertThat(result).hasSize(2).extracting(Order::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-003");
     }
 }

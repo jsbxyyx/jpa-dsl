@@ -17,8 +17,7 @@ public final class JdbcDslConfig {
     private static final AtomicReference<NamingStrategy> namingStrategy =
             new AtomicReference<>(DefaultNamingStrategy.INSTANCE);
 
-    private JdbcDslConfig() {
-    }
+    private JdbcDslConfig() {}
 
     /**
      * Returns {@code true} when UPDATE/DELETE without a WHERE clause is permitted globally.

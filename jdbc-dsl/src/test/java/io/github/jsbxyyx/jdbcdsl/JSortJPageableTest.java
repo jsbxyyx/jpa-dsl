@@ -273,8 +273,7 @@ class JSortJPageableTest {
     @Test
     void jSort_toSpringSort_propagatesNullHandling() {
         Sort springSort = JSort.by(JOrder.asc(TUser::getUsername).nullsFirst()).toSpringSort();
-        assertThat(springSort.getOrderFor("username").getNullHandling())
-                .isEqualTo(Sort.NullHandling.NULLS_FIRST);
+        assertThat(springSort.getOrderFor("username").getNullHandling()).isEqualTo(Sort.NullHandling.NULLS_FIRST);
     }
 
     // ====================================================================

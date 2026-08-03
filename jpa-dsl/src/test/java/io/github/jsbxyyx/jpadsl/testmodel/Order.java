@@ -38,8 +38,7 @@ public class Order {
     @Column(name = "user_id", insertable = false, updatable = false)
     private Long userId;
 
-    public Order() {
-    }
+    public Order() {}
 
     public Order(String orderNo, BigDecimal amount, String status, User user) {
         this.orderNo = orderNo;
@@ -48,18 +47,43 @@ public class Order {
         this.user = user;
     }
 
-    public Long getId() { return id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getOrderNo() { return orderNo; }
-    public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public String getOrderNo() {
+        return orderNo;
+    }
 
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setOrderNo(String orderNo) {
+        this.orderNo = orderNo;
+    }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public BigDecimal getAmount() {
+        return amount;
+    }
 
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-    public Long getUserId() { return userId; }
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
 }

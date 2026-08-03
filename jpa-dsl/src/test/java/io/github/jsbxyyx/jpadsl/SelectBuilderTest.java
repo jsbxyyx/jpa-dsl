@@ -52,9 +52,8 @@ class SelectBuilderTest {
 
     @Test
     void select_shouldReturnDtoList_noFilter() {
-        SelectSpec<User, UserIdNameDto> spec = SelectBuilder.from(User.class)
-                .select(User_.id, User_.name)
-                .mapTo(UserIdNameDto.class);
+        SelectSpec<User, UserIdNameDto> spec =
+                SelectBuilder.from(User.class).select(User_.id, User_.name).mapTo(UserIdNameDto.class);
 
         List<UserIdNameDto> result = userRepository.select(spec);
 
@@ -67,9 +66,8 @@ class SelectBuilderTest {
 
     @Test
     void select_shouldReturnDtoList_withEqFilter() {
-        Specification<User> where = SpecificationBuilder.<User>builder()
-                .eq(User_.status, "ACTIVE")
-                .build();
+        Specification<User> where =
+                SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
 
         SelectSpec<User, UserIdNameDto> spec = SelectBuilder.from(User.class)
                 .select(User_.id, User_.name)
@@ -79,15 +77,13 @@ class SelectBuilderTest {
         List<UserIdNameDto> result = userRepository.select(spec);
 
         assertThat(result).hasSize(3);
-        assertThat(result).extracting(UserIdNameDto::name)
-                .containsExactlyInAnyOrder("Alice", "Charlie", "David");
+        assertThat(result).extracting(UserIdNameDto::name).containsExactlyInAnyOrder("Alice", "Charlie", "David");
     }
 
     @Test
     void select_shouldReturnDtoList_withLikeFilter() {
-        Specification<User> where = SpecificationBuilder.<User>builder()
-                .like(User_.name, "li")
-                .build();
+        Specification<User> where =
+                SpecificationBuilder.<User>builder().like(User_.name, "li").build();
 
         SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
                 .select(User_.id, User_.name, User_.email)
@@ -98,8 +94,7 @@ class SelectBuilderTest {
 
         // "Alice" and "Charlie" both contain "li"
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::name)
-                .containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).extracting(UserDto::name).containsExactlyInAnyOrder("Alice", "Charlie");
         assertThat(result).allSatisfy(dto -> {
             assertThat(dto.id()).isNotNull();
             assertThat(dto.email()).isNotNull();
@@ -108,9 +103,8 @@ class SelectBuilderTest {
 
     @Test
     void select_shouldMapFieldsCorrectly() {
-        Specification<User> where = SpecificationBuilder.<User>builder()
-                .eq(User_.name, "Alice")
-                .build();
+        Specification<User> where =
+                SpecificationBuilder.<User>builder().eq(User_.name, "Alice").build();
 
         SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
                 .select(User_.id, User_.name, User_.email)
@@ -132,9 +126,8 @@ class SelectBuilderTest {
 
     @Test
     void selectPage_shouldApplyPaginationAndCount() {
-        SelectSpec<User, UserIdNameDto> spec = SelectBuilder.from(User.class)
-                .select(User_.id, User_.name)
-                .mapTo(UserIdNameDto.class);
+        SelectSpec<User, UserIdNameDto> spec =
+                SelectBuilder.from(User.class).select(User_.id, User_.name).mapTo(UserIdNameDto.class);
 
         Page<UserIdNameDto> page = userRepository.selectPage(spec, PageRequest.of(0, 3));
 
@@ -145,55 +138,51 @@ class SelectBuilderTest {
 
     @Test
     void selectPage_shouldApplyPaginationAndCountAndSort() {
-        SelectSpec<User, UserIdNameDto> spec = SelectBuilder.from(User.class)
-                .select(User_.id, User_.name)
-                .mapTo(UserIdNameDto.class);
+        SelectSpec<User, UserIdNameDto> spec =
+                SelectBuilder.from(User.class).select(User_.id, User_.name).mapTo(UserIdNameDto.class);
 
-        Page<UserIdNameDto> page = userRepository.selectPage(
-                spec, PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "name")));
+        Page<UserIdNameDto> page =
+                userRepository.selectPage(spec, PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "name")));
 
         assertThat(page.getContent()).hasSize(5);
         assertThat(page.getTotalElements()).isEqualTo(5);
         // Sorted DESC by name: Eve, David, Charlie, Bob, Alice
-        assertThat(page.getContent()).extracting(UserIdNameDto::name)
+        assertThat(page.getContent())
+                .extracting(UserIdNameDto::name)
                 .containsExactly("Eve", "David", "Charlie", "Bob", "Alice");
     }
 
     @Test
     void selectPage_secondPage_shouldReturnCorrectContent() {
-        SelectSpec<User, UserIdNameDto> spec = SelectBuilder.from(User.class)
-                .select(User_.id, User_.name)
-                .mapTo(UserIdNameDto.class);
+        SelectSpec<User, UserIdNameDto> spec =
+                SelectBuilder.from(User.class).select(User_.id, User_.name).mapTo(UserIdNameDto.class);
 
-        Page<UserIdNameDto> page = userRepository.selectPage(
-                spec, PageRequest.of(1, 2, Sort.by(Sort.Direction.ASC, "name")));
+        Page<UserIdNameDto> page =
+                userRepository.selectPage(spec, PageRequest.of(1, 2, Sort.by(Sort.Direction.ASC, "name")));
 
         // First page (page 0, size 2, ASC): Alice, Bob
         // Second page (page 1, size 2, ASC): Charlie, David
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getTotalElements()).isEqualTo(5);
-        assertThat(page.getContent()).extracting(UserIdNameDto::name)
-                .containsExactly("Charlie", "David");
+        assertThat(page.getContent()).extracting(UserIdNameDto::name).containsExactly("Charlie", "David");
     }
 
     @Test
     void selectPage_withWhereFilter_shouldApplyCountCorrectly() {
-        Specification<User> where = SpecificationBuilder.<User>builder()
-                .eq(User_.status, "ACTIVE")
-                .build();
+        Specification<User> where =
+                SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
 
         SelectSpec<User, UserIdNameDto> spec = SelectBuilder.from(User.class)
                 .select(User_.id, User_.name)
                 .where(where)
                 .mapTo(UserIdNameDto.class);
 
-        Page<UserIdNameDto> page = userRepository.selectPage(
-                spec, PageRequest.of(0, 2, Sort.by(Sort.Direction.ASC, "name")));
+        Page<UserIdNameDto> page =
+                userRepository.selectPage(spec, PageRequest.of(0, 2, Sort.by(Sort.Direction.ASC, "name")));
 
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getTotalElements()).isEqualTo(3);
-        assertThat(page.getContent()).extracting(UserIdNameDto::name)
-                .containsExactly("Alice", "Charlie");
+        assertThat(page.getContent()).extracting(UserIdNameDto::name).containsExactly("Alice", "Charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -202,20 +191,17 @@ class SelectBuilderTest {
 
     @Test
     void selectSpec_noAttrs_shouldThrowException() {
-        assertThatThrownBy(() ->
-                SelectBuilder.from(User.class)
-                        .mapTo(UserDto.class)
-        ).isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> SelectBuilder.from(User.class).mapTo(UserDto.class))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("select");
     }
 
     @Test
     void selectSpec_nullDtoClass_shouldThrowException() {
-        assertThatThrownBy(() ->
-                SelectBuilder.from(User.class)
+        assertThatThrownBy(() -> SelectBuilder.from(User.class)
                         .select(User_.id, User_.name)
-                        .mapTo(null)
-        ).isInstanceOf(IllegalArgumentException.class)
+                        .mapTo(null))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("dtoClass");
     }
 

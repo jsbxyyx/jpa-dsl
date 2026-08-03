@@ -36,10 +36,14 @@ public final class CaseExpression<V> implements SqlExpression<V> {
         this.elseExpr = elseExpr;
     }
 
-    public List<WhenClause> getWhenClauses() { return whenClauses; }
+    public List<WhenClause> getWhenClauses() {
+        return whenClauses;
+    }
 
     /** Returns the {@code ELSE} expression, or {@code null} if none was specified. */
-    public SqlExpression<?> getElseExpr() { return elseExpr; }
+    public SqlExpression<?> getElseExpr() {
+        return elseExpr;
+    }
 
     /** Returns a new builder for constructing a {@link CaseExpression}. */
     public static Builder builder() {

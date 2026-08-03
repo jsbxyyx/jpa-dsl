@@ -7,5 +7,4 @@ package io.github.jsbxyyx.jdbcast.expr;
  *
  * @param <V> the Java type of the wrapped expression
  */
-public record AliasedExpr<V>(Expr<V> inner, String alias) implements Expr<V> {
-}
+public record AliasedExpr<V>(Expr<V> inner, String alias) implements Expr<V> {}

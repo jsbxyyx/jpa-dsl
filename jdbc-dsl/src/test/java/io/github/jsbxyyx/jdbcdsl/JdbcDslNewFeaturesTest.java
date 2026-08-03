@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Sql(scripts = "/jdbcdsl-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@Sql(scripts = "/jdbcdsl-data.sql",   executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@Sql(scripts = "/jdbcdsl-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @Sql(scripts = "/jdbcdsl-cleanup.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class JdbcDslNewFeaturesTest {
 
@@ -50,8 +50,8 @@ class JdbcDslNewFeaturesTest {
 
     @Test
     void executeBatchInsert_emptyList_returnsEmptyArray() {
-        BatchInsertSpec<TAuditUser> spec = BatchInsertBuilder
-                .of(TAuditUser.class, List.of()).build();
+        BatchInsertSpec<TAuditUser> spec =
+                BatchInsertBuilder.of(TAuditUser.class, List.of()).build();
         int[] result = executor.executeBatchInsert(spec);
         assertThat(result).isEmpty();
     }
@@ -61,9 +61,9 @@ class JdbcDslNewFeaturesTest {
         List<TAuditUser> users = Arrays.asList(
                 new TAuditUser("batch1", "ACTIVE"),
                 new TAuditUser("batch2", "ACTIVE"),
-                new TAuditUser("batch3", "INACTIVE")
-        );
-        BatchInsertSpec<TAuditUser> spec = BatchInsertBuilder.of(TAuditUser.class, users).build();
+                new TAuditUser("batch3", "INACTIVE"));
+        BatchInsertSpec<TAuditUser> spec =
+                BatchInsertBuilder.of(TAuditUser.class, users).build();
         int[] affected = executor.executeBatchInsert(spec);
 
         assertThat(affected).hasSize(3).containsOnly(1);
@@ -73,17 +73,14 @@ class JdbcDslNewFeaturesTest {
                 .mapToEntity();
         // Disable auto-filter for this read (deleted is 0 for all, no issue)
         List<TAuditUser> result = executor.select(query);
-        assertThat(result).extracting(TAuditUser::getUsername)
-                .containsExactlyInAnyOrder("batch1", "batch2", "batch3");
+        assertThat(result).extracting(TAuditUser::getUsername).containsExactlyInAnyOrder("batch1", "batch2", "batch3");
     }
 
     @Test
     void executeBatchInsert_autoFillsTimestamps() {
-        List<TAuditUser> users = List.of(
-                new TAuditUser("ts1", "ACTIVE"),
-                new TAuditUser("ts2", "ACTIVE")
-        );
-        executor.executeBatchInsert(BatchInsertBuilder.of(TAuditUser.class, users).build());
+        List<TAuditUser> users = List.of(new TAuditUser("ts1", "ACTIVE"), new TAuditUser("ts2", "ACTIVE"));
+        executor.executeBatchInsert(
+                BatchInsertBuilder.of(TAuditUser.class, users).build());
 
         SelectSpec<TAuditUser, TAuditUser> query = SelectBuilder.from(TAuditUser.class)
                 .where(w -> w.in(TAuditUser::getUsername, List.of("ts1", "ts2")))
@@ -114,8 +111,7 @@ class JdbcDslNewFeaturesTest {
 
         // Verify the flag is set in DB
         SelectSpec<TAuditUser, TAuditUser> verify = SelectBuilder.from(TAuditUser.class)
-                .where(w -> w.eq(TAuditUser::getId, user.getId())
-                              .eq(TAuditUser::getDeleted, 1))
+                .where(w -> w.eq(TAuditUser::getId, user.getId()).eq(TAuditUser::getDeleted, 1))
                 .mapToEntity();
         // Use raw query without the logical-delete auto-filter
         JdbcDslConfig.setLogicalDeleteAutoFilter(false);
@@ -131,10 +127,10 @@ class JdbcDslNewFeaturesTest {
     @Test
     void executeLogicalDelete_noAnnotation_throwsIllegalArgument() {
         // TOrder has no @LogicalDelete
-        DeleteSpec<io.github.jsbxyyx.jdbcdsl.entity.TOrder> del =
-                DeleteBuilder.from(io.github.jsbxyyx.jdbcdsl.entity.TOrder.class)
-                        .eq(io.github.jsbxyyx.jdbcdsl.entity.TOrder::getId, 1L)
-                        .build();
+        DeleteSpec<io.github.jsbxyyx.jdbcdsl.entity.TOrder> del = DeleteBuilder.from(
+                        io.github.jsbxyyx.jdbcdsl.entity.TOrder.class)
+                .eq(io.github.jsbxyyx.jdbcdsl.entity.TOrder::getId, 1L)
+                .build();
         assertThatThrownBy(() -> executor.executeLogicalDelete(del))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No @LogicalDelete field found");
@@ -150,26 +146,26 @@ class JdbcDslNewFeaturesTest {
         executor.save(deleted);
         // Manually mark deletedUser as deleted
         executor.executeLogicalDelete(DeleteBuilder.from(TAuditUser.class)
-                .eq(TAuditUser::getId, deleted.getId()).build());
+                .eq(TAuditUser::getId, deleted.getId())
+                .build());
 
         // SELECT with auto-filter (default true): should only return normalUser
         SelectSpec<TAuditUser, TAuditUser> spec = SelectBuilder.from(TAuditUser.class)
                 .where(w -> w.in(TAuditUser::getUsername, List.of("normalUser", "deletedUser")))
                 .mapToEntity();
         List<TAuditUser> result = executor.select(spec);
-        assertThat(result).hasSize(1)
-                .extracting(TAuditUser::getUsername)
-                .containsExactly("normalUser");
+        assertThat(result).hasSize(1).extracting(TAuditUser::getUsername).containsExactly("normalUser");
     }
 
     @Test
     void select_logicalDeleteAutoFilterDisabled_returnsAllRows() {
-        TAuditUser normal  = new TAuditUser("u1", "ACTIVE");
+        TAuditUser normal = new TAuditUser("u1", "ACTIVE");
         TAuditUser deleted = new TAuditUser("u2", "ACTIVE");
         executor.save(normal);
         executor.save(deleted);
         executor.executeLogicalDelete(DeleteBuilder.from(TAuditUser.class)
-                .eq(TAuditUser::getId, deleted.getId()).build());
+                .eq(TAuditUser::getId, deleted.getId())
+                .build());
 
         JdbcDslConfig.setLogicalDeleteAutoFilter(false);
         try {
@@ -236,7 +232,7 @@ class JdbcDslNewFeaturesTest {
 
         UpdateSpec<TAuditUser> update = UpdateBuilder.from(TAuditUser.class)
                 .set(TAuditUser::getStatus, "SUSPENDED")
-                .set(TAuditUser::getUpdatedAt, explicitTime)   // explicit value → must NOT be overwritten
+                .set(TAuditUser::getUpdatedAt, explicitTime) // explicit value → must NOT be overwritten
                 .eq(TAuditUser::getId, user.getId())
                 .build();
         executor.executeUpdate(update);

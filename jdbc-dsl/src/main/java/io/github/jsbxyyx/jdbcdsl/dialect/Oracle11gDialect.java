@@ -46,8 +46,7 @@ public final class Oracle11gDialect implements Dialect {
     }
 
     @Override
-    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta,
-                                    LinkedHashMap<String, Object> colValues) {
+    public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         return OracleDialect.renderMergeViaDual(spec, meta, colValues);
     }
 }

@@ -263,8 +263,8 @@ public final class UpdateBuilder<T> {
         PredicateNode where = whereNode();
         if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
             throw new IllegalStateException(
-                    "UpdateBuilder requires at least one where(...) condition to prevent accidental full-table updates. " +
-                    "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");
+                    "UpdateBuilder requires at least one where(...) condition to prevent accidental full-table updates. "
+                            + "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");
         }
         return new UpdateSpec<>(entityClass, assignments, where);
     }

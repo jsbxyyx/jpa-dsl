@@ -16,7 +16,8 @@ public final class JOrder<T> {
 
     /** Sort direction. */
     public enum Direction {
-        ASC, DESC;
+        ASC,
+        DESC;
 
         /** Returns the opposite direction. */
         public Direction reverse() {
@@ -38,12 +39,18 @@ public final class JOrder<T> {
     private final PropertyRef propertyRef;
     /** The SQL expression to sort by. Always non-null; for column orders it is a {@link ColumnExpression}. */
     private final SqlExpression<?> expression;
+
     private final Direction direction;
     private final boolean ignoreCase;
     private final NullHandling nullHandling;
 
-    private JOrder(SFunction<T, ?> fn, PropertyRef propertyRef, SqlExpression<?> expression,
-                   Direction direction, boolean ignoreCase, NullHandling nullHandling) {
+    private JOrder(
+            SFunction<T, ?> fn,
+            PropertyRef propertyRef,
+            SqlExpression<?> expression,
+            Direction direction,
+            boolean ignoreCase,
+            NullHandling nullHandling) {
         this.fn = fn;
         this.propertyRef = propertyRef;
         this.expression = expression;

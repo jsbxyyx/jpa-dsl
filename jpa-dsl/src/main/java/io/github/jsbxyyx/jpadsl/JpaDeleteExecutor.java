@@ -43,5 +43,4 @@ public interface JpaDeleteExecutor<T> {
      */
     @Transactional
     int delete(DeleteSpec<T> deleteSpec);
-
 }

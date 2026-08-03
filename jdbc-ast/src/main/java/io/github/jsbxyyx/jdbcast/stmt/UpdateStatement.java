@@ -11,27 +11,42 @@ import java.util.List;
  */
 public final class UpdateStatement {
 
-    private final Class<?>               entity;
-    private final String                 tableAlias;
+    private final Class<?> entity;
+    private final String tableAlias;
     private final List<ColumnAssignment> assignments;
-    private final Condition              where;
-    private final List<String>           returningCols;
+    private final Condition where;
+    private final List<String> returningCols;
 
-    public UpdateStatement(Class<?> entity,
-                    String tableAlias,
-                    List<ColumnAssignment> assignments,
-                    Condition where,
-                    List<String> returningCols) {
-        this.entity        = entity;
-        this.tableAlias    = tableAlias;
-        this.assignments   = List.copyOf(assignments);
-        this.where         = where;
+    public UpdateStatement(
+            Class<?> entity,
+            String tableAlias,
+            List<ColumnAssignment> assignments,
+            Condition where,
+            List<String> returningCols) {
+        this.entity = entity;
+        this.tableAlias = tableAlias;
+        this.assignments = List.copyOf(assignments);
+        this.where = where;
         this.returningCols = List.copyOf(returningCols);
     }
 
-    public Class<?>               entity()        { return entity; }
-    public String                 tableAlias()    { return tableAlias; }
-    public List<ColumnAssignment>  assignments()   { return assignments; }
-    public Condition              where()         { return where; }
-    public List<String>           returningCols() { return returningCols; }
+    public Class<?> entity() {
+        return entity;
+    }
+
+    public String tableAlias() {
+        return tableAlias;
+    }
+
+    public List<ColumnAssignment> assignments() {
+        return assignments;
+    }
+
+    public Condition where() {
+        return where;
+    }
+
+    public List<String> returningCols() {
+        return returningCols;
+    }
 }

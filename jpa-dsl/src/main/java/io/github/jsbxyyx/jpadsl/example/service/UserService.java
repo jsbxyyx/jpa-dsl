@@ -1,8 +1,8 @@
 package io.github.jsbxyyx.jpadsl.example.service;
 
+import io.github.jsbxyyx.jpadsl.PageRequestBuilder;
 import io.github.jsbxyyx.jpadsl.SpecificationBuilder;
 import io.github.jsbxyyx.jpadsl.SpecificationDsl;
-import io.github.jsbxyyx.jpadsl.PageRequestBuilder;
 import io.github.jsbxyyx.jpadsl.example.entity.User;
 import io.github.jsbxyyx.jpadsl.example.entity.User_;
 import io.github.jsbxyyx.jpadsl.example.repository.UserRepository;
@@ -45,25 +45,22 @@ public class UserService {
     }
 
     public List<User> findByDsl(String name, int age) {
-        Specification<User> spec = SpecificationDsl.<User, String>eq(User_.name, name)
-                .and(SpecificationDsl.gt(User_.age, age));
+        Specification<User> spec =
+                SpecificationDsl.<User, String>eq(User_.name, name).and(SpecificationDsl.gt(User_.age, age));
         return userRepository.findAll(spec);
     }
 
     public List<User> findByNameOrEmail(String name, String email) {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .predicate(SpecificationDsl.or(
-                        SpecificationDsl.like(User_.name, name),
-                        SpecificationDsl.like(User_.email, email)
-                ))
+                        SpecificationDsl.like(User_.name, name), SpecificationDsl.like(User_.email, email)))
                 .build();
         return userRepository.findAll(spec);
     }
 
     public Page<User> findUsersPagedAndSorted(String status, int pageNum, int pageSize) {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .eq(User_.status, status)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().eq(User_.status, status).build();
         Pageable pageable = PageRequestBuilder.builder()
                 .page(pageNum)
                 .size(pageSize)
@@ -81,16 +78,14 @@ public class UserService {
     }
 
     public List<User> findUsersWithNullEmail() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .isNull(User_.email)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().isNull(User_.email).build();
         return userRepository.findAll(spec);
     }
 
     public List<User> findUsersWithNotNullEmail() {
-        Specification<User> spec = SpecificationBuilder.<User>builder()
-                .isNotNull(User_.email)
-                .build();
+        Specification<User> spec =
+                SpecificationBuilder.<User>builder().isNotNull(User_.email).build();
         return userRepository.findAll(spec);
     }
 

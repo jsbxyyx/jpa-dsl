@@ -11,7 +11,11 @@ public enum SetOpType {
 
     private final String keyword;
 
-    SetOpType(String keyword) { this.keyword = keyword; }
+    SetOpType(String keyword) {
+        this.keyword = keyword;
+    }
 
-    public String keyword() { return keyword; }
+    public String keyword() {
+        return keyword;
+    }
 }

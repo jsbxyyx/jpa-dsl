@@ -46,9 +46,7 @@ class DeleteBuilderTest {
 
         assertThat(affected).isEqualTo(1);
         assertThat(userRepository.findAll()).hasSize(2);
-        assertThat(userRepository.findAll())
-                .extracting(User::getStatus)
-                .containsOnly("ACTIVE");
+        assertThat(userRepository.findAll()).extracting(User::getStatus).containsOnly("ACTIVE");
     }
 
     @Test
@@ -64,8 +62,7 @@ class DeleteBuilderTest {
         assertThat(affected).isEqualTo(1);
         List<User> remaining = userRepository.findAll();
         assertThat(remaining).hasSize(2);
-        assertThat(remaining).extracting(User::getName)
-                .doesNotContain("Charlie");
+        assertThat(remaining).extracting(User::getName).doesNotContain("Charlie");
     }
 
     @Test
@@ -81,30 +78,25 @@ class DeleteBuilderTest {
 
     @Test
     void delete_noWhereConditions_throwsException() {
-        DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class)
-                .build();
+        DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class).build();
 
         // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
         assertThatThrownBy(() -> userRepository.delete(spec))
-                .isInstanceOfAny(IllegalStateException.class,
-                        InvalidDataAccessApiUsageException.class)
+                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
                 .hasMessageContaining("WHERE condition");
     }
 
     @Test
     void delete_withLikeCondition_deletesMatchingRows() {
-        DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class)
-                .like(User_.name, "Ali")
-                .build();
+        DeleteSpec<User> spec =
+                DeleteBuilder.<User>builder(User.class).like(User_.name, "Ali").build();
 
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
         assertThat(userRepository.findAll()).hasSize(2);
-        assertThat(userRepository.findAll())
-                .extracting(User::getName)
-                .doesNotContain("Alice");
+        assertThat(userRepository.findAll()).extracting(User::getName).doesNotContain("Alice");
     }
 
     @Test
@@ -118,9 +110,7 @@ class DeleteBuilderTest {
 
         assertThat(affected).isEqualTo(2);
         assertThat(userRepository.findAll()).hasSize(1);
-        assertThat(userRepository.findAll())
-                .extracting(User::getName)
-                .containsOnly("Charlie");
+        assertThat(userRepository.findAll()).extracting(User::getName).containsOnly("Charlie");
     }
 
     @Test
@@ -134,25 +124,20 @@ class DeleteBuilderTest {
 
         assertThat(affected).isEqualTo(2);
         assertThat(userRepository.findAll()).hasSize(1);
-        assertThat(userRepository.findAll())
-                .extracting(User::getName)
-                .containsOnly("Charlie");
+        assertThat(userRepository.findAll()).extracting(User::getName).containsOnly("Charlie");
     }
 
     @Test
     void delete_withIsNullCondition_deletesMatchingRows() {
-        DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class)
-                .isNull(User_.email)
-                .build();
+        DeleteSpec<User> spec =
+                DeleteBuilder.<User>builder(User.class).isNull(User_.email).build();
 
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
         assertThat(userRepository.findAll()).hasSize(2);
-        assertThat(userRepository.findAll())
-                .extracting(User::getName)
-                .doesNotContain("Charlie");
+        assertThat(userRepository.findAll()).extracting(User::getName).doesNotContain("Charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -175,17 +160,15 @@ class DeleteBuilderTest {
     @Test
     void delete_condition_falseSkipsWhereClause_otherPredicateApplied() {
         DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class)
-                .eq(User_.status, "ACTIVE", false)  // skipped
-                .eq(User_.name, "Bob", true)         // applied
+                .eq(User_.status, "ACTIVE", false) // skipped
+                .eq(User_.name, "Bob", true) // applied
                 .build();
 
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
         assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll())
-                .extracting(User::getName)
-                .doesNotContain("Bob");
+        assertThat(userRepository.findAll()).extracting(User::getName).doesNotContain("Bob");
     }
 
     @Test
@@ -196,8 +179,7 @@ class DeleteBuilderTest {
                 .build();
 
         assertThatThrownBy(() -> userRepository.delete(spec))
-                .isInstanceOfAny(IllegalStateException.class,
-                        InvalidDataAccessApiUsageException.class)
+                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
                 .hasMessageContaining("WHERE condition");
     }
 
@@ -212,9 +194,6 @@ class DeleteBuilderTest {
 
         assertThat(affected).isEqualTo(2);
         assertThat(userRepository.findAll()).hasSize(1);
-        assertThat(userRepository.findAll())
-                .extracting(User::getName)
-                .containsOnly("Alice");
+        assertThat(userRepository.findAll()).extracting(User::getName).containsOnly("Alice");
     }
-
 }
