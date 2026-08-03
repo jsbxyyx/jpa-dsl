@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
@@ -94,7 +95,16 @@ public class JdbcDslAutoConfiguration {
     public JdbcDslCacheManager jdbcDslCacheManager(JdbcDslProperties properties) {
         JdbcDslProperties.Cache cache = properties.getCache();
         return new JdbcDslCacheManager(
-                cache.getPropertyRefMaxSize(), cache.getRowMapperMaxSize(), cache.getSerializedLambdaMaxSize());
+                cache.getPropertyRefMaxSize(),
+                cache.getRowMapperMaxSize(),
+                cache.getSerializedLambdaMaxSize(),
+                cache.getBeanMappingMaxSize());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(BeanMappingMetaFactory.class)
+    public BeanMappingMetaFactory beanMappingMetaFactory() {
+        return new BeanMappingMetaFactory();
     }
 
     /**
@@ -105,8 +115,11 @@ public class JdbcDslAutoConfiguration {
     @ConditionalOnMissingBean(JdbcDslExecutor.class)
     @ConditionalOnBean({NamedParameterJdbcTemplate.class, Dialect.class})
     public JdbcDslExecutor jdbcDslExecutor(
-            NamedParameterJdbcTemplate jdbc, Dialect dialect, JdbcDslCacheManager cacheManager) {
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory) {
         PropertyRefResolver.setCacheManager(cacheManager);
-        return new JdbcDslExecutor(jdbc, dialect, cacheManager);
+        return new JdbcDslExecutor(jdbc, dialect, cacheManager, beanMappingMetaFactory);
     }
 }

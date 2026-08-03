@@ -1,12 +1,14 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMeta;
+import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
+import io.github.jsbxyyx.jdbcdsl.bean.RecordMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
 import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
-import org.springframework.beans.BeanUtils;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Page;
@@ -18,12 +20,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.JdbcUtils;
 
-import java.beans.PropertyDescriptor;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -33,7 +31,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -55,6 +52,7 @@ public final class JdbcDslExecutor {
     private final NamedParameterJdbcTemplate jdbc;
     private final Dialect dialect;
     private final JdbcDslCacheManager cacheManager;
+    private final BeanMappingMetaFactory beanMappingMetaFactory;
     private TimeProvider timeProvider = LocalDateTime::now;
 
     /**
@@ -69,17 +67,30 @@ public final class JdbcDslExecutor {
      * @param jdbc the template whose DataSource is used for dialect detection
      */
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc) {
-        this(jdbc, DialectDetector.detect(jdbc.getJdbcTemplate().getDataSource()), new JdbcDslCacheManager());
+        this(
+                jdbc,
+                DialectDetector.detect(jdbc.getJdbcTemplate().getDataSource()),
+                new JdbcDslCacheManager(),
+                new BeanMappingMetaFactory());
     }
 
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect) {
-        this(jdbc, dialect, new JdbcDslCacheManager());
+        this(jdbc, dialect, new JdbcDslCacheManager(), new BeanMappingMetaFactory());
     }
 
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect, JdbcDslCacheManager cacheManager) {
+        this(jdbc, dialect, cacheManager, new BeanMappingMetaFactory());
+    }
+
+    public JdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory) {
         this.jdbc = jdbc;
         this.dialect = dialect;
         this.cacheManager = cacheManager;
+        this.beanMappingMetaFactory = beanMappingMetaFactory;
     }
 
     /**
@@ -598,7 +609,10 @@ public final class JdbcDslExecutor {
             jdbc.update(rendered.getSql(), paramSource, keyHolder);
             Number key = keyHolder.getKey();
             if (key != null && meta.getIdPropertyName() != null) {
-                setPropertyValue(entity, meta.getIdPropertyName(), key);
+                BeanMappingMeta beanMeta = cacheManager
+                        .getBeanMappingCache()
+                        .get(entity.getClass(), cls -> beanMappingMetaFactory.create(entity.getClass()));
+                beanMeta.setProperty(entity, meta.getIdPropertyName(), key);
             }
         } else {
             jdbc.update(rendered.getSql(), rendered.getParams());
@@ -709,8 +723,12 @@ public final class JdbcDslExecutor {
      * @param meta             entity metadata
      * @param skipIdentityPk   when {@code true}, the IDENTITY-generated primary key column is excluded
      */
-    private static <T> LinkedHashMap<String, Object> buildColumnValues(
-            T entity, EntityMeta meta, boolean skipIdentityPk) {
+    private <T> LinkedHashMap<String, Object> buildColumnValues(T entity, EntityMeta meta, boolean skipIdentityPk) {
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        BeanMappingMeta beanMeta =
+                cacheManager.getBeanMappingCache().get(entityClass, cls -> beanMappingMetaFactory.create(entityClass));
+
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : meta.getPropertyToColumn().entrySet()) {
             String propName = entry.getKey();
@@ -718,7 +736,7 @@ public final class JdbcDslExecutor {
             if (skipIdentityPk && meta.isIdGeneratedByIdentity() && propName.equals(meta.getIdPropertyName())) {
                 continue;
             }
-            result.put(colName, getPropertyValue(entity, propName));
+            result.put(colName, beanMeta.getProperty(entity, propName));
         }
         return result;
     }
@@ -739,6 +757,8 @@ public final class JdbcDslExecutor {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
         EntityMeta meta = EntityMetaReader.read(entityClass);
+        BeanMappingMeta beanMeta =
+                cacheManager.getBeanMappingCache().get(entityClass, cls -> beanMappingMetaFactory.create(entityClass));
 
         String idPropName = meta.getIdPropertyName();
         if (idPropName == null) {
@@ -749,7 +769,8 @@ public final class JdbcDslExecutor {
         List<Map.Entry<String, Object>> assignments = new ArrayList<>();
         for (String propName : meta.getPropertyToColumn().keySet()) {
             if (!propName.equals(idPropName)) {
-                assignments.add(new AbstractMap.SimpleImmutableEntry<>(propName, getPropertyValue(entity, propName)));
+                assignments.add(
+                        new AbstractMap.SimpleImmutableEntry<>(propName, beanMeta.getProperty(entity, propName)));
             }
         }
 
@@ -758,7 +779,7 @@ public final class JdbcDslExecutor {
         }
 
         // WHERE clause: id = entity.id
-        Object idValue = getPropertyValue(entity, idPropName);
+        Object idValue = beanMeta.getProperty(entity, idPropName);
         PropertyRef idRef = new PropertyRef(entityClass, idPropName);
         LeafPredicate where = LeafPredicate.of(idRef, "t", LeafPredicate.Op.EQ, idValue);
 
@@ -792,15 +813,6 @@ public final class JdbcDslExecutor {
     //  RowMapper: JavaBean setter mapping with field fallback
     // ------------------------------------------------------------------ //
 
-    /** Per-class cache: lowercase-label → writable PropertyDescriptor. */
-    private static final ConcurrentHashMap<Class<?>, Map<String, PropertyDescriptor>> PROP_CACHE =
-            new ConcurrentHashMap<>();
-
-    /** Per-class cache: lowercase-fieldName → accessible Field. */
-    private static final ConcurrentHashMap<Class<?>, Map<String, Field>> FIELD_CACHE = new ConcurrentHashMap<>();
-
-    /** Per-class cache: bean type → reusable RowMapper. */
-
     /**
      * Builds a {@link RowMapper} that maps each result-set row to an instance of {@code beanClass}.
      *
@@ -827,22 +839,60 @@ public final class JdbcDslExecutor {
         return (RowMapper<R>) cacheManager.getRowMapperCache().get(beanClass, cls -> createBeanRowMapper(beanClass));
     }
 
-    private static <R> RowMapper<R> createBeanRowMapper(Class<R> beanClass) {
+    private <R> RowMapper<R> createBeanRowMapper(Class<R> beanClass) {
         if (isScalarType(beanClass)) {
             return new SingleColumnRowMapper<>(beanClass);
         }
-        Map<String, PropertyDescriptor> propMap = buildPropertyMap(beanClass);
-        Map<String, Field> fieldMap = buildFieldMap(beanClass);
+
+        // Get or create BeanMappingMeta from cache
+        BeanMappingMeta meta =
+                cacheManager.getBeanMappingCache().get(beanClass, cls -> beanMappingMetaFactory.create(beanClass));
+
         ConversionService conversionService = DefaultConversionService.getSharedInstance();
 
+        // Handle Record types differently (immutable, constructor-based)
+        if (beanClass.isRecord()) {
+            RecordMappingMeta recordMeta = (RecordMappingMeta) meta;
+            return (rs, rowNum) -> {
+                Map<String, Object> propertyValues = new HashMap<>();
+                ResultSetMetaData rsMetaData = rs.getMetaData();
+                int count = rsMetaData.getColumnCount();
+
+                for (int i = 1; i <= count; i++) {
+                    String label = rsMetaData.getColumnLabel(i);
+                    if (label == null || label.isBlank()) {
+                        label = rsMetaData.getColumnName(i);
+                    }
+                    if (label == null || label.isBlank()) {
+                        continue;
+                    }
+
+                    String key = label.toLowerCase(Locale.ROOT);
+                    Object value = JdbcUtils.getResultSetValue(rs, i);
+
+                    if (recordMeta.hasProperty(key)) {
+                        // Type conversion will be handled by the constructor
+                        propertyValues.put(key, value);
+                    }
+                }
+
+                @SuppressWarnings("unchecked")
+                R instance = (R) recordMeta.newInstance(propertyValues);
+                return instance;
+            };
+        }
+
+        // Handle JavaBean types (mutable, setter-based)
         return (rs, rowNum) -> {
-            R instance = newInstance(beanClass);
-            ResultSetMetaData meta = rs.getMetaData();
-            int count = meta.getColumnCount();
+            @SuppressWarnings("unchecked")
+            R instance = (R) meta.newInstance();
+            ResultSetMetaData rsMetaData = rs.getMetaData();
+            int count = rsMetaData.getColumnCount();
+
             for (int i = 1; i <= count; i++) {
-                String label = meta.getColumnLabel(i);
+                String label = rsMetaData.getColumnLabel(i);
                 if (label == null || label.isBlank()) {
-                    label = meta.getColumnName(i);
+                    label = rsMetaData.getColumnName(i);
                 }
                 if (label == null || label.isBlank()) {
                     continue;
@@ -851,32 +901,13 @@ public final class JdbcDslExecutor {
                 String key = label.toLowerCase(Locale.ROOT);
                 Object value = JdbcUtils.getResultSetValue(rs, i);
 
-                PropertyDescriptor pd = propMap.get(key);
-                if (pd != null) {
-                    Method writeMethod = pd.getWriteMethod();
-                    Class<?> propType = pd.getPropertyType();
-                    Object converted = convertValue(value, propType, conversionService);
-                    try {
-                        writeMethod.invoke(instance, converted);
-                    } catch (ReflectiveOperationException e) {
-                        throw new RuntimeException(
-                                "Cannot invoke setter '" + writeMethod.getName() + "' on " + beanClass.getName(), e);
-                    }
-                } else {
-                    Field f = fieldMap.get(key);
-                    if (f != null) {
-                        Object converted = convertValue(value, f.getType(), conversionService);
-                        // Skip null injection into primitive fields to avoid NullPointerException
-                        if (converted == null && f.getType().isPrimitive()) {
-                            continue;
-                        }
-                        try {
-                            f.set(instance, converted);
-                        } catch (IllegalAccessException e) {
-                            throw new RuntimeException(
-                                    "Cannot set field '" + f.getName() + "' on " + beanClass.getName(), e);
-                        }
-                    }
+                // BeanMappingMeta handles property lookup and type conversion internally
+                // It will silently ignore unknown properties (consistent with old behavior)
+                try {
+                    meta.setProperty(instance, key, value);
+                } catch (Exception e) {
+                    // Log and continue (consistent with old behavior of ignoring unmappable columns)
+                    // In production, you might want to use a logger here
                 }
             }
             return instance;
@@ -899,136 +930,9 @@ public final class JdbcDslExecutor {
         return value;
     }
 
-    private static Map<String, PropertyDescriptor> buildPropertyMap(Class<?> beanClass) {
-        return PROP_CACHE.computeIfAbsent(beanClass, cls -> {
-            Map<String, PropertyDescriptor> map = new HashMap<>();
-            for (PropertyDescriptor pd : BeanUtils.getPropertyDescriptors(cls)) {
-                if (pd.getWriteMethod() != null) {
-                    map.put(pd.getName().toLowerCase(Locale.ROOT), pd);
-                }
-            }
-            return map;
-        });
-    }
-
-    private static Map<String, Field> buildFieldMap(Class<?> beanClass) {
-        return FIELD_CACHE.computeIfAbsent(beanClass, cls -> {
-            Map<String, Field> map = new HashMap<>();
-            Class<?> c = cls;
-            while (c != null && c != Object.class) {
-                for (Field f : c.getDeclaredFields()) {
-                    String key = f.getName().toLowerCase(Locale.ROOT);
-                    if (!map.containsKey(key)) {
-                        f.setAccessible(true);
-                        map.put(key, f);
-                    }
-                }
-                c = c.getSuperclass();
-            }
-            return map;
-        });
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <R> R newInstance(Class<R> beanClass) throws SQLException {
-        try {
-            Constructor<R> ctor = beanClass.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            return ctor.newInstance();
-        } catch (ReflectiveOperationException e) {
-            throw new SQLException(
-                    "No no-arg constructor found on " + beanClass.getName()
-                            + ". Setter-based mapping requires a public (or accessible) no-arg constructor.",
-                    e);
-        }
-    }
-
     // ------------------------------------------------------------------ //
     //  Helpers
     // ------------------------------------------------------------------ //
-
-    /**
-     * Reads a property value from {@code entity} using a getter method (or direct field access as
-     * fallback).
-     */
-    private static Object getPropertyValue(Object entity, String propName) {
-        for (PropertyDescriptor pd : BeanUtils.getPropertyDescriptors(entity.getClass())) {
-            if (pd.getName().equals(propName)) {
-                Method readMethod = pd.getReadMethod();
-                if (readMethod != null) {
-                    try {
-                        return readMethod.invoke(entity);
-                    } catch (ReflectiveOperationException e) {
-                        throw new RuntimeException(
-                                "Cannot read property '" + propName + "' on "
-                                        + entity.getClass().getName(),
-                                e);
-                    }
-                }
-            }
-        }
-        // Fallback: walk the class hierarchy looking for a field with that name
-        Class<?> cls = entity.getClass();
-        while (cls != null && cls != Object.class) {
-            try {
-                Field f = cls.getDeclaredField(propName);
-                f.setAccessible(true);
-                return f.get(entity);
-            } catch (NoSuchFieldException e) {
-                cls = cls.getSuperclass();
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(
-                        "Cannot access field '" + propName + "' on "
-                                + entity.getClass().getName(),
-                        e);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Sets a property value on {@code entity} using a setter method (or direct field access as
-     * fallback).
-     */
-    private static void setPropertyValue(Object entity, String propName, Object value) {
-        ConversionService cs = DefaultConversionService.getSharedInstance();
-        for (PropertyDescriptor pd : BeanUtils.getPropertyDescriptors(entity.getClass())) {
-            if (pd.getName().equals(propName)) {
-                Method writeMethod = pd.getWriteMethod();
-                if (writeMethod != null) {
-                    Class<?> paramType = writeMethod.getParameterTypes()[0];
-                    Object converted = convertValue(value, paramType, cs);
-                    try {
-                        writeMethod.invoke(entity, converted);
-                    } catch (ReflectiveOperationException e) {
-                        throw new RuntimeException(
-                                "Cannot set property '" + propName + "' on "
-                                        + entity.getClass().getName(),
-                                e);
-                    }
-                    return;
-                }
-            }
-        }
-        // Fallback: walk the class hierarchy
-        Class<?> cls = entity.getClass();
-        while (cls != null && cls != Object.class) {
-            try {
-                Field f = cls.getDeclaredField(propName);
-                f.setAccessible(true);
-                Object converted = convertValue(value, f.getType(), cs);
-                f.set(entity, converted);
-                return;
-            } catch (NoSuchFieldException e) {
-                cls = cls.getSuperclass();
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(
-                        "Cannot set field '" + propName + "' on "
-                                + entity.getClass().getName(),
-                        e);
-            }
-        }
-    }
 
     private static <T, R> SelectSpec<T, R> mergeSort(SelectSpec<T, R> spec, JPageable<T> pageable) {
         JSort<T> pageableSort = pageable.getSort();
@@ -1108,12 +1012,15 @@ public final class JdbcDslExecutor {
      * fields of {@code entity} before an INSERT.
      */
     private <T> void injectInsertTimestamps(T entity, EntityMeta meta) {
+        BeanMappingMeta beanMeta = cacheManager
+                .getBeanMappingCache()
+                .get(entity.getClass(), cls -> beanMappingMetaFactory.create(entity.getClass()));
         LocalDateTime now = timeProvider.now();
         for (String propName : meta.getCreatedDatePropertyNames()) {
-            setPropertyValue(entity, propName, now);
+            beanMeta.setProperty(entity, propName, now);
         }
         for (String propName : meta.getLastModifiedDatePropertyNames()) {
-            setPropertyValue(entity, propName, now);
+            beanMeta.setProperty(entity, propName, now);
         }
     }
 

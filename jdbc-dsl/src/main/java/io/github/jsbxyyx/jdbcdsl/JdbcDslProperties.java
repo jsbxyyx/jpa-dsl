@@ -65,6 +65,7 @@ public class JdbcDslProperties {
         private long propertyRefMaxSize = 50_000;
         private long rowMapperMaxSize = 10_000;
         private long serializedLambdaMaxSize = 10_000;
+        private long beanMappingMaxSize = 10_000;
 
         public long getPropertyRefMaxSize() {
             return propertyRefMaxSize;
@@ -88,6 +89,14 @@ public class JdbcDslProperties {
 
         public void setSerializedLambdaMaxSize(long serializedLambdaMaxSize) {
             this.serializedLambdaMaxSize = serializedLambdaMaxSize;
+        }
+
+        public long getBeanMappingMaxSize() {
+            return beanMappingMaxSize;
+        }
+
+        public void setBeanMappingMaxSize(long beanMappingMaxSize) {
+            this.beanMappingMaxSize = beanMappingMaxSize;
         }
     }
 
