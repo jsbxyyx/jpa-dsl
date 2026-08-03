@@ -1,5 +1,8 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
+import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.support.DefaultConversionService;
+
 import java.lang.invoke.MethodHandle;
 
 /**
@@ -12,6 +15,8 @@ import java.lang.invoke.MethodHandle;
  * to allow automatic type conversions and boxing/unboxing.
  */
 public final class MethodHandleAccessor implements PropertyAccessor {
+
+    private static final ConversionService CONVERSION_SERVICE = DefaultConversionService.getSharedInstance();
 
     private final String name;
     private final Class<?> type;
@@ -61,10 +66,24 @@ public final class MethodHandleAccessor implements PropertyAccessor {
             throw new UnsupportedOperationException("Property '" + name + "' is read-only");
         }
         try {
-            setter.invoke(target, value);
+            Object converted = convertValue(value, type);
+            setter.invoke(target, converted);
         } catch (Throwable e) {
             throw new RuntimeException(
                     "Failed to set property '" + name + "' on " + target.getClass() + " with value: " + value, e);
         }
+    }
+
+    private static Object convertValue(Object value, Class<?> targetType) {
+        if (targetType == null || value == null) {
+            return value;
+        }
+        if (targetType.isInstance(value)) {
+            return value;
+        }
+        if (CONVERSION_SERVICE.canConvert(value.getClass(), targetType)) {
+            return CONVERSION_SERVICE.convert(value, targetType);
+        }
+        return value;
     }
 }

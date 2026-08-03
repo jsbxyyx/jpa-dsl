@@ -52,4 +52,24 @@ public interface BeanMappingMeta {
      * @return {@code true} if the property is supported
      */
     boolean hasProperty(String propertyName);
+
+    /**
+     * Gets the property type for a given property name.
+     *
+     * @param propertyName the property name (case-insensitive)
+     * @return the property type, or null if not found
+     */
+    default Class<?> getPropertyType(String propertyName) {
+        return null;
+    }
+
+    /**
+     * Gets the PropertyAccessor for a given property name.
+     *
+     * @param propertyName the property name (case-insensitive)
+     * @return the PropertyAccessor, or null if not found
+     */
+    default PropertyAccessor getPropertyAccessor(String propertyName) {
+        return null;
+    }
 }

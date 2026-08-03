@@ -2,7 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
-import io.github.jsbxyyx.jdbcdsl.bean.RecordMappingMeta;
+import io.github.jsbxyyx.jdbcdsl.bean.ResultSetHandler;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
@@ -18,19 +18,17 @@ import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.JdbcUtils;
 
 import java.lang.reflect.Field;
-import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -609,9 +607,11 @@ public final class JdbcDslExecutor {
             jdbc.update(rendered.getSql(), paramSource, keyHolder);
             Number key = keyHolder.getKey();
             if (key != null && meta.getIdPropertyName() != null) {
+                @SuppressWarnings("unchecked")
+                Class<T> entityClass = (Class<T>) entity.getClass();
                 BeanMappingMeta beanMeta = cacheManager
                         .getBeanMappingCache()
-                        .get(entity.getClass(), cls -> beanMappingMetaFactory.create(entity.getClass()));
+                        .get(entityClass, cls -> beanMappingMetaFactory.create(entityClass));
                 beanMeta.setProperty(entity, meta.getIdPropertyName(), key);
             }
         } else {
@@ -717,7 +717,7 @@ public final class JdbcDslExecutor {
 
     /**
      * Builds an ordered map of {@code columnName → value} for the given entity by reading
-     * property values via getter methods (falling back to field access).
+     * property values via BeanMappingMeta.
      *
      * @param entity           the entity instance
      * @param meta             entity metadata
@@ -848,69 +848,30 @@ public final class JdbcDslExecutor {
         BeanMappingMeta meta =
                 cacheManager.getBeanMappingCache().get(beanClass, cls -> beanMappingMetaFactory.create(beanClass));
 
-        ConversionService conversionService = DefaultConversionService.getSharedInstance();
+        // Cache ResultSetMapper for the lifetime of this RowMapper (thread-safe)
+        AtomicReference<ResultSetHandler> mapperRef = new AtomicReference<>();
 
-        // Handle Record types differently (immutable, constructor-based)
-        if (beanClass.isRecord()) {
-            RecordMappingMeta recordMeta = (RecordMappingMeta) meta;
-            return (rs, rowNum) -> {
-                Map<String, Object> propertyValues = new HashMap<>();
-                ResultSetMetaData rsMetaData = rs.getMetaData();
-                int count = rsMetaData.getColumnCount();
-
-                for (int i = 1; i <= count; i++) {
-                    String label = rsMetaData.getColumnLabel(i);
-                    if (label == null || label.isBlank()) {
-                        label = rsMetaData.getColumnName(i);
-                    }
-                    if (label == null || label.isBlank()) {
-                        continue;
-                    }
-
-                    String key = label.toLowerCase(Locale.ROOT);
-                    Object value = JdbcUtils.getResultSetValue(rs, i);
-
-                    if (recordMeta.hasProperty(key)) {
-                        // Type conversion will be handled by the constructor
-                        propertyValues.put(key, value);
-                    }
-                }
-
-                @SuppressWarnings("unchecked")
-                R instance = (R) recordMeta.newInstance(propertyValues);
-                return instance;
-            };
-        }
-
-        // Handle JavaBean types (mutable, setter-based)
         return (rs, rowNum) -> {
-            @SuppressWarnings("unchecked")
-            R instance = (R) meta.newInstance();
-            ResultSetMetaData rsMetaData = rs.getMetaData();
-            int count = rsMetaData.getColumnCount();
-
-            for (int i = 1; i <= count; i++) {
-                String label = rsMetaData.getColumnLabel(i);
-                if (label == null || label.isBlank()) {
-                    label = rsMetaData.getColumnName(i);
+            // Atomic lazy initialization: create mapper on first row
+            ResultSetHandler mapper = mapperRef.updateAndGet(current -> {
+                if (current != null) {
+                    return current;
                 }
-                if (label == null || label.isBlank()) {
-                    continue;
-                }
-
-                String key = label.toLowerCase(Locale.ROOT);
-                Object value = JdbcUtils.getResultSetValue(rs, i);
-
-                // BeanMappingMeta handles property lookup and type conversion internally
-                // It will silently ignore unknown properties (consistent with old behavior)
                 try {
-                    meta.setProperty(instance, key, value);
-                } catch (Exception e) {
-                    // Log and continue (consistent with old behavior of ignoring unmappable columns)
-                    // In production, you might want to use a logger here
+                    return new ResultSetHandler(rs, meta);
+                } catch (SQLException e) {
+                    throw new RuntimeException("Failed to initialize ResultSetMapper for " + beanClass.getName(), e);
                 }
+            });
+
+            // Use cached mapper with preprocessed column mappings
+            try {
+                @SuppressWarnings("unchecked")
+                R instance = (R) mapper.mapRow(rs);
+                return instance;
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to map row to " + beanClass.getName(), e);
             }
-            return instance;
         };
     }
 
@@ -1012,9 +973,11 @@ public final class JdbcDslExecutor {
      * fields of {@code entity} before an INSERT.
      */
     private <T> void injectInsertTimestamps(T entity, EntityMeta meta) {
-        BeanMappingMeta beanMeta = cacheManager
-                .getBeanMappingCache()
-                .get(entity.getClass(), cls -> beanMappingMetaFactory.create(entity.getClass()));
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        BeanMappingMeta beanMeta =
+                cacheManager.getBeanMappingCache().get(entityClass, cls -> beanMappingMetaFactory.create(entityClass));
+
         LocalDateTime now = timeProvider.now();
         for (String propName : meta.getCreatedDatePropertyNames()) {
             beanMeta.setProperty(entity, propName, now);

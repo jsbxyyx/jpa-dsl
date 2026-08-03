@@ -31,6 +31,8 @@ import java.util.Map;
  */
 public final class RecordMappingMeta implements BeanMappingMeta {
 
+    private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+
     private final Class<?> type;
     private final Constructor<?> canonicalConstructor;
     private final String[] parameterNames;
@@ -73,7 +75,7 @@ public final class RecordMappingMeta implements BeanMappingMeta {
             // Create accessor for getter method
             try {
                 Method getterMethod = components[i].getAccessor();
-                MethodHandle getterHandle = MethodHandles.lookup().unreflect(getterMethod);
+                MethodHandle getterHandle = LOOKUP.unreflect(getterMethod);
                 PropertyAccessor accessor = new MethodHandleAccessor(name, componentType, getterHandle, null);
                 accessorMap.put(name, accessor);
             } catch (Exception e) {
@@ -159,25 +161,10 @@ public final class RecordMappingMeta implements BeanMappingMeta {
         return getPropertyIndex(propertyName) != null;
     }
 
-    /**
-     * Gets the property accessor for a property name (case-insensitive).
-     *
-     * @param propertyName the property name
-     * @return the property accessor, or null if not found
-     */
-    private PropertyAccessor getPropertyAccessor(String propertyName) {
-        // Try exact match first
-        PropertyAccessor accessor = propertyAccessors.get(propertyName);
-        if (accessor != null) {
-            return accessor;
-        }
-        // Fall back to case-insensitive match
-        Integer index = lowerCasePropertyIndexMap.get(propertyName.toLowerCase(Locale.ROOT));
-        if (index != null) {
-            String exactName = parameterNames[index];
-            return propertyAccessors.get(exactName);
-        }
-        return null;
+    @Override
+    public Class<?> getPropertyType(String propertyName) {
+        Integer index = getPropertyIndex(propertyName);
+        return index != null ? parameterTypes[index] : null;
     }
 
     /**
@@ -212,5 +199,21 @@ public final class RecordMappingMeta implements BeanMappingMeta {
      */
     public Class<?>[] getParameterTypes() {
         return parameterTypes.clone();
+    }
+
+    @Override
+    public PropertyAccessor getPropertyAccessor(String propertyName) {
+        // Try exact match first
+        PropertyAccessor accessor = propertyAccessors.get(propertyName);
+        if (accessor != null) {
+            return accessor;
+        }
+        // Fall back to case-insensitive match
+        Integer index = lowerCasePropertyIndexMap.get(propertyName.toLowerCase(Locale.ROOT));
+        if (index != null) {
+            String exactName = parameterNames[index];
+            return propertyAccessors.get(exactName);
+        }
+        return null;
     }
 }

@@ -1,8 +1,5 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
-import org.springframework.core.convert.ConversionService;
-import org.springframework.core.convert.support.DefaultConversionService;
-
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -25,7 +22,6 @@ public final class JavaBeanMeta implements BeanMappingMeta {
     private final ObjectFactory<?> objectFactory;
     private final Map<String, PropertyAccessor> properties;
     private final Map<String, PropertyAccessor> lowerCaseProperties;
-    private final ConversionService conversionService;
 
     /**
      * Creates a new JavaBeanMeta.
@@ -38,7 +34,6 @@ public final class JavaBeanMeta implements BeanMappingMeta {
         this.type = type;
         this.objectFactory = objectFactory;
         this.properties = Map.copyOf(properties);
-        this.conversionService = DefaultConversionService.getSharedInstance();
 
         // Build lowercase map for case-insensitive lookup
         Map<String, PropertyAccessor> lowerMap = new HashMap<>(properties.size());
@@ -61,7 +56,7 @@ public final class JavaBeanMeta implements BeanMappingMeta {
     public Object getProperty(Object target, String propertyName) {
         PropertyAccessor accessor = getAccessor(propertyName);
         if (accessor == null) {
-            throw new RuntimeException("Property '" + propertyName + "' not found on type " + type);
+            throw new RuntimeException("No property '" + propertyName + "' found on " + type.getName());
         }
         return accessor.get(target);
     }
@@ -73,29 +68,7 @@ public final class JavaBeanMeta implements BeanMappingMeta {
             // Silently ignore unknown properties (consistent with BeanUtils behavior)
             return;
         }
-
-        // Convert value to target type if needed
-        Object convertedValue = convertValue(value, accessor.getType());
-        accessor.set(target, convertedValue);
-    }
-
-    /**
-     * Converts a value to the target type using Spring's ConversionService.
-     */
-    private Object convertValue(Object value, Class<?> targetType) {
-        if (targetType == null) {
-            return value;
-        }
-        if (value == null) {
-            return null; // null is valid for reference types
-        }
-        if (targetType.isInstance(value)) {
-            return value;
-        }
-        if (conversionService.canConvert(value.getClass(), targetType)) {
-            return conversionService.convert(value, targetType);
-        }
-        return value;
+        accessor.set(target, value);
     }
 
     @Override
