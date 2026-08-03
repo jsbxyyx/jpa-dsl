@@ -95,9 +95,7 @@ public class JdbcDslAutoConfiguration {
     @ConditionalOnMissingBean(JdbcDslCacheManager.class)
     public JdbcDslCacheManager jdbcDslCacheManager(JdbcDslProperties properties) {
         JdbcDslProperties.Cache cache = properties.getCache();
-        JdbcDslCacheManager manager = new JdbcDslCacheManager(cache.getPropertyRefMaxSize(), cache.getRowMapperMaxSize());
-        PropertyRefResolver.setCacheManager(manager);
-        return manager;
+        return new JdbcDslCacheManager(cache.getPropertyRefMaxSize(), cache.getRowMapperMaxSize());
     }
 
     /**
@@ -109,6 +107,7 @@ public class JdbcDslAutoConfiguration {
     @ConditionalOnBean({NamedParameterJdbcTemplate.class, Dialect.class})
     public JdbcDslExecutor jdbcDslExecutor(NamedParameterJdbcTemplate jdbc, Dialect dialect,
                                            JdbcDslCacheManager cacheManager) {
+        PropertyRefResolver.setCacheManager(cacheManager);
         return new JdbcDslExecutor(jdbc, dialect, cacheManager);
     }
 }

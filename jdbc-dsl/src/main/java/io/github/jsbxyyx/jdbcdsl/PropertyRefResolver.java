@@ -19,13 +19,30 @@ import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
  */
 public final class PropertyRefResolver {
 
-    private static volatile JdbcDslCacheManager cacheManager = new JdbcDslCacheManager();
+    private static volatile JdbcDslCacheManager cacheManager;
 
     public static void setCacheManager(JdbcDslCacheManager manager) {
         cacheManager = manager;
     }
 
     private PropertyRefResolver() {
+    }
+
+    /**
+     * 内部统一获取缓存管理器
+     */
+    private static JdbcDslCacheManager getCacheManager() {
+        JdbcDslCacheManager manager = cacheManager;
+        if (manager == null) {
+            synchronized (PropertyRefResolver.class) {
+                manager = cacheManager;
+                if (manager == null) {
+                    manager = new JdbcDslCacheManager();
+                    cacheManager = manager;
+                }
+            }
+        }
+        return manager;
     }
 
     /**
@@ -38,7 +55,7 @@ public final class PropertyRefResolver {
      * @throws IllegalArgumentException if {@code fn} is not a method reference
      */
     public static <T, R> PropertyRef resolve(SFunction<T, R> fn) {
-        return cacheManager.getPropertyRefCache().get(fn.getClass(), k -> doResolve(fn));
+        return getCacheManager().getPropertyRefCache().get(buildCacheKey(fn), k -> doResolve(fn));
     }
 
     private static <T, R> PropertyRef doResolve(SFunction<T, R> fn) {
@@ -89,5 +106,21 @@ public final class PropertyRefResolver {
         }
         // record accessor or plain method reference
         return methodName;
+    }
+
+    private static String buildCacheKey(SFunction<?, ?> fn) {
+        SerializedLambda lambda = resolveLambda(fn);
+        String className = lambda.getImplClass().replace('/', '.');
+        return className + "#" + lambda.getImplMethodName() + "#" + lambda.getImplMethodSignature();
+    }
+
+    private static SerializedLambda resolveLambda(SFunction<?, ?> fn) {
+        try {
+            Method method = fn.getClass().getDeclaredMethod("writeReplace");
+            method.setAccessible(true);
+            return (SerializedLambda) method.invoke(fn);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot resolve lambda", e);
+        }
     }
 }

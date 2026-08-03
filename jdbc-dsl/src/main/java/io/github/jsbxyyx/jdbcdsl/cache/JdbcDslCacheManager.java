@@ -10,7 +10,7 @@ import org.springframework.jdbc.core.RowMapper;
  */
 public class JdbcDslCacheManager {
 
-    private final Cache<Class<?>, PropertyRef> propertyRefCache;
+    private final Cache<String, PropertyRef> propertyRefCache;
     private final Cache<Class<?>, RowMapper<?>> rowMapperCache;
 
     public JdbcDslCacheManager() {
@@ -26,7 +26,7 @@ public class JdbcDslCacheManager {
                 .build();
     }
 
-    public Cache<Class<?>, PropertyRef> getPropertyRefCache() {
+    public Cache<String, PropertyRef> getPropertyRefCache() {
         return propertyRefCache;
     }
 
