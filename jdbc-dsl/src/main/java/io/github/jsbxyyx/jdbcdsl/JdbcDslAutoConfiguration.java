@@ -93,7 +93,8 @@ public class JdbcDslAutoConfiguration {
     @ConditionalOnMissingBean(JdbcDslCacheManager.class)
     public JdbcDslCacheManager jdbcDslCacheManager(JdbcDslProperties properties) {
         JdbcDslProperties.Cache cache = properties.getCache();
-        return new JdbcDslCacheManager(cache.getPropertyRefMaxSize(), cache.getRowMapperMaxSize());
+        return new JdbcDslCacheManager(
+                cache.getPropertyRefMaxSize(), cache.getRowMapperMaxSize(), cache.getSerializedLambdaMaxSize());
     }
 
     /**

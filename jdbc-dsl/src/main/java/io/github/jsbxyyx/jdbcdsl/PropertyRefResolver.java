@@ -2,7 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 
-import java.io.Serializable;
+import java.beans.Introspector;
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
 
@@ -55,11 +55,18 @@ public final class PropertyRefResolver {
      * @throws IllegalArgumentException if {@code fn} is not a method reference
      */
     public static <T, R> PropertyRef resolve(SFunction<T, R> fn) {
-        return getCacheManager().getPropertyRefCache().get(buildCacheKey(fn), k -> doResolve(fn));
+        // Try to get cached SerializedLambda by class name
+        SerializedLambda lambda =
+                getCacheManager().getSerializedLambdaCache().get(buildLambdaCacheKey(fn), k -> resolveLambda(fn));
+
+        // Build PropertyRef cache key from SerializedLambda
+        String propertyRefKey = buildPropertyRefCacheKey(fn, lambda);
+
+        // Get or compute PropertyRef
+        return getCacheManager().getPropertyRefCache().get(propertyRefKey, k -> doResolve(lambda));
     }
 
-    private static <T, R> PropertyRef doResolve(SFunction<T, R> fn) {
-        SerializedLambda sl = getSerializedLambda(fn);
+    private static PropertyRef doResolve(SerializedLambda sl) {
         String implMethodName = sl.getImplMethodName();
         if (implMethodName.startsWith("lambda$")) {
             throw new IllegalArgumentException(
@@ -81,43 +88,30 @@ public final class PropertyRefResolver {
         return new PropertyRef(ownerClass, propertyName);
     }
 
-    private static SerializedLambda getSerializedLambda(Serializable fn) {
-        try {
-            Method writeReplace = fn.getClass().getDeclaredMethod("writeReplace");
-            writeReplace.setAccessible(true);
-            return (SerializedLambda) writeReplace.invoke(fn);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalArgumentException("Cannot serialize lambda — use a direct method reference", e);
-        }
-    }
-
     private static String methodNameToPropertyName(String methodName) {
         if (methodName.startsWith("get") && methodName.length() > 3) {
-            char first = methodName.charAt(3);
-            if (Character.isUpperCase(first)) {
-                return Character.toLowerCase(first) + methodName.substring(4);
-            }
+            return Introspector.decapitalize(methodName.substring(3));
         }
+
         if (methodName.startsWith("is") && methodName.length() > 2) {
-            char first = methodName.charAt(2);
-            if (Character.isUpperCase(first)) {
-                return Character.toLowerCase(first) + methodName.substring(3);
-            }
+            return Introspector.decapitalize(methodName.substring(2));
         }
-        // record accessor or plain method reference
-        return methodName;
+
+        // record accessor / normal method
+        return Introspector.decapitalize(methodName);
     }
 
-    private static String buildCacheKey(SFunction<?, ?> fn) {
+    private static String buildLambdaCacheKey(SFunction<?, ?> fn) {
         Class<?> lambdaClass = fn.getClass();
+        ClassLoader loader = lambdaClass.getClassLoader();
+        return System.identityHashCode(loader) + "#" + lambdaClass.getName();
+    }
 
-        // Use two-level cache: Lambda Class -> SerializedLambda -> PropertyRef
-        // This avoids repeated reflection calls to writeReplace()
-        SerializedLambda lambda =
-                getCacheManager().getSerializedLambdaCache().get(lambdaClass, cls -> resolveLambda(fn));
-
+    private static String buildPropertyRefCacheKey(SFunction<?, ?> fn, SerializedLambda lambda) {
         String className = lambda.getImplClass().replace('/', '.');
-        return className + "#" + lambda.getImplMethodName() + "#" + lambda.getImplMethodSignature();
+        ClassLoader loader = fn.getClass().getClassLoader();
+        return System.identityHashCode(loader) + "#" + className + "#" + lambda.getImplMethodName() + "#"
+                + lambda.getImplMethodSignature();
     }
 
     private static SerializedLambda resolveLambda(SFunction<?, ?> fn) {

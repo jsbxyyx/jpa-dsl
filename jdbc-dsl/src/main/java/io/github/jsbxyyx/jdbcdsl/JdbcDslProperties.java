@@ -64,6 +64,7 @@ public class JdbcDslProperties {
     public static class Cache {
         private long propertyRefMaxSize = 50_000;
         private long rowMapperMaxSize = 10_000;
+        private long serializedLambdaMaxSize = 10_000;
 
         public long getPropertyRefMaxSize() {
             return propertyRefMaxSize;
@@ -79,6 +80,14 @@ public class JdbcDslProperties {
 
         public void setRowMapperMaxSize(long rowMapperMaxSize) {
             this.rowMapperMaxSize = rowMapperMaxSize;
+        }
+
+        public long getSerializedLambdaMaxSize() {
+            return serializedLambdaMaxSize;
+        }
+
+        public void setSerializedLambdaMaxSize(long serializedLambdaMaxSize) {
+            this.serializedLambdaMaxSize = serializedLambdaMaxSize;
         }
     }
 
