@@ -1,82 +1,54 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
+
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
- * Thread-safe cache for compiled ResultSet mappers.
+ * Thread-safe cache adapter for compiled ResultSet mappers.
  *
  * <p>This cache eliminates repeated mapper initialization overhead by storing
  * pre-compiled mappers keyed by target type and column structure. Multiple
  * queries with the same structure can share the same mapper instance.
  *
- * <p>Cache characteristics:
- * <ul>
- *   <li>Thread-safe: Uses synchronized Map for concurrent access</li>
- *   <li>Configurable eviction: Optional LRU eviction for dynamic query scenarios</li>
- *   <li>Immutable mappers: Cached mappers are thread-safe and reusable</li>
- * </ul>
+ * <p>Cache is managed by {@link JdbcDslCacheManager} for unified lifecycle
+ * and configuration across all jdbc-dsl caches.
  *
- * <p>Example usage (unbounded cache):
+ * <p>Example usage:
  * <pre>{@code
- * MapperCache cache = new MapperCache(converterRegistry);
+ * JdbcDslCacheManager cacheManager = new JdbcDslCacheManager();
+ * MapperCache cache = new MapperCache(cacheManager, converterRegistry);
  * ResultSetMapper mapper = cache.getMapper(resultSet, meta);
  * while (resultSet.next()) {
  *     Object bean = mapper.mapRow(resultSet);
  * }
  * }</pre>
  *
- * <p>Example usage (bounded cache with LRU eviction):
- * <pre>{@code
- * MapperCache cache = new MapperCache(converterRegistry, 1000);
- * // Automatically evicts least recently used mappers when size > 1000
- * }</pre>
- *
  * @since 2.1.0
  */
 public final class MapperCache {
 
-    private final Map<MapperKey, ResultSetMapper> cache;
+    private final JdbcDslCacheManager cacheManager;
     private final ConverterRegistry converterRegistry;
 
     /**
-     * Creates a new MapperCache with unbounded cache size.
+     * Creates a new MapperCache that uses the cache instance from JdbcDslCacheManager.
      *
-     * <p>Suitable for typical applications with fixed entity types and query patterns.
+     * <p>Cache configuration (size, expiration, statistics) is managed by
+     * {@link JdbcDslCacheManager} for consistency across all jdbc-dsl caches.
      *
+     * @param cacheManager the central cache manager
      * @param converterRegistry the converter registry to use for mapper creation
      */
-    public MapperCache(ConverterRegistry converterRegistry) {
-        this(converterRegistry, -1);
-    }
-
-    /**
-     * Creates a new MapperCache with configurable maximum size.
-     *
-     * <p>When maxSize > 0, uses LRU eviction to prevent unbounded growth.
-     * Suitable for dynamic query scenarios (e.g., report systems, multi-tenant).
-     *
-     * @param converterRegistry the converter registry to use for mapper creation
-     * @param maxSize maximum cache size; -1 for unbounded, > 0 for LRU eviction
-     */
-    public MapperCache(ConverterRegistry converterRegistry, int maxSize) {
+    public MapperCache(JdbcDslCacheManager cacheManager, ConverterRegistry converterRegistry) {
+        this.cacheManager = cacheManager;
         this.converterRegistry = converterRegistry;
-        if (maxSize > 0) {
-            this.cache = java.util.Collections.synchronizedMap(
-                    new java.util.LinkedHashMap<MapperKey, ResultSetMapper>(16, 0.75f, true) {
-                        @Override
-                        protected boolean removeEldestEntry(Map.Entry<MapperKey, ResultSetMapper> eldest) {
-                            return size() > maxSize;
-                        }
-                    });
-        } else {
-            this.cache = new java.util.concurrent.ConcurrentHashMap<>();
-        }
     }
 
     /**
@@ -85,6 +57,8 @@ public final class MapperCache {
      * <p>If a mapper for this combination already exists in the cache, it is
      * returned immediately. Otherwise, a new mapper is created, cached, and returned.
      *
+     * <p>This method is thread-safe and optimized for high-concurrency scenarios.
+     *
      * @param rs the ResultSet (used only for metadata extraction)
      * @param meta the bean mapping metadata
      * @return a compiled mapper for this ResultSet structure and target type
@@ -92,7 +66,7 @@ public final class MapperCache {
      */
     public ResultSetMapper getMapper(ResultSet rs, BeanMappingMeta meta) throws SQLException {
         MapperKey key = createKey(rs, meta.getType());
-        return cache.computeIfAbsent(key, k -> {
+        return cacheManager.getMapperCache().get(key, k -> {
             try {
                 return new ResultSetHandler(rs, meta, converterRegistry);
             } catch (SQLException e) {
@@ -103,6 +77,9 @@ public final class MapperCache {
 
     /**
      * Creates a cache key from ResultSet metadata and target type.
+     *
+     * <p>The key preserves column order as it appears in the ResultSet, since
+     * different column orders require different mappers (column positions matter).
      *
      * @param rs the ResultSet
      * @param targetType the target bean type
@@ -138,15 +115,47 @@ public final class MapperCache {
      * has changed and cached mappers need to be invalidated.
      */
     public void clear() {
-        cache.clear();
+        cacheManager.getMapperCache().invalidateAll();
     }
 
     /**
-     * Returns the number of cached mappers.
+     * Returns the approximate number of cached mappers.
      *
-     * @return the cache size
+     * <p>Note: This is an estimate and may not reflect the exact size due to
+     * concurrent modifications and asynchronous cleanup.
+     *
+     * @return the approximate cache size
      */
-    public int size() {
-        return cache.size();
+    public long size() {
+        return cacheManager.getMapperCache().estimatedSize();
+    }
+
+    /**
+     * Returns cache statistics if recording is enabled.
+     *
+     * <p>Statistics include:
+     * <ul>
+     *   <li>Hit rate: Percentage of cache hits</li>
+     *   <li>Miss rate: Percentage of cache misses</li>
+     *   <li>Load count: Number of times new mappers were created</li>
+     *   <li>Eviction count: Number of mappers evicted</li>
+     * </ul>
+     *
+     * @return cache statistics, or empty stats if recording is disabled
+     * @throws IllegalStateException if statistics recording was not enabled
+     */
+    public CacheStats getStats() {
+        return cacheManager.getMapperCache().stats();
+    }
+
+    /**
+     * Performs any pending maintenance operations (e.g., eviction, expiration).
+     *
+     * <p>Caffeine performs maintenance asynchronously, but this method can be
+     * called to trigger immediate cleanup. Useful for testing or memory-sensitive
+     * scenarios.
+     */
+    public void cleanUp() {
+        cacheManager.getMapperCache().cleanUp();
     }
 }

@@ -95,7 +95,7 @@ public final class JdbcDslExecutor {
         this.beanMappingMetaFactory = beanMappingMetaFactory;
         ConverterRegistry converterRegistry =
                 new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
-        this.mapperCache = new MapperCache(converterRegistry);
+        this.mapperCache = new MapperCache(cacheManager, converterRegistry);
     }
 
     /**

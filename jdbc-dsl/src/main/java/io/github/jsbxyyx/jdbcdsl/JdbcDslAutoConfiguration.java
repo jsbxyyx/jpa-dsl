@@ -98,7 +98,8 @@ public class JdbcDslAutoConfiguration {
                 cache.getPropertyRefMaxSize(),
                 cache.getRowMapperMaxSize(),
                 cache.getSerializedLambdaMaxSize(),
-                cache.getBeanMappingMaxSize());
+                cache.getBeanMappingMaxSize(),
+                cache.getMapperCacheMaxSize());
     }
 
     @Bean
