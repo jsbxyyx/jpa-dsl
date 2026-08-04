@@ -2,7 +2,10 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
-import io.github.jsbxyyx.jdbcdsl.bean.ResultSetHandler;
+import io.github.jsbxyyx.jdbcdsl.bean.ConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.MapperCache;
+import io.github.jsbxyyx.jdbcdsl.bean.ResultSetMapper;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
@@ -51,6 +54,7 @@ public final class JdbcDslExecutor {
     private final Dialect dialect;
     private final JdbcDslCacheManager cacheManager;
     private final BeanMappingMetaFactory beanMappingMetaFactory;
+    private final MapperCache mapperCache;
     private TimeProvider timeProvider = LocalDateTime::now;
 
     /**
@@ -89,6 +93,9 @@ public final class JdbcDslExecutor {
         this.dialect = dialect;
         this.cacheManager = cacheManager;
         this.beanMappingMetaFactory = beanMappingMetaFactory;
+        ConverterRegistry converterRegistry =
+                new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+        this.mapperCache = new MapperCache(converterRegistry);
     }
 
     /**
@@ -849,16 +856,16 @@ public final class JdbcDslExecutor {
                 cacheManager.getBeanMappingCache().get(beanClass, cls -> beanMappingMetaFactory.create(beanClass));
 
         // Cache ResultSetMapper for the lifetime of this RowMapper (thread-safe)
-        AtomicReference<ResultSetHandler> mapperRef = new AtomicReference<>();
+        AtomicReference<ResultSetMapper> mapperRef = new AtomicReference<>();
 
         return (rs, rowNum) -> {
             // Atomic lazy initialization: create mapper on first row
-            ResultSetHandler mapper = mapperRef.updateAndGet(current -> {
+            ResultSetMapper mapper = mapperRef.updateAndGet(current -> {
                 if (current != null) {
                     return current;
                 }
                 try {
-                    return new ResultSetHandler(rs, meta);
+                    return mapperCache.getMapper(rs, meta);
                 } catch (SQLException e) {
                     throw new RuntimeException("Failed to initialize ResultSetMapper for " + beanClass.getName(), e);
                 }
@@ -873,22 +880,6 @@ public final class JdbcDslExecutor {
                 throw new RuntimeException("Failed to map row to " + beanClass.getName(), e);
             }
         };
-    }
-
-    private static Object convertValue(Object value, Class<?> targetType, ConversionService cs) {
-        if (targetType == null) {
-            return value;
-        }
-        if (value == null) {
-            return null; // null is valid for reference types; callers guard primitives
-        }
-        if (targetType.isInstance(value)) {
-            return value;
-        }
-        if (cs.canConvert(value.getClass(), targetType)) {
-            return cs.convert(value, targetType);
-        }
-        return value;
     }
 
     // ------------------------------------------------------------------ //

@@ -81,6 +81,11 @@ public final class JavaBeanMeta implements BeanMappingMeta {
         return getAccessor(propertyName) != null;
     }
 
+    @Override
+    public PropertyAccessor getPropertyAccessor(String propertyName) {
+        return getAccessor(propertyName);
+    }
+
     /**
      * Gets the accessor for a property name (case-insensitive).
      */

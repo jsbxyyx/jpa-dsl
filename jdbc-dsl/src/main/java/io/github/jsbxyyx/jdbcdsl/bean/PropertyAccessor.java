@@ -38,4 +38,18 @@ public interface PropertyAccessor {
      * @throws RuntimeException if access fails
      */
     void set(Object target, Object value);
+
+    /**
+     * Writes the property value directly without type conversion.
+     *
+     * <p>This method assumes the value is already of the correct type
+     * and performs no conversion. Use this for optimized mapping scenarios
+     * where conversion is handled externally.
+     *
+     * @param target the target object
+     * @param value the value to write (must be compatible with property type)
+     * @throws RuntimeException if access fails
+     * @since 2.1.0
+     */
+    void write(Object target, Object value);
 }

@@ -46,11 +46,16 @@ public final class FieldAccessor implements PropertyAccessor {
 
     @Override
     public void set(Object target, Object value) {
+        write(target, value);
+    }
+
+    @Override
+    public void write(Object target, Object value) {
         try {
             field.set(target, value);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(
-                    "Failed to set field '" + field.getName() + "' on " + target.getClass() + " with value: " + value,
+                    "Failed to write field '" + field.getName() + "' on " + target.getClass() + " with value: " + value,
                     e);
         }
     }
