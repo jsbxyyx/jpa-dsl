@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.convert.support.DefaultConversionService;
 
 import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -74,15 +76,18 @@ class ConverterRegistryTest {
 
     @Test
     void testTemporalConversions() {
-        // LocalDateTime
+        // JDBC Timestamp -> LocalDateTime
         ValueConverter dateTimeConverter = registry.getConverter(Types.TIMESTAMP, LocalDateTime.class);
-        LocalDateTime now = LocalDateTime.now();
-        assertEquals(now, dateTimeConverter.convert(now));
+        Timestamp timestamp = Timestamp.valueOf("2026-01-01 10:20:30");
+        assertEquals(LocalDateTime.of(2026, 1, 1, 10, 20, 30), dateTimeConverter.convert(timestamp));
 
-        // LocalDate
+        // JDBC Date -> LocalDate
         ValueConverter dateConverter = registry.getConverter(Types.DATE, LocalDate.class);
-        LocalDate today = LocalDate.now();
-        assertEquals(today, dateConverter.convert(today));
+        Date sqlDate = Date.valueOf("2026-01-01");
+        assertEquals(LocalDate.of(2026, 1, 1), dateConverter.convert(sqlDate));
+
+        assertNull(dateTimeConverter.convert(null));
+        assertNull(dateConverter.convert(null));
     }
 
     @Test
@@ -190,6 +195,42 @@ class ConverterRegistryTest {
         assertEquals(100, c1.convert(100));
         assertEquals(200, c2.convert(200));
         assertEquals(300, c3.convert(300));
+    }
+
+    @Test
+    void testNumericWrapperConversionsFromIntegerJdbcValue() {
+        ValueConverter byteConverter = registry.getConverter(Types.TINYINT, Byte.class);
+        assertEquals(Byte.valueOf((byte) 7), byteConverter.convert(Integer.valueOf(7)));
+
+        ValueConverter shortConverter = registry.getConverter(Types.SMALLINT, Short.class);
+        assertEquals(Short.valueOf((short) 123), shortConverter.convert(Integer.valueOf(123)));
+
+        ValueConverter longConverter = registry.getConverter(Types.BIGINT, Long.class);
+        assertEquals(Long.valueOf(123L), longConverter.convert(Integer.valueOf(123)));
+    }
+
+    @Test
+    void testNumericWrapperConversionsKeepNull() {
+        assertNull(registry.getConverter(Types.TINYINT, Byte.class).convert(null));
+        assertNull(registry.getConverter(Types.SMALLINT, Short.class).convert(null));
+        assertNull(registry.getConverter(Types.BIGINT, Long.class).convert(null));
+    }
+
+    @Test
+    void testPrimitiveNumericNullUsesDefaultValue() {
+        assertEquals((byte) 0, registry.getConverter(Types.TINYINT, byte.class).convert(null));
+        assertEquals(
+                (short) 0, registry.getConverter(Types.SMALLINT, short.class).convert(null));
+        assertEquals(0, registry.getConverter(Types.INTEGER, int.class).convert(null));
+        assertEquals(0L, registry.getConverter(Types.BIGINT, long.class).convert(null));
+    }
+
+    @Test
+    void testJdbcReturnedIntegerCanMapToPrimitiveNumericTypes() {
+        assertEquals((byte) 8, registry.getConverter(Types.TINYINT, byte.class).convert(Integer.valueOf(8)));
+        assertEquals(
+                (short) 128, registry.getConverter(Types.SMALLINT, short.class).convert(Integer.valueOf(128)));
+        assertEquals(1024, registry.getConverter(Types.INTEGER, int.class).convert(Integer.valueOf(1024)));
     }
 
     enum TestEnum {

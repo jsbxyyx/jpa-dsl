@@ -53,4 +53,19 @@ public interface ConverterRegistry {
      * @throws IllegalArgumentException if no suitable converter can be found
      */
     ValueConverter getConverter(Class<?> sourceType, Class<?> targetType);
+
+    /**
+     * Finds a converter based only on the target Java property type.
+     *
+     * <p>This is preferred for ResultSet mapping because JDBC drivers are not
+     * required to return the exact Java type implied by the SQL type. For
+     * example, SMALLINT may be returned as Integer by a driver while the
+     * entity property is Short.
+     *
+     * @param targetType target Java property type
+     * @return converter for the target type
+     */
+    default ValueConverter getConverter(Class<?> targetType) {
+        return getConverter(null, targetType);
+    }
 }

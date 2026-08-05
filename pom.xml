@@ -42,7 +42,7 @@
     </modules>
 
     <properties>
-        <revision>2.0.5-alpha</revision>
+        <revision>2.0.5-beta</revision>
         <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>

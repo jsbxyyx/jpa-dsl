@@ -28,6 +28,7 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
 
     private final ConversionService conversionService;
     private final Map<ConverterKey, ValueConverter> converterCache;
+    private final Map<Class<?>, ValueConverter> targetConverterCache;
 
     /**
      * Creates a new DefaultConverterRegistry.
@@ -37,12 +38,18 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
     public DefaultConverterRegistry(ConversionService conversionService) {
         this.conversionService = conversionService;
         this.converterCache = new ConcurrentHashMap<>();
+        this.targetConverterCache = new ConcurrentHashMap<>();
     }
 
     @Override
     public ValueConverter getConverter(int jdbcType, Class<?> targetType) {
         Class<?> sourceType = getJdbcJavaType(jdbcType);
         return getConverter(sourceType, targetType);
+    }
+
+    @Override
+    public ValueConverter getConverter(Class<?> targetType) {
+        return targetConverterCache.computeIfAbsent(targetType, key -> selectOptimalConverter(null, key));
     }
 
     @Override
@@ -60,6 +67,22 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
      * @return the optimal converter
      */
     private ValueConverter selectOptimalConverter(Class<?> sourceType, Class<?> targetType) {
+        // Numeric conversion follows the Java property type. JDBC drivers may
+        // return Integer for SMALLINT/TINYINT, so source JDBC type is not enough.
+        ValueConverter numericConverter = ValueConverters.numeric(targetType);
+        if (numericConverter != null) {
+            return numericConverter;
+        }
+
+        // Explicit JDBC date/time conversions avoid relying on Spring runtime
+        // conversion registration and keep hot-path conversion deterministic.
+        if (sourceType == java.sql.Timestamp.class && targetType == java.time.LocalDateTime.class) {
+            return ValueConverters.timestampToLocalDateTime();
+        }
+        if (sourceType == java.sql.Date.class && targetType == java.time.LocalDate.class) {
+            return ValueConverters.sqlDateToLocalDate();
+        }
+
         // Check for exact type matches (no conversion needed)
         if (sourceType != null && sourceType.equals(targetType)) {
             return ValueConverters.identity();

@@ -7,6 +7,8 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.Locale;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Optimized ResultSet to Bean mapper that preprocesses column metadata.
@@ -39,6 +41,8 @@ import java.util.Locale;
  * }</pre>
  */
 public final class ResultSetHandler implements ResultSetMapper {
+
+    private static final Logger LOGGER = Logger.getLogger(ResultSetHandler.class.getName());
 
     private static final ConverterRegistry DEFAULT_CONVERTER_REGISTRY =
             new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
@@ -125,10 +129,12 @@ public final class ResultSetHandler implements ResultSetMapper {
                 continue;
             }
 
-            // Select optimized converter based on JDBC type and property type
-            int jdbcType = rsMetaData.getColumnType(i);
+            // Select optimized converter based on target property type.
+            // JDBC drivers may return different Java values for the same SQL type
+            // (for example SMALLINT may be returned as Integer), therefore the
+            // entity property type is the source of truth for conversion.
             Class<?> propertyType = accessor.getType();
-            ValueConverter converter = converterRegistry.getConverter(jdbcType, propertyType);
+            ValueConverter converter = converterRegistry.getConverter(rsMetaData.getColumnType(i), propertyType);
 
             columnMappings[i - 1] = new ColumnMapping(accessor, converter);
         }
@@ -168,8 +174,16 @@ public final class ResultSetHandler implements ResultSetMapper {
             try {
                 mapping.set(instance, value);
             } catch (Exception e) {
-                // Silently ignore unmappable values (consistent with old behavior)
-                // In production, consider using a logger here
+                // First stage: keep backward compatibility and avoid breaking row mapping,
+                // but record mapping failures for diagnosis.
+                LOGGER.log(
+                        Level.WARNING,
+                        "Failed to map ResultSet column " + (i + 1)
+                                + " to property " + mapping.accessor.getName()
+                                + " of " + meta.getType().getName()
+                                + ", value type="
+                                + (value == null ? "null" : value.getClass().getName()),
+                        e);
             }
         }
 

@@ -155,6 +155,77 @@ class MapperCacheTest {
         assertEquals(1, cache.size(), "Cache should contain one mapper");
     }
 
+    @Test
+    void testColumnLabelSmallIntAliasMapsToShortProperty() throws SQLException {
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        BeanMappingMeta meta = metaFactory.create(ShortEntity.class);
+
+        ResultSet rs = createMockResultSet("timeIndex", Types.SMALLINT);
+        ResultSetMapper mapper = cache.getMapper(rs, meta);
+
+        ResultSet row = mock(ResultSet.class);
+        when(row.getObject(1)).thenReturn(Short.valueOf((short) 123));
+
+        ShortEntity entity = (ShortEntity) mapper.mapRow(row);
+
+        assertEquals(Short.valueOf((short) 123), entity.getTimeIndex());
+    }
+
+    @Test
+    void testColumnLabelPreferredOverColumnNameForAlias() throws SQLException {
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        BeanMappingMeta meta = metaFactory.create(ShortEntity.class);
+
+        ResultSet rs = mock(ResultSet.class);
+        ResultSetMetaData metaData = mock(ResultSetMetaData.class);
+        when(metaData.getColumnCount()).thenReturn(1);
+        when(metaData.getColumnLabel(1)).thenReturn("timeIndex");
+        when(metaData.getColumnName(1)).thenReturn("time_index");
+        when(metaData.getColumnType(1)).thenReturn(Types.SMALLINT);
+        when(rs.getMetaData()).thenReturn(metaData);
+
+        ResultSetMapper mapper = cache.getMapper(rs, meta);
+        ResultSet row = mock(ResultSet.class);
+        when(row.getObject(1)).thenReturn(Short.valueOf((short) 10));
+
+        ShortEntity entity = (ShortEntity) mapper.mapRow(row);
+
+        assertEquals(Short.valueOf((short) 10), entity.getTimeIndex());
+    }
+
+    @Test
+    void testJdbcIntegerValueConvertsToShortProperty() throws SQLException {
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        BeanMappingMeta meta = metaFactory.create(ShortEntity.class);
+
+        ResultSet rs = createMockResultSet("timeIndex", Types.SMALLINT);
+        ResultSetMapper mapper = cache.getMapper(rs, meta);
+
+        ResultSet row = mock(ResultSet.class);
+        // Some JDBC drivers return Integer for SMALLINT/TINYINT.
+        when(row.getObject(1)).thenReturn(Integer.valueOf(123));
+
+        ShortEntity entity = (ShortEntity) mapper.mapRow(row);
+
+        assertEquals(Short.valueOf((short) 123), entity.getTimeIndex());
+    }
+
+    @Test
+    void testJdbcNullValueKeepsWrapperTypeNull() throws SQLException {
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        BeanMappingMeta meta = metaFactory.create(ShortEntity.class);
+
+        ResultSet rs = createMockResultSet("timeIndex", Types.SMALLINT);
+        ResultSetMapper mapper = cache.getMapper(rs, meta);
+
+        ResultSet row = mock(ResultSet.class);
+        when(row.getObject(1)).thenReturn(null);
+
+        ShortEntity entity = (ShortEntity) mapper.mapRow(row);
+
+        assertNull(entity.getTimeIndex());
+    }
+
     private ResultSet createMockResultSet(Object... columnDefs) throws SQLException {
         if (columnDefs.length % 2 != 0) {
             throw new IllegalArgumentException("Column definitions must be in pairs (name, type)");
@@ -178,6 +249,18 @@ class MapperCacheTest {
 
         when(rs.getMetaData()).thenReturn(metaData);
         return rs;
+    }
+
+    static class ShortEntity {
+        private Short timeIndex;
+
+        public Short getTimeIndex() {
+            return timeIndex;
+        }
+
+        public void setTimeIndex(Short timeIndex) {
+            this.timeIndex = timeIndex;
+        }
     }
 
     static class TestEntity {
