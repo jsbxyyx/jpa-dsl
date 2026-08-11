@@ -268,13 +268,17 @@ public final class JdbcEntityGenerator {
 
     private static ColumnInfo columnInfoFromResultSet(ResultSet rs) throws SQLException {
         String colName = rs.getString("COLUMN_NAME");
+        int jdbcType = rs.getInt("DATA_TYPE");
         String typeName = rs.getString("TYPE_NAME");
+        int precision = rs.getInt("COLUMN_SIZE");
+        int scale = rs.getInt("DECIMAL_DIGITS");
         boolean nullable = rs.getInt("NULLABLE") == DatabaseMetaData.columnNullable;
         String isAutoincrement = rs.getString("IS_AUTOINCREMENT");
         boolean autoIncrement = "YES".equalsIgnoreCase(isAutoincrement);
         int ordinalPosition = rs.getInt("ORDINAL_POSITION");
         String comment = rs.getString("REMARKS");
-        return new ColumnInfo(colName, typeName, nullable, autoIncrement, ordinalPosition, comment);
+        return new ColumnInfo(
+                colName, jdbcType, typeName, precision, scale, nullable, autoIncrement, ordinalPosition, comment);
     }
 
     private static Set<String> readPrimaryKeys(DatabaseMetaData meta, String tableName) throws SQLException {
@@ -373,7 +377,7 @@ public final class JdbcEntityGenerator {
         // Determine Java types and collect additional imports
         Map<ColumnInfo, String> javaTypes = new LinkedHashMap<>();
         for (ColumnInfo col : columns) {
-            String javaType = toJavaType(col.typeName);
+            String javaType = toJavaType(col);
             javaTypes.put(col, javaType);
             switch (javaType) {
                 case "java.math.BigDecimal":
@@ -390,6 +394,9 @@ public final class JdbcEntityGenerator {
                     break;
                 case "java.time.OffsetDateTime":
                     imports.add("java.time.OffsetDateTime");
+                    break;
+                case "java.util.UUID":
+                    imports.add("java.util.UUID");
                     break;
                 default:
                     break;
@@ -647,7 +654,7 @@ public final class JdbcEntityGenerator {
             String pkColName = pkLower.iterator().next();
             for (ColumnInfo col : columns) {
                 if (col.name.toLowerCase().equals(pkColName)) {
-                    return simpleTypeName(toJavaType(col.typeName));
+                    return simpleTypeName(toJavaType(col));
                 }
             }
         }
@@ -760,41 +767,64 @@ public final class JdbcEntityGenerator {
         return "updated_at".equals(lowerColName);
     }
 
-    static String toJavaType(String sqlType) {
-        if (sqlType == null) {
-            return "Object";
+    static String toJavaType(ColumnInfo column) {
+        // Handle database-specific types first
+        if (isJsonType(column.typeName)) {
+            return "String";
         }
-        String upper = sqlType.toUpperCase();
-        int paren = upper.indexOf('(');
-        if (paren >= 0) {
-            upper = upper.substring(0, paren).trim();
-        }
-        return switch (upper) {
-            case "VARCHAR",
-                    "CHAR",
-                    "TEXT",
-                    "CLOB",
-                    "LONGVARCHAR",
-                    "NVARCHAR",
-                    "NCHAR",
-                    "NCLOB",
-                    "LONGNVARCHAR",
-                    "CHARACTER VARYING",
-                    "CHARACTER",
-                    "TINYTEXT",
-                    "MEDIUMTEXT",
-                    "LONGTEXT" -> "String";
-            case "INTEGER", "INT", "INT4" -> "Integer";
-            case "BIGINT", "INT8" -> "Long";
-            case "SMALLINT", "TINYINT", "INT2" -> "Short";
-            case "FLOAT", "FLOAT4", "REAL" -> "Float";
-            case "DOUBLE", "FLOAT8", "DOUBLE PRECISION" -> "Double";
-            case "DECIMAL", "NUMERIC" -> "java.math.BigDecimal";
-            case "BOOLEAN", "BOOL", "BIT" -> "Boolean";
-            case "DATE" -> "java.time.LocalDate";
-            case "TIME" -> "java.time.LocalTime";
-            case "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE", "DATETIME", "TIMESTAMP(6)" -> "java.time.LocalDateTime";
-            case "TIMESTAMP WITH TIME ZONE" -> "java.time.OffsetDateTime";
+
+        return switch (column.jdbcType) {
+            case java.sql.Types.VARCHAR,
+                    java.sql.Types.CHAR,
+                    java.sql.Types.LONGVARCHAR,
+                    java.sql.Types.NVARCHAR,
+                    java.sql.Types.LONGNVARCHAR,
+                    java.sql.Types.NCHAR,
+                    java.sql.Types.CLOB -> "String";
+            case java.sql.Types.INTEGER -> "Integer";
+            case java.sql.Types.BIGINT -> "Long";
+            case java.sql.Types.SMALLINT -> "Short";
+            case java.sql.Types.TINYINT -> {
+                // MySQL commonly exposes boolean flags as TINYINT(1).
+                if (column.precision == 1) {
+                    yield "Boolean";
+                }
+                yield "Byte";
+            }
+            case java.sql.Types.FLOAT, java.sql.Types.REAL -> "Float";
+            case java.sql.Types.DOUBLE -> "Double";
+            case java.sql.Types.DECIMAL, java.sql.Types.NUMERIC -> {
+                if (column.scale == 0 && column.precision > 0) {
+                    if (column.precision <= 9) {
+                        yield "Integer";
+                    } else if (column.precision <= 18) {
+                        yield "Long";
+                    }
+                }
+                yield "java.math.BigDecimal";
+            }
+            case java.sql.Types.BOOLEAN -> "Boolean";
+            case java.sql.Types.BIT -> {
+                if (column.precision == 1) {
+                    yield "Boolean";
+                }
+                yield "byte[]";
+            }
+            case java.sql.Types.BINARY,
+                    java.sql.Types.VARBINARY,
+                    java.sql.Types.LONGVARBINARY,
+                    java.sql.Types.BLOB -> "byte[]";
+            case java.sql.Types.DATE -> "java.time.LocalDate";
+            case java.sql.Types.TIME -> "java.time.LocalTime";
+            case java.sql.Types.TIMESTAMP -> "java.time.LocalDateTime";
+            case java.sql.Types.TIMESTAMP_WITH_TIMEZONE -> "java.time.OffsetDateTime";
+            case java.sql.Types.OTHER -> {
+                String lowerTypeName = column.typeName.toLowerCase();
+                if ("uuid".equals(lowerTypeName) || "uniqueidentifier".equals(lowerTypeName)) {
+                    yield "java.util.UUID";
+                }
+                yield "Object";
+            }
             default -> "Object";
         };
     }
@@ -804,13 +834,24 @@ public final class JdbcEntityGenerator {
         return dot < 0 ? fullTypeName : fullTypeName.substring(dot + 1);
     }
 
+    private static boolean isJsonType(String typeName) {
+        if (typeName == null) {
+            return false;
+        }
+        String lower = typeName.toLowerCase();
+        return "json".equals(lower) || "jsonb".equals(lower);
+    }
+
     // -------------------------------------------------------------------------
     // Internal column metadata
     // -------------------------------------------------------------------------
 
     static final class ColumnInfo {
         final String name;
+        final int jdbcType;
         final String typeName;
+        final int precision;
+        final int scale;
         final boolean nullable;
         final boolean autoIncrement;
         final int ordinalPosition;
@@ -818,13 +859,19 @@ public final class JdbcEntityGenerator {
 
         ColumnInfo(
                 String name,
+                int jdbcType,
                 String typeName,
+                int precision,
+                int scale,
                 boolean nullable,
                 boolean autoIncrement,
                 int ordinalPosition,
                 String comment) {
             this.name = name;
+            this.jdbcType = jdbcType;
             this.typeName = typeName;
+            this.precision = precision;
+            this.scale = scale;
             this.nullable = nullable;
             this.autoIncrement = autoIncrement;
             this.ordinalPosition = ordinalPosition;
