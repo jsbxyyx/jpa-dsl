@@ -176,6 +176,41 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Finds an entity by its mapped primary key, respecting logical-delete filters.
+     *
+     * @param entityClass entity class
+     * @param id primary key value
+     * @return matching entity, or {@code null} when no row matches
+     * @throws IllegalStateException if the entity class has no {@code @Id} field
+     */
+    public <T> T selectById(Class<T> entityClass, Object id) {
+        EntityMeta meta = EntityMetaReader.read(entityClass);
+        String idPropName = meta.getIdPropertyName();
+        if (idPropName == null) {
+            throw new IllegalStateException("No @Id field found on " + entityClass.getName());
+        }
+        PropertyRef idRef = new PropertyRef(entityClass, idPropName);
+        LeafPredicate where = LeafPredicate.of(idRef, "t", LeafPredicate.Op.EQ, id);
+        SelectSpec<T, T> spec = new SelectSpec<>(
+                entityClass,
+                "t",
+                false,
+                List.of(),
+                where,
+                List.of(),
+                JSort.unsorted(),
+                entityClass,
+                List.of(),
+                null,
+                List.of(),
+                null,
+                null,
+                null);
+        List<T> results = select(spec);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
      * Executes a COUNT query for the given spec and returns the total number of matching rows.
      *
      * <p>When the spec contains JOINs (no GROUP BY), uses {@code COUNT(DISTINCT pk)} to avoid

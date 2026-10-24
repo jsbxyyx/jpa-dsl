@@ -58,6 +58,30 @@ class JdbcDslRepositoryTest {
         verify(executor).deleteById(TUser.class, 7L);
     }
 
+    @Test
+    void countWithSpecDelegatesToSharedExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        SelectSpec<TUser, TUser> spec = repository
+                .selectBuilder()
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+
+        repository.count(spec);
+
+        verify(executor).count(spec);
+    }
+
+    @Test
+    void selectByIdDelegatesToSharedExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+
+        repository.selectById(7L);
+
+        verify(executor).selectById(TUser.class, 7L);
+    }
+
     private static final class TestUserRepository extends JdbcDslRepository<TUser, Long> {
         private TestUserRepository(JdbcDslExecutor executor) {
             super(TUser.class, executor);

@@ -112,6 +112,16 @@ public abstract class JdbcDslRepository<T, ID> {
         return jdbcDslExecutor.executeDelete(spec);
     }
 
+    /** Executes a COUNT query for the supplied SELECT specification. */
+    public <R> long count(SelectSpec<T, R> spec) {
+        return jdbcDslExecutor.count(spec);
+    }
+
+    /** Finds an entity by its mapped primary key, or returns {@code null} if not found. */
+    public T selectById(ID id) {
+        return jdbcDslExecutor.selectById(entityClass, id);
+    }
+
     /** Executes a SELECT specification and returns all matching rows. */
     public <R> List<R> list(SelectSpec<T, R> spec) {
         return jdbcDslExecutor.select(spec);
