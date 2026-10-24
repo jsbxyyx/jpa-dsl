@@ -362,6 +362,30 @@ class JSortJPageableTest {
                 .hasMessageContaining("positive");
     }
 
+    @Test
+    void jPageable_unpaged_withoutSort() {
+        JPageable<TUser> pageable = JPageable.unpaged();
+
+        assertThat(pageable.isUnpaged()).isTrue();
+        assertThat(pageable.isPaged()).isFalse();
+        assertThat(pageable.getSort().isUnsorted()).isTrue();
+        assertThatThrownBy(pageable::getPageNumber).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(pageable::getPageSize).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(pageable::getOffset).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void jPageable_unpaged_withSort_preservesSortInSpringAdapter() {
+        JSort<TUser> sort = JSort.byDesc(TUser::getUsername);
+        JPageable<TUser> pageable = JPageable.unpaged(sort);
+
+        assertThat(pageable.isUnpaged()).isTrue();
+        assertThat(pageable.getSort()).isSameAs(sort);
+        assertThat(pageable.toSpringPageable().isUnpaged()).isTrue();
+        assertThat(pageable.toSpringPageable().getSort().isSorted()).isTrue();
+        assertThat(pageable.withSort(JSort.byAsc(TUser::getAge)).isUnpaged()).isTrue();
+    }
+
     // ====================================================================
     //  JPageable — accessor aliases
     // ====================================================================

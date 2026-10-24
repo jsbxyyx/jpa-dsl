@@ -82,6 +82,18 @@ class JdbcDslRepositoryTest {
         verify(executor).selectById(TUser.class, 7L);
     }
 
+    @Test
+    void listWithUnpagedSortDelegatesToSharedExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        SelectSpec<TUser, TUser> spec = repository.selectBuilder().mapToEntity();
+        JPageable<TUser> pageable = JPageable.unpaged(JSort.byDesc(TUser::getId));
+
+        repository.list(spec, pageable);
+
+        verify(executor).select(spec, pageable);
+    }
+
     private static final class TestUserRepository extends JdbcDslRepository<TUser, Long> {
         private TestUserRepository(JdbcDslExecutor executor) {
             super(TUser.class, executor);

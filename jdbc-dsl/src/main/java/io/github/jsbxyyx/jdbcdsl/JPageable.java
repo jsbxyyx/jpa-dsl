@@ -4,10 +4,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Type-safe pagination specification for the jdbc-dsl, mirroring Spring's {@code PageRequest} API.
+ * Type-safe paging specification for the jdbc-dsl, mirroring Spring's {@code Pageable} API.
  *
- * <p>Uses {@link JSort} (backed by {@link SFunction} method references) instead of Spring's
- * {@code Sort}. This class does <em>not</em> accept Spring {@link Pageable} as input.
+ * <p>Supports both paged requests and unpaged requests that may still carry sorting. Uses
+ * {@link JSort} (backed by {@link SFunction} method references) instead of Spring's {@code Sort}.
+ * This class does <em>not</em> accept Spring {@link Pageable} as input.
  * Use {@link #toSpringPageable()} to convert to Spring's {@code Pageable} for output only.
  *
  * @param <T> the entity type (used for type-safe sort references)
@@ -17,17 +18,23 @@ public final class JPageable<T> {
     private final int page;
     private final int size;
     private final JSort<T> sort;
+    private final boolean paged;
 
     private JPageable(int page, int size, JSort<T> sort) {
-        if (page < 0) {
+        this(page, size, sort, true);
+    }
+
+    private JPageable(int page, int size, JSort<T> sort, boolean paged) {
+        if (paged && page < 0) {
             throw new IllegalArgumentException("Page index must not be negative");
         }
-        if (size < 1) {
+        if (paged && size < 1) {
             throw new IllegalArgumentException("Page size must be positive");
         }
         this.page = page;
         this.size = size;
         this.sort = sort != null ? sort : JSort.unsorted();
+        this.paged = paged;
     }
 
     // ------------------------------------------------------------------ //
@@ -61,32 +68,54 @@ public final class JPageable<T> {
         return new JPageable<>(0, size, JSort.unsorted());
     }
 
+    /** Creates an unpaged specification without sorting (mirrors {@code Pageable.unpaged()}). */
+    public static <T> JPageable<T> unpaged() {
+        return unpaged(JSort.unsorted());
+    }
+
+    /**
+     * Creates an unpaged specification with the given sort
+     * (mirrors {@code Pageable.unpaged(Sort)}).
+     */
+    public static <T> JPageable<T> unpaged(JSort<T> sort) {
+        return new JPageable<>(0, 0, sort, false);
+    }
+
+    private void assertPaged() {
+        if (isUnpaged()) {
+            throw new UnsupportedOperationException("This JPageable is unpaged");
+        }
+    }
+
     // ------------------------------------------------------------------ //
     //  Accessors (Spring-compatible names + original names)
     // ------------------------------------------------------------------ //
 
     /** 0-based page index (original name). */
     public int getPage() {
+        assertPaged();
         return page;
     }
 
     /** 0-based page index (mirrors {@code Pageable.getPageNumber()}). */
     public int getPageNumber() {
-        return page;
+        return getPage();
     }
 
     /** Page size (original name). */
     public int getSize() {
+        assertPaged();
         return size;
     }
 
     /** Page size (mirrors {@code Pageable.getPageSize()}). */
     public int getPageSize() {
-        return size;
+        return getSize();
     }
 
     /** Zero-based row offset (original name). */
     public long offset() {
+        assertPaged();
         return (long) page * size;
     }
 
@@ -114,6 +143,7 @@ public final class JPageable<T> {
 
     /** Returns a new pageable for the next page (mirrors {@code PageRequest.next()}). */
     public JPageable<T> next() {
+        assertPaged();
         return new JPageable<>(page + 1, size, sort);
     }
 
@@ -132,6 +162,7 @@ public final class JPageable<T> {
      * {@link #previousOrFirst()} for safe navigation.
      */
     public JPageable<T> previous() {
+        assertPaged();
         if (!hasPrevious()) {
             throw new IllegalStateException("Already at the first page — use previousOrFirst() for safe navigation");
         }
@@ -143,6 +174,7 @@ public final class JPageable<T> {
      * (mirrors {@code PageRequest.first()}).
      */
     public JPageable<T> first() {
+        assertPaged();
         return page == 0 ? this : new JPageable<>(0, size, sort);
     }
 
@@ -151,6 +183,7 @@ public final class JPageable<T> {
      * (mirrors {@code PageRequest.withPage(int)}).
      */
     public JPageable<T> withPage(int pageNumber) {
+        assertPaged();
         return pageNumber == page ? this : new JPageable<>(pageNumber, size, sort);
     }
 
@@ -159,7 +192,7 @@ public final class JPageable<T> {
      * (mirrors {@code PageRequest.withSort(Sort)}).
      */
     public JPageable<T> withSort(JSort<T> sort) {
-        return new JPageable<>(page, size, sort);
+        return isPaged() ? new JPageable<>(page, size, sort) : JPageable.unpaged(sort);
     }
 
     /**
@@ -168,22 +201,23 @@ public final class JPageable<T> {
      */
     @SafeVarargs
     public final JPageable<T> withSort(JOrder.Direction direction, SFunction<T, ?>... props) {
-        return new JPageable<>(page, size, JSort.by(direction, props));
+        return withSort(JSort.by(direction, props));
     }
 
     /** Returns {@code true} if there is a previous page (page &gt; 0). */
     public boolean hasPrevious() {
+        assertPaged();
         return page > 0;
     }
 
-    /** Always returns {@code true} — {@code JPageable} is always paged. */
+    /** Returns {@code true} when this specification applies pagination. */
     public boolean isPaged() {
-        return true;
+        return paged;
     }
 
-    /** Always returns {@code false} — {@code JPageable} is always paged. */
+    /** Returns {@code true} when this specification does not apply pagination. */
     public boolean isUnpaged() {
-        return false;
+        return !paged;
     }
 
     // ------------------------------------------------------------------ //
@@ -195,11 +229,13 @@ public final class JPageable<T> {
      * Does not accept Spring Pageable as input.
      */
     public Pageable toSpringPageable() {
-        return PageRequest.of(page, size, sort.toSpringSort());
+        return isPaged() ? PageRequest.of(page, size, sort.toSpringSort()) : Pageable.unpaged(sort.toSpringSort());
     }
 
     @Override
     public String toString() {
-        return "JPageable{page=" + page + ", size=" + size + ", sort=" + sort + '}';
+        return isPaged()
+                ? "JPageable{page=" + page + ", size=" + size + ", sort=" + sort + '}'
+                : "JPageable{unpaged, sort=" + sort + '}';
     }
 }

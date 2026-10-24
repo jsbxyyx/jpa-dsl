@@ -124,23 +124,19 @@ class BeanMappingMetaTest {
     }
 
     @Test
-    void testTypeConversion() {
+    void testTypeMismatchIsNotConvertedByBeanMeta() {
         BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
         BeanMappingMeta meta = factory.create(SimpleBean.class);
 
         Object instance = meta.newInstance();
 
-        // Test Integer to Long conversion
-        meta.setProperty(instance, "id", 1); // Integer instead of Long
-
-        SimpleBean bean = (SimpleBean) instance;
-        assertEquals(1L, bean.getId());
+        // BeanMappingMeta assigns values but does not perform type conversion.
+        assertThrows(RuntimeException.class, () -> meta.setProperty(instance, "id", 1));
     }
 
     @Test
-    void testRecordMapping() {
-        BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
-        BeanMappingMeta meta = factory.create(SimpleRecord.class);
+    void testRecordMappingMetaDirectly() {
+        BeanMappingMeta meta = new RecordMappingMeta(SimpleRecord.class);
 
         assertTrue(meta instanceof RecordMappingMeta);
         assertEquals(SimpleRecord.class, meta.getType());
@@ -154,8 +150,7 @@ class BeanMappingMetaTest {
 
     @Test
     void testRecordInstantiation() {
-        BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
-        RecordMappingMeta meta = (RecordMappingMeta) factory.create(SimpleRecord.class);
+        RecordMappingMeta meta = new RecordMappingMeta(SimpleRecord.class);
 
         Map<String, Object> values = new HashMap<>();
         values.put("id", 1L);
@@ -174,8 +169,7 @@ class BeanMappingMetaTest {
 
     @Test
     void testRecordCaseInsensitive() {
-        BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
-        RecordMappingMeta meta = (RecordMappingMeta) factory.create(SimpleRecord.class);
+        RecordMappingMeta meta = new RecordMappingMeta(SimpleRecord.class);
 
         Map<String, Object> values = new HashMap<>();
         values.put("ID", 1L);
@@ -191,8 +185,7 @@ class BeanMappingMetaTest {
 
     @Test
     void testRecordSetPropertyThrows() {
-        BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
-        BeanMappingMeta meta = factory.create(SimpleRecord.class);
+        BeanMappingMeta meta = new RecordMappingMeta(SimpleRecord.class);
 
         Map<String, Object> values = new HashMap<>();
         values.put("id", 1L);
@@ -222,13 +215,19 @@ class BeanMappingMetaTest {
     }
 
     @Test
+    void testFactoryRejectsRecordUntilMappingIsSupported() {
+        BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
+        assertThrows(UnsupportedOperationException.class, () -> factory.create(SimpleRecord.class));
+    }
+
+    @Test
     void testGetType() {
         BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
 
         BeanMappingMeta beanMeta = factory.create(SimpleBean.class);
         assertEquals(SimpleBean.class, beanMeta.getType());
 
-        BeanMappingMeta recordMeta = factory.create(SimpleRecord.class);
+        BeanMappingMeta recordMeta = new RecordMappingMeta(SimpleRecord.class);
         assertEquals(SimpleRecord.class, recordMeta.getType());
     }
 

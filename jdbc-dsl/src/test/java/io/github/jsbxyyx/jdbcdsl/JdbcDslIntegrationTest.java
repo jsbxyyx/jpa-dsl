@@ -19,6 +19,7 @@ import java.util.List;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Integration tests for {@link JdbcDslExecutor} using H2 in-memory database.
@@ -292,6 +293,28 @@ class JdbcDslIntegrationTest {
         List<UserDto> result = executor.select(spec, pageable);
 
         assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
+    }
+
+    @Test
+    void select_withUnpagedSort_returnsAllRowsInSortOrder() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
+
+        List<UserDto> result = executor.select(spec, JPageable.unpaged(JSort.byDesc(TUser::getUsername)));
+
+        assertThat(result).hasSize(3).extracting(UserDto::getUsername).containsExactly("charlie", "bob", "alice");
+    }
+
+    @Test
+    void selectPage_withUnpaged_throwsIllegalArgumentException() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> executor.selectPage(spec, JPageable.unpaged()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires a paged JPageable");
     }
 
     @Test

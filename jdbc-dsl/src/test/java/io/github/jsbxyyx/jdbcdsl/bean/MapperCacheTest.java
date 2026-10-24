@@ -50,7 +50,8 @@ class MapperCacheTest {
 
     @Test
     void testBoundedCacheWithLRU() throws SQLException {
-        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        JdbcDslCacheManager cacheManager = new JdbcDslCacheManager(500, 100, 100, 100, 2);
+        MapperCache cache = new MapperCache(cacheManager, converterRegistry);
 
         BeanMappingMeta meta = metaFactory.create(TestEntity.class);
 
@@ -61,15 +62,20 @@ class MapperCacheTest {
 
         ResultSetMapper mapper1 = cache.getMapper(rs1, meta);
         ResultSetMapper mapper2 = cache.getMapper(rs2, meta);
-        ResultSetMapper mapper3 = cache.getMapper(rs3, meta);
 
-        // Cache size should not exceed maxSize
-        assertTrue(cache.size() <= 2, "Cache size should not exceed maxSize (2)");
-
-        // Access mapper2 again to make it recently used
+        // Refresh mapper2 before adding a third entry so mapper1 is least recently used.
         ResultSet rs2Again = createMockResultSet("id", Types.BIGINT, "name", Types.VARCHAR);
         ResultSetMapper mapper2Again = cache.getMapper(rs2Again, meta);
         assertSame(mapper2, mapper2Again, "Should return cached mapper");
+
+        cache.getMapper(rs3, meta);
+
+        // Trigger Caffeine maintenance before asserting the configured bound.
+        cache.cleanUp();
+        assertTrue(cache.size() <= 2, "Cache size should not exceed maxSize (2)");
+
+        ResultSetMapper mapper2AfterEviction = cache.getMapper(rs2Again, meta);
+        assertSame(mapper2, mapper2AfterEviction, "Recently used mapper should remain cached");
     }
 
     @Test

@@ -236,11 +236,13 @@ public final class JdbcDslExecutor {
     public <T, R> List<R> select(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
         RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
-        Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
-        String paginatedSql =
-                dialect.applyPagination(rendered.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
+        Map<String, Object> queryParams = new LinkedHashMap<>(rendered.getParams());
+        String querySql = rendered.getSql();
+        if (pageable.isPaged()) {
+            querySql = dialect.applyPagination(querySql, pageable.offset(), pageable.getSize(), queryParams);
+        }
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
-        return jdbc.query(paginatedSql, paginatedParams, mapper);
+        return jdbc.query(querySql, queryParams, mapper);
     }
 
     /**
@@ -322,6 +324,9 @@ public final class JdbcDslExecutor {
      * count duplicate rows. See the README for details.
      */
     public <T, R> Page<R> selectPage(SelectSpec<T, R> spec, JPageable<T> pageable) {
+        if (pageable.isUnpaged()) {
+            throw new IllegalArgumentException("page() requires a paged JPageable");
+        }
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
 
         RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
