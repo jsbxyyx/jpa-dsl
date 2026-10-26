@@ -4,11 +4,13 @@ import io.github.jsbxyyx.jdbcdsl.OnBuilder.OnEqPredicate;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.expr.AggregateExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.AliasedExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ArithmeticExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CaseExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ParameterExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ScalarSubqueryExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.WindowExpression;
@@ -417,6 +419,18 @@ public final class SqlRenderer {
             return renderWindowExpression(win, spec, ctx);
         } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
             return renderScalarSubqueryExpression(sub, ctx);
+        } else if (expression instanceof ArithmeticExpression arithmetic) {
+            String left = renderExpression(arithmetic.getLeft(), spec, ctx);
+            String right = renderExpression(arithmetic.getRight(), spec, ctx);
+            if (arithmetic.getLeft() instanceof ArithmeticExpression) {
+                left = "(" + left + ")";
+            }
+            if (arithmetic.getRight() instanceof ArithmeticExpression) {
+                right = "(" + right + ")";
+            }
+            return left + " " + arithmetic.getOperator().getSql() + " " + right;
+        } else if (expression instanceof ParameterExpression<?> parameter) {
+            return ":" + ctx.nextParam(parameter.getValue());
         } else {
             throw new IllegalArgumentException("Unknown SqlExpression type: " + expression.getClass());
         }
@@ -1114,6 +1128,18 @@ public final class SqlRenderer {
         } else if (expression instanceof ScalarSubqueryExpression<?> sub) {
             // SET col = (SELECT ...) — render the subquery inline, sharing the param map
             return "(" + renderSubquerySql(sub.getSubquery(), ctx) + ")";
+        } else if (expression instanceof ArithmeticExpression arithmetic) {
+            String left = renderExpressionStandalone(arithmetic.getLeft(), meta, ctx);
+            String right = renderExpressionStandalone(arithmetic.getRight(), meta, ctx);
+            if (arithmetic.getLeft() instanceof ArithmeticExpression) {
+                left = "(" + left + ")";
+            }
+            if (arithmetic.getRight() instanceof ArithmeticExpression) {
+                right = "(" + right + ")";
+            }
+            return left + " " + arithmetic.getOperator().getSql() + " " + right;
+        } else if (expression instanceof ParameterExpression<?> parameter) {
+            return ":" + ctx.nextParam(parameter.getValue());
         } else {
             throw new IllegalArgumentException("Unsupported expression type in UPDATE SET: "
                     + expression.getClass().getSimpleName());

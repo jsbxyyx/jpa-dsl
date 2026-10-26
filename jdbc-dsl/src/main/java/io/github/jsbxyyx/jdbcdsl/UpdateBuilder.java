@@ -1,5 +1,8 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.expr.ArithmeticExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ParameterExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
@@ -96,6 +99,126 @@ public final class UpdateBuilder<T> {
         PropertyRef ref = PropertyRefResolver.resolve(prop);
         assignments.add(new AbstractMap.SimpleImmutableEntry<>(ref.propertyName(), expression));
         return this;
+    }
+
+    /** Adds another numeric column to the target column: {@code target = target + otherColumn}. */
+    public UpdateBuilder<T> add(SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp) {
+        return arithmetic(prop, ColumnExpression.of(otherProp), ArithmeticExpression.Operator.ADD);
+    }
+
+    /** Conditional column-to-column addition; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> add(
+            SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp, boolean condition) {
+        return condition ? add(prop, otherProp) : this;
+    }
+
+    /** Adds a numeric constant to the target column using a bound JDBC parameter. */
+    public UpdateBuilder<T> add(SFunction<T, ? extends Number> prop, Number value) {
+        return arithmetic(prop, ParameterExpression.of(requireNumericValue(value)), ArithmeticExpression.Operator.ADD);
+    }
+
+    /** Conditional constant addition; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> add(SFunction<T, ? extends Number> prop, Number value, boolean condition) {
+        return condition ? add(prop, value) : this;
+    }
+
+    /** Subtracts another numeric column from the target column. */
+    public UpdateBuilder<T> subtract(SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp) {
+        return arithmetic(prop, ColumnExpression.of(otherProp), ArithmeticExpression.Operator.SUBTRACT);
+    }
+
+    /** Conditional column-to-column subtraction; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> subtract(
+            SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp, boolean condition) {
+        return condition ? subtract(prop, otherProp) : this;
+    }
+
+    /** Subtracts a numeric constant from the target column using a bound JDBC parameter. */
+    public UpdateBuilder<T> subtract(SFunction<T, ? extends Number> prop, Number value) {
+        return arithmetic(
+                prop, ParameterExpression.of(requireNumericValue(value)), ArithmeticExpression.Operator.SUBTRACT);
+    }
+
+    /** Conditional constant subtraction; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> subtract(SFunction<T, ? extends Number> prop, Number value, boolean condition) {
+        return condition ? subtract(prop, value) : this;
+    }
+
+    /** Multiplies the target column by another numeric column. */
+    public UpdateBuilder<T> multiply(SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp) {
+        return arithmetic(prop, ColumnExpression.of(otherProp), ArithmeticExpression.Operator.MULTIPLY);
+    }
+
+    /** Conditional column-to-column multiplication; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> multiply(
+            SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp, boolean condition) {
+        return condition ? multiply(prop, otherProp) : this;
+    }
+
+    /** Multiplies the target column by a numeric constant using a bound JDBC parameter. */
+    public UpdateBuilder<T> multiply(SFunction<T, ? extends Number> prop, Number value) {
+        return arithmetic(
+                prop, ParameterExpression.of(requireNumericValue(value)), ArithmeticExpression.Operator.MULTIPLY);
+    }
+
+    /** Conditional constant multiplication; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> multiply(SFunction<T, ? extends Number> prop, Number value, boolean condition) {
+        return condition ? multiply(prop, value) : this;
+    }
+
+    /** Divides the target column by another numeric column. */
+    public UpdateBuilder<T> divide(SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp) {
+        return arithmetic(prop, ColumnExpression.of(otherProp), ArithmeticExpression.Operator.DIVIDE);
+    }
+
+    /** Conditional column-to-column division; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> divide(
+            SFunction<T, ? extends Number> prop, SFunction<T, ? extends Number> otherProp, boolean condition) {
+        return condition ? divide(prop, otherProp) : this;
+    }
+
+    /** Divides the target column by a numeric constant using a bound JDBC parameter. */
+    public UpdateBuilder<T> divide(SFunction<T, ? extends Number> prop, Number value) {
+        return arithmetic(
+                prop, ParameterExpression.of(requireNumericValue(value)), ArithmeticExpression.Operator.DIVIDE);
+    }
+
+    /** Conditional constant division; skips the assignment when {@code condition} is false. */
+    public UpdateBuilder<T> divide(SFunction<T, ? extends Number> prop, Number value, boolean condition) {
+        return condition ? divide(prop, value) : this;
+    }
+
+    private UpdateBuilder<T> arithmetic(
+            SFunction<T, ? extends Number> prop, SqlExpression<?> right, ArithmeticExpression.Operator operator) {
+        PropertyRef ref = PropertyRefResolver.resolve(prop);
+        String propertyName = ref.propertyName();
+
+        // Consecutive arithmetic operations on the same target are composed into one SET expression.
+        // A regular set(...) assignment remains an independent assignment and keeps its existing behavior.
+        for (int i = assignments.size() - 1; i >= 0; i--) {
+            Map.Entry<String, Object> assignment = assignments.get(i);
+            if (assignment.getKey().equals(propertyName)) {
+                if (assignment.getValue() instanceof ArithmeticExpression previous) {
+                    assignments.set(
+                            i,
+                            new AbstractMap.SimpleImmutableEntry<>(
+                                    propertyName, new ArithmeticExpression(operator, previous, right)));
+                    return this;
+                }
+                break;
+            }
+        }
+
+        ArithmeticExpression expression = new ArithmeticExpression(operator, ColumnExpression.of(ref), right);
+        assignments.add(new AbstractMap.SimpleImmutableEntry<>(propertyName, expression));
+        return this;
+    }
+
+    private static Number requireNumericValue(Number value) {
+        if (value == null) {
+            throw new IllegalArgumentException("Arithmetic update value must not be null");
+        }
+        return value;
     }
 
     // ------------------------------------------------------------------ //

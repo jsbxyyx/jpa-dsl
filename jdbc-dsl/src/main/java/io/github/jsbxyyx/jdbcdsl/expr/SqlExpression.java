@@ -26,7 +26,9 @@ public sealed interface SqlExpression<V>
                 CaseExpression,
                 CastExpression,
                 WindowExpression,
-                ScalarSubqueryExpression {
+                ScalarSubqueryExpression,
+                ArithmeticExpression,
+                ParameterExpression {
 
     /**
      * Wraps this expression with an explicit SQL column alias ({@code <expr> AS <alias>}).

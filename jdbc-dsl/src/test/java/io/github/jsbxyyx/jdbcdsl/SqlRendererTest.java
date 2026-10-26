@@ -284,6 +284,113 @@ class SqlRendererTest {
     }
 
     @Test
+    void updateBuilder_arithmeticColumnOperands_renderColumnReferences() {
+        RenderedSql added = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .add(TUser::getAge, TUser::getId)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build());
+        assertThat(added.getSql()).contains("SET age = age + id");
+        assertThat(added.getParams()).containsEntry("p1", "alice");
+
+        RenderedSql subtracted = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .subtract(TUser::getAge, TUser::getId)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build());
+        assertThat(subtracted.getSql()).contains("SET age = age - id");
+
+        RenderedSql multiplied = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .multiply(TUser::getAge, TUser::getId)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build());
+        assertThat(multiplied.getSql()).contains("SET age = age * id");
+
+        RenderedSql divided = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .divide(TUser::getAge, TUser::getId)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build());
+        assertThat(divided.getSql()).contains("SET age = age / id");
+    }
+
+    @Test
+    void updateBuilder_arithmeticConstants_areBoundAsParameters() {
+        RenderedSql added = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .add(TUser::getAge, 10)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+        assertThat(added.getSql()).contains("SET age = age + :p1").contains("WHERE id = :p2");
+        assertThat(added.getParams()).containsEntry("p1", 10).containsEntry("p2", 1L);
+
+        RenderedSql subtracted = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .subtract(TUser::getAge, 5)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+        assertThat(subtracted.getSql()).contains("SET age = age - :p1");
+        assertThat(subtracted.getParams()).containsEntry("p1", 5);
+
+        RenderedSql multiplied = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .multiply(TUser::getAge, 2)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+        assertThat(multiplied.getSql()).contains("SET age = age * :p1");
+        assertThat(multiplied.getParams()).containsEntry("p1", 2);
+
+        RenderedSql divided = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .divide(TUser::getAge, 4)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+        assertThat(divided.getSql()).contains("SET age = age / :p1");
+        assertThat(divided.getParams()).containsEntry("p1", 4);
+    }
+
+    @Test
+    void updateBuilder_multipleArithmeticOperationsOnSameColumn_areComposedInOrder() {
+        RenderedSql rendered = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .add(TUser::getAge, 10)
+                .multiply(TUser::getAge, 2)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+
+        assertThat(rendered.getSql()).contains("SET age = (age + :p1) * :p2").contains("WHERE id = :p3");
+        assertThat(rendered.getParams())
+                .containsEntry("p1", 10)
+                .containsEntry("p2", 2)
+                .containsEntry("p3", 1L);
+    }
+
+    @Test
+    void updateBuilder_conditionalArithmetic_skipsWhenConditionIsFalse() {
+        RenderedSql rendered = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .add(TUser::getAge, 10, false)
+                .subtract(TUser::getAge, TUser::getId, false)
+                .multiply(TUser::getAge, 2, false)
+                .divide(TUser::getAge, TUser::getId, false)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+
+        assertThat(rendered.getSql()).doesNotContain("SET age =");
+        assertThat(rendered.getParams()).containsOnlyKeys("p1");
+        assertThat(rendered.getParams()).containsEntry("p1", 1L);
+    }
+
+    @Test
+    void updateBuilder_conditionalArithmetic_appliesWhenConditionIsTrue() {
+        RenderedSql rendered = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+                .add(TUser::getAge, 10, true)
+                .where(w -> w.eq(TUser::getId, 1L))
+                .build());
+
+        assertThat(rendered.getSql()).contains("SET age = age + :p1").contains("WHERE id = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", 10).containsEntry("p2", 1L);
+    }
+
+    @Test
+    void updateBuilder_arithmeticConstantRejectsNull() {
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> UpdateBuilder.from(TUser.class).add(TUser::getAge, (Number) null));
+    }
+
+    @Test
     void updateBuilder_noAssignments_build_withWhere_doesNotThrow() {
         // set-empty check has been removed; the database will report an error for empty SET
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
