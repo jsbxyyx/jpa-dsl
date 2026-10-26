@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
+import io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
 import java.util.ArrayList;
@@ -188,18 +189,123 @@ public final class SelectBuilder<T> {
         return this;
     }
 
-    /** Adds a WHERE predicate via a nested builder. */
-    public SelectBuilder<T> where(Consumer<WhereBuilder<T>> consumer) {
-        WhereBuilder<T> wb = new WhereBuilder<>(entityClass, alias);
-        consumer.accept(wb);
-        this.where = wb.buildNode();
+    /**
+     * Selects every mapped property of the root or a uniquely matching joined entity.
+     * The entity's table alias is resolved from the current query's FROM/JOIN clauses.
+     *
+     * <p>If the same entity class occurs more than once (for example, a self-join), use
+     * {@link #select(Class, String)} to identify the desired table alias explicitly.
+     */
+    public <J> SelectBuilder<T> select(Class<J> selectedEntityClass) {
+        // Resolve the alias during rendering so callers may declare SELECT before JOIN.
+        return selectEntityColumns(selectedEntityClass, null);
+    }
+
+    /**
+     * Selects every mapped property of the root or joined entity identified by {@code tableAlias}.
+     * The alias must belong to the supplied entity class in this query.
+     */
+    public <J> SelectBuilder<T> select(Class<J> selectedEntityClass, String tableAlias) {
+        String selectedAlias = resolveEntityAlias(selectedEntityClass, tableAlias);
+        return selectEntityColumns(selectedEntityClass, selectedAlias);
+    }
+
+    private <J> SelectBuilder<T> selectEntityColumns(Class<J> selectedEntityClass, String selectedAlias) {
+        EntityMeta meta = EntityMetaReader.read(selectedEntityClass);
+        for (String propertyName : meta.getPropertyToColumn().keySet()) {
+            selectedExpressions.add(
+                    ColumnExpression.of(new PropertyRef(selectedEntityClass, propertyName), selectedAlias));
+        }
         return this;
     }
 
-    /** Sets the WHERE predicate directly using a pre-built AST node. */
-    public SelectBuilder<T> where(PredicateNode node) {
-        this.where = node;
+    /** Adds a WHERE predicate for the root entity. Repeated WHERE calls are combined with AND. */
+    public SelectBuilder<T> where(Consumer<WhereBuilder<T>> consumer) {
+        WhereBuilder<T> wb = new WhereBuilder<>(entityClass, alias);
+        consumer.accept(wb);
+        appendWhere(wb.buildNode());
         return this;
+    }
+
+    /**
+     * Adds a WHERE predicate for the root or a uniquely matching joined entity.
+     * Repeated WHERE calls are combined with AND.
+     *
+     * <p>If the same entity class occurs more than once, use {@link #where(Class, String, Consumer)}.
+     */
+    public <J> SelectBuilder<T> where(Class<J> filteredEntityClass, Consumer<WhereBuilder<J>> consumer) {
+        // Defer alias resolution until rendering so WHERE may be declared before JOIN.
+        WhereBuilder<J> wb = new WhereBuilder<>(filteredEntityClass, null);
+        consumer.accept(wb);
+        appendWhere(wb.buildNode());
+        return this;
+    }
+
+    /** Adds a WHERE predicate for the root or joined entity identified by {@code tableAlias}. */
+    public <J> SelectBuilder<T> where(
+            Class<J> filteredEntityClass, String tableAlias, Consumer<WhereBuilder<J>> consumer) {
+        String filteredAlias = resolveEntityAlias(filteredEntityClass, tableAlias);
+        WhereBuilder<J> wb = new WhereBuilder<>(filteredEntityClass, filteredAlias);
+        consumer.accept(wb);
+        appendWhere(wb.buildNode());
+        return this;
+    }
+
+    /** Adds a pre-built WHERE predicate, combining it with any existing predicate using AND. */
+    public SelectBuilder<T> where(PredicateNode node) {
+        appendWhere(node);
+        return this;
+    }
+
+    private void appendWhere(PredicateNode node) {
+        if (node == null) {
+            return;
+        }
+        if (where == null) {
+            where = node;
+        } else {
+            List<PredicateNode> children = new ArrayList<>();
+            if (where instanceof AndPredicate and) {
+                children.addAll(and.getChildren());
+            } else {
+                children.add(where);
+            }
+            if (node instanceof AndPredicate and) {
+                children.addAll(and.getChildren());
+            } else {
+                children.add(node);
+            }
+            where = new AndPredicate(children);
+        }
+    }
+
+    private String resolveEntityAlias(Class<?> targetEntityClass, String requestedAlias) {
+        List<String> matchingAliases = new ArrayList<>();
+        if (entityClass.equals(targetEntityClass)) {
+            matchingAliases.add(alias);
+        }
+        for (JoinSpec join : joins) {
+            if (join.getJoinEntityClass().equals(targetEntityClass)) {
+                matchingAliases.add(join.getAlias());
+            }
+        }
+        if (requestedAlias != null) {
+            if (!matchingAliases.contains(requestedAlias)) {
+                throw new IllegalArgumentException("Alias '" + requestedAlias + "' does not identify entity "
+                        + targetEntityClass.getName() + " in this query");
+            }
+            return requestedAlias;
+        }
+        if (matchingAliases.isEmpty()) {
+            throw new IllegalArgumentException("Entity " + targetEntityClass.getName()
+                    + " is neither the root entity nor a joined entity in this query");
+        }
+        if (matchingAliases.size() > 1) {
+            throw new IllegalStateException("Ambiguous entity " + targetEntityClass.getName()
+                    + " appears under multiple aliases " + matchingAliases
+                    + "; specify the table alias explicitly");
+        }
+        return matchingAliases.get(0);
     }
 
     /** Adds a JOIN clause. */

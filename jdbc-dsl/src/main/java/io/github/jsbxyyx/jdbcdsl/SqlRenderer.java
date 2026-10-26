@@ -1047,32 +1047,30 @@ public final class SqlRenderer {
     }
 
     private static <T, R> String resolveAliasForRef(SelectSpec<T, R> spec, PropertyRef pr) {
+        List<String> matchingAliases = new ArrayList<>();
         if (pr.ownerClass().equals(spec.getEntityClass())) {
-            // Self-join guard: if the same entity class also appears as a non-subquery join,
-            // the column reference is ambiguous — there is no way to know which table alias
-            // the caller intended.  Fail fast with an actionable error message so the caller
-            // does not silently receive SQL that references the wrong table.
-            boolean selfJoinExists = spec.getJoins().stream()
-                    .anyMatch(
-                            j -> j.getSubqueryJoin() == null && pr.ownerClass().equals(j.getJoinEntityClass()));
-            if (selfJoinExists) {
-                String prop = pr.propertyName();
-                String getter = "get" + Character.toUpperCase(prop.charAt(0)) + prop.substring(1);
-                throw new IllegalStateException(
-                        "Ambiguous column reference '" + pr.ownerClass().getSimpleName() + "."
-                                + prop + "': the same entity class is used as both the root table ("
-                                + spec.getAlias() + ") and a joined table. "
-                                + "Use col(" + pr.ownerClass().getSimpleName() + "::" + getter
-                                + ", \"<alias>\") to specify the table alias explicitly.");
-            }
-            return spec.getAlias();
+            matchingAliases.add(spec.getAlias());
         }
         for (JoinSpec join : spec.getJoins()) {
             if (pr.ownerClass().equals(join.getJoinEntityClass())) {
-                return join.getAlias();
+                matchingAliases.add(join.getAlias());
             }
         }
-        return spec.getAlias();
+        if (matchingAliases.isEmpty()) {
+            throw new IllegalArgumentException("Entity " + pr.ownerClass().getName()
+                    + " referenced by property '" + pr.propertyName()
+                    + "' is neither the root entity nor a joined entity in this query");
+        }
+        if (matchingAliases.size() > 1) {
+            String prop = pr.propertyName();
+            String getter = "get" + Character.toUpperCase(prop.charAt(0)) + prop.substring(1);
+            throw new IllegalStateException(
+                    "Ambiguous column reference '" + pr.ownerClass().getSimpleName() + "." + prop
+                            + "': the entity class appears under multiple aliases " + matchingAliases + ". "
+                            + "Use col(" + pr.ownerClass().getSimpleName() + "::" + getter
+                            + ", \"<alias>\") to specify the table alias explicitly.");
+        }
+        return matchingAliases.get(0);
     }
 
     private static String joinTypeStr(JoinType type) {

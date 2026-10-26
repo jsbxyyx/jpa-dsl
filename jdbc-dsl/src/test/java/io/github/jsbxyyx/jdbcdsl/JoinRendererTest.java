@@ -108,6 +108,73 @@ class JoinRendererTest {
         assertThat(rendered.getParams()).containsEntry("p1", "PAID");
     }
 
+    @Test
+    void renderSelect_selectJoinedEntityClass_resolvesJoinAliasAndAllColumns() {
+        SelectSpec<TUser, TOrder> spec = SelectBuilder.from(TUser.class, "u")
+                .select(TOrder.class)
+                .where(TOrder.class, w -> w.eq(TOrder::getStatus, "PAID"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .mapTo(TOrder.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql())
+                .contains("o.id AS id")
+                .contains("o.user_id AS userId")
+                .contains("o.status AS status")
+                .contains("LEFT JOIN t_order o ON u.id = o.user_id")
+                .contains("WHERE o.status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
+    }
+
+    @Test
+    void renderSelect_whereForRootAndJoinEntity_combinesPredicates() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .where(TOrder.class, w -> w.eq(TOrder::getStatus, "PAID"))
+                .select(TUser::getId)
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("u.status = :p1").contains("o.status = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("p2", "PAID");
+    }
+
+    @Test
+    void renderSelect_selectJoinedEntityClass_requiresExplicitAliasForSelfJoin() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
+                .select(TUser.class)
+                .join(TUser.class, "u2", JoinType.LEFT, on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Ambiguous column reference")
+                .hasMessageContaining("u1")
+                .hasMessageContaining("u2");
+    }
+
+    @Test
+    void renderSelect_selectJoinedEntityClass_canSpecifySelfJoinAlias() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
+                .join(TUser.class, "u2", JoinType.LEFT, on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
+                .select(TUser.class, "u2")
+                .mapTo(UserDto.class);
+
+        assertThat(SqlRenderer.renderSelect(spec).getSql()).contains("u2.id AS id");
+    }
+
+    @Test
+    void renderSelect_whereUnknownEntityClass_throwsHelpfulError() {
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .where(TOrder.class, w -> w.eq(TOrder::getStatus, "PAID"))
+                .mapToEntity();
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("neither the root entity nor a joined entity");
+    }
+
     // ------------------------------------------------------------------ //
     //  Item 9: Self-join alias management
     // ------------------------------------------------------------------ //
