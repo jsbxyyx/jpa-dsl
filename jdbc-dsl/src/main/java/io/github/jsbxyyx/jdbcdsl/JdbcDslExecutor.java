@@ -170,7 +170,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderSelect(effectiveSpec);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -219,7 +219,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> long count(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
+        RenderedSql countSql = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderCount(effectiveSpec);
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
         return total != null ? total : 0L;
     }
@@ -235,7 +235,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderSelect(effectiveSpec);
         Map<String, Object> queryParams = new LinkedHashMap<>(rendered.getParams());
         String querySql = rendered.getSql();
         if (pageable.isPaged()) {
@@ -256,7 +256,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> R findOne(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderSelect(effectiveSpec);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
         String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
@@ -278,7 +278,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> R findOne(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderSelect(effectiveSpec);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
         String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
@@ -301,7 +301,7 @@ public final class JdbcDslExecutor {
      * }</pre>
      */
     public <R> List<R> union(UnionSpec<R> spec) {
-        RenderedSql rendered = SqlRenderer.renderUnion(spec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUnion(spec);
         RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -310,7 +310,7 @@ public final class JdbcDslExecutor {
      * Executes a paginated {@link UnionSpec} and returns a page of results.
      */
     public <R> List<R> union(UnionSpec<R> spec, long offset, int size) {
-        RenderedSql rendered = SqlRenderer.renderUnion(spec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUnion(spec);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
         String paginatedSql = dialect.applyPagination(rendered.getSql(), offset, size, paginatedParams);
         RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
@@ -329,11 +329,11 @@ public final class JdbcDslExecutor {
         }
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
 
-        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
+        RenderedSql countSql = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderCount(effectiveSpec);
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
         long totalCount = total != null ? total : 0L;
 
-        RenderedSql selectSql = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql selectSql = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderSelect(effectiveSpec);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(selectSql.getParams());
         String paginatedSql =
                 dialect.applyPagination(selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
@@ -357,7 +357,7 @@ public final class JdbcDslExecutor {
      */
     public <T> int executeUpdate(UpdateSpec<T> spec) {
         UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
-        RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUpdate(effectiveSpec);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -368,7 +368,7 @@ public final class JdbcDslExecutor {
      * @return the number of rows affected
      */
     public <T> int executeDelete(DeleteSpec<T> spec) {
-        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderDelete(spec);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -396,7 +396,7 @@ public final class JdbcDslExecutor {
         LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         for (UpdateSpec<T> spec : specs) {
             UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
-            RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
+            RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUpdate(effectiveSpec);
             groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>()).add(rendered.getParams());
         }
         List<int[]> results = new ArrayList<>();
@@ -433,7 +433,7 @@ public final class JdbcDslExecutor {
         }
         LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         for (DeleteSpec<T> spec : specs) {
-            RenderedSql rendered = SqlRenderer.renderDelete(spec);
+            RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderDelete(spec);
             groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>()).add(rendered.getParams());
         }
         List<int[]> results = new ArrayList<>();
@@ -478,7 +478,7 @@ public final class JdbcDslExecutor {
                 ldPropName,
                 convertLogicalDeleteString(meta.getLogicalDeletedValue(), spec.getEntityClass(), ldPropName)));
         UpdateSpec<T> updateSpec = new UpdateSpec<>(spec.getEntityClass(), assignments, spec.getWhere());
-        RenderedSql rendered = SqlRenderer.renderUpdate(updateSpec);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUpdate(updateSpec);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -523,7 +523,8 @@ public final class JdbcDslExecutor {
         // Skip the identity PK — the database assigns it on INSERT, and PKs must not appear
         // in the UPDATE SET clause (databases forbid updating a primary key via ON CONFLICT).
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
-        RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, colValues, dialect);
+        RenderedSql rendered =
+                io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUpsert(spec, meta, colValues, dialect);
         jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -628,16 +629,21 @@ public final class JdbcDslExecutor {
         InsertSpec<T> insertSpec = spec.getColumnNames().isEmpty()
                 ? InsertSpec.of(spec.getEntityClass())
                 : InsertSpec.of(spec.getEntityClass(), spec.getColumnNames());
-        RenderedSql rendered = SqlRenderer.renderInsert(insertSpec, meta, firstColValues);
+        RenderedSql rendered =
+                io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderInsert(insertSpec, meta, firstColValues);
 
-        // Build SqlParameterSource array (one entry per row)
-        List<String> cols = new ArrayList<>(firstColValues.keySet());
+        // AST parameter names are positional (p1, p2, ...), so each batch row must use
+        // the same column order as the rendered INSERT statement.
+        List<String> cols = insertSpec.getColumnNames().isEmpty()
+                ? new ArrayList<>(firstColValues.keySet())
+                : insertSpec.getColumnNames();
         MapSqlParameterSource[] batchParams = rows.stream()
                 .map(row -> {
                     LinkedHashMap<String, Object> cv = buildColumnValues(row, meta, excludeIdentityPk);
                     Map<String, Object> p = new LinkedHashMap<>();
+                    int index = 1;
                     for (String col : cols) {
-                        p.put(col, cv.get(col));
+                        p.put("p" + index++, cv.get(col));
                     }
                     return new MapSqlParameterSource(p);
                 })
@@ -647,7 +653,8 @@ public final class JdbcDslExecutor {
     }
 
     private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, T entity) {
-        RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, colValues);
+        RenderedSql rendered =
+                io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderInsert(spec, meta, colValues);
         if (meta.isIdGeneratedByIdentity()) {
             MapSqlParameterSource paramSource = new MapSqlParameterSource(rendered.getParams());
             GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
@@ -692,8 +699,8 @@ public final class JdbcDslExecutor {
         injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         List<String> returningCols = resolveColumnNames(entityClass, meta, returningProps);
-        RenderedSql rendered =
-                SqlRenderer.renderInsertReturning(InsertSpec.of(entityClass), meta, colValues, returningCols);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderInsert(
+                InsertSpec.of(entityClass), meta, colValues, returningCols);
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -719,7 +726,8 @@ public final class JdbcDslExecutor {
         UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
-        RenderedSql rendered = SqlRenderer.renderUpdateReturning(effectiveSpec, returningCols);
+        RenderedSql rendered = io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderUpdateReturning(
+                effectiveSpec, returningCols);
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -741,7 +749,8 @@ public final class JdbcDslExecutor {
             DeleteSpec<T> spec, Class<R> resultClass, SFunction<T, ?>... returningProps) {
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
-        RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, returningCols);
+        RenderedSql rendered =
+                io.github.jsbxyyx.jdbcdsl.internal.JdbcAstSelectEngine.renderDeleteReturning(spec, returningCols);
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }

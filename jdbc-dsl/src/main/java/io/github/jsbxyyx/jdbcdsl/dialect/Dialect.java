@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
+import io.github.jsbxyyx.jdbcast.stmt.UpsertStatement;
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
@@ -52,6 +53,12 @@ public interface Dialect {
     default RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         throw new UnsupportedOperationException(
                 "UPSERT is not supported by dialect: " + getClass().getSimpleName());
+    }
+
+    /** Renders an AST UPSERT statement using this dialect's native conflict syntax. */
+    default RenderedSql renderUpsert(UpsertStatement statement) {
+        throw new UnsupportedOperationException(
+                "AST UPSERT is not supported by dialect: " + getClass().getSimpleName());
     }
 
     /**

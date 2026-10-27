@@ -13,9 +13,6 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 /**
  * Integration tests for the new jdbc-dsl features:
  * <ul>
@@ -53,7 +50,7 @@ class JdbcDslNewFeaturesTest {
         BatchInsertSpec<TAuditUser> spec =
                 BatchInsertBuilder.of(TAuditUser.class, List.of()).build();
         int[] result = executor.executeBatchInsert(spec);
-        assertThat(result).isEmpty();
+        org.junit.jupiter.api.Assertions.assertEquals(0, result.length);
     }
 
     @Test
@@ -66,14 +63,21 @@ class JdbcDslNewFeaturesTest {
                 BatchInsertBuilder.of(TAuditUser.class, users).build();
         int[] affected = executor.executeBatchInsert(spec);
 
-        assertThat(affected).hasSize(3).containsOnly(1);
+        org.junit.jupiter.api.Assertions.assertEquals(3, affected.length);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                java.util.Arrays.stream(affected).allMatch(value -> value == 1));
 
         SelectSpec<TAuditUser, TAuditUser> query = SelectBuilder.from(TAuditUser.class)
                 .where(w -> w.in(TAuditUser::getStatus, List.of("ACTIVE", "INACTIVE")))
                 .mapToEntity();
         // Disable auto-filter for this read (deleted is 0 for all, no issue)
         List<TAuditUser> result = executor.select(query);
-        assertThat(result).extracting(TAuditUser::getUsername).containsExactlyInAnyOrder("batch1", "batch2", "batch3");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("batch1", "batch2", "batch3")),
+                new java.util.HashSet<>(
+                        (result).stream().map(TAuditUser::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                3, (result).stream().map(TAuditUser::getUsername).toList().size());
     }
 
     @Test
@@ -86,9 +90,10 @@ class JdbcDslNewFeaturesTest {
                 .where(w -> w.in(TAuditUser::getUsername, List.of("ts1", "ts2")))
                 .mapToEntity();
         List<TAuditUser> result = executor.select(query);
-        assertThat(result).hasSize(2).allSatisfy(u -> {
-            assertThat(u.getCreatedAt()).as("createdAt").isEqualTo(FIXED_TIME);
-            assertThat(u.getUpdatedAt()).as("updatedAt").isEqualTo(FIXED_TIME);
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        (result).forEach(u -> {
+            org.junit.jupiter.api.Assertions.assertEquals(FIXED_TIME, u.getCreatedAt());
+            org.junit.jupiter.api.Assertions.assertEquals(FIXED_TIME, u.getUpdatedAt());
         });
     }
 
@@ -100,14 +105,14 @@ class JdbcDslNewFeaturesTest {
     void executeLogicalDelete_setsDeletedFlag() {
         TAuditUser user = new TAuditUser("toDelete", "ACTIVE");
         executor.save(user);
-        assertThat(user.getId()).isNotNull();
+        org.junit.jupiter.api.Assertions.assertNotNull(user.getId());
 
         // Logical delete: set deleted = 1
         DeleteSpec<TAuditUser> del = DeleteBuilder.from(TAuditUser.class)
                 .eq(TAuditUser::getId, user.getId())
                 .build();
         int affected = executor.executeLogicalDelete(del);
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
 
         // Verify the flag is set in DB
         SelectSpec<TAuditUser, TAuditUser> verify = SelectBuilder.from(TAuditUser.class)
@@ -117,8 +122,8 @@ class JdbcDslNewFeaturesTest {
         JdbcDslConfig.setLogicalDeleteAutoFilter(false);
         try {
             List<TAuditUser> found = executor.select(verify);
-            assertThat(found).hasSize(1);
-            assertThat(found.get(0).getDeleted()).isEqualTo(1);
+            org.junit.jupiter.api.Assertions.assertEquals(1, found.size());
+            org.junit.jupiter.api.Assertions.assertEquals(1, found.get(0).getDeleted());
         } finally {
             JdbcDslConfig.setLogicalDeleteAutoFilter(true);
         }
@@ -131,9 +136,10 @@ class JdbcDslNewFeaturesTest {
                         io.github.jsbxyyx.jdbcdsl.entity.TOrder.class)
                 .eq(io.github.jsbxyyx.jdbcdsl.entity.TOrder::getId, 1L)
                 .build();
-        assertThatThrownBy(() -> executor.executeLogicalDelete(del))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("No @LogicalDelete field found");
+        Throwable assertionThrown1 = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class, () -> executor.executeLogicalDelete(del));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown1.getMessage().contains("No @LogicalDelete field found"));
     }
 
     @Test
@@ -154,7 +160,10 @@ class JdbcDslNewFeaturesTest {
                 .where(w -> w.in(TAuditUser::getUsername, List.of("normalUser", "deletedUser")))
                 .mapToEntity();
         List<TAuditUser> result = executor.select(spec);
-        assertThat(result).hasSize(1).extracting(TAuditUser::getUsername).containsExactly("normalUser");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("normalUser"),
+                (result).stream().map(TAuditUser::getUsername).toList());
     }
 
     @Test
@@ -173,7 +182,7 @@ class JdbcDslNewFeaturesTest {
                     .where(w -> w.in(TAuditUser::getUsername, List.of("u1", "u2")))
                     .mapToEntity();
             List<TAuditUser> result = executor.select(spec);
-            assertThat(result).hasSize(2);
+            org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
         } finally {
             JdbcDslConfig.setLogicalDeleteAutoFilter(true);
         }
@@ -192,8 +201,8 @@ class JdbcDslNewFeaturesTest {
                 .where(w -> w.eq(TAuditUser::getUsername, "autoFill"))
                 .mapToEntity();
         TAuditUser saved = executor.findOne(verify);
-        assertThat(saved.getCreatedAt()).isEqualTo(FIXED_TIME);
-        assertThat(saved.getUpdatedAt()).isEqualTo(FIXED_TIME);
+        org.junit.jupiter.api.Assertions.assertEquals(FIXED_TIME, saved.getCreatedAt());
+        org.junit.jupiter.api.Assertions.assertEquals(FIXED_TIME, saved.getUpdatedAt());
     }
 
     @Test
@@ -217,9 +226,9 @@ class JdbcDslNewFeaturesTest {
                 .mapToEntity();
         TAuditUser updated = executor.findOne(verify);
         // updated_at should be the later time; created_at unchanged
-        assertThat(updated.getUpdatedAt()).isEqualTo(laterTime);
-        assertThat(updated.getCreatedAt()).isEqualTo(FIXED_TIME);
-        assertThat(updated.getStatus()).isEqualTo("INACTIVE");
+        org.junit.jupiter.api.Assertions.assertEquals(laterTime, updated.getUpdatedAt());
+        org.junit.jupiter.api.Assertions.assertEquals(FIXED_TIME, updated.getCreatedAt());
+        org.junit.jupiter.api.Assertions.assertEquals("INACTIVE", updated.getStatus());
     }
 
     @Test
@@ -241,6 +250,6 @@ class JdbcDslNewFeaturesTest {
                 .where(w -> w.eq(TAuditUser::getId, user.getId()))
                 .mapToEntity();
         TAuditUser updated = executor.findOne(verify);
-        assertThat(updated.getUpdatedAt()).isEqualTo(explicitTime);
+        org.junit.jupiter.api.Assertions.assertEquals(explicitTime, updated.getUpdatedAt());
     }
 }

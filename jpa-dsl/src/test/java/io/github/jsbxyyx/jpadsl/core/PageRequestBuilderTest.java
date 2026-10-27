@@ -5,23 +5,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 class PageRequestBuilderTest {
 
     @Test
     void testDefaultValues() {
         Pageable pageable = PageRequestBuilder.builder().build();
-        assertThat(pageable.getPageNumber()).isEqualTo(0);
-        assertThat(pageable.getPageSize()).isEqualTo(20);
-        assertThat(pageable.getSort().isUnsorted()).isTrue();
+        org.junit.jupiter.api.Assertions.assertEquals(0, pageable.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(20, pageable.getPageSize());
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.getSort().isUnsorted());
     }
 
     @Test
     void testPageAndSize() {
         Pageable pageable = PageRequestBuilder.builder().page(2).size(20).build();
-        assertThat(pageable.getPageNumber()).isEqualTo(2);
-        assertThat(pageable.getPageSize()).isEqualTo(20);
+        org.junit.jupiter.api.Assertions.assertEquals(2, pageable.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(20, pageable.getPageSize());
     }
 
     @Test
@@ -29,9 +27,10 @@ class PageRequestBuilderTest {
         Pageable pageable = PageRequestBuilder.builder()
                 .sortBy(User_.name, Sort.Direction.ASC)
                 .build();
-        assertThat(pageable.getSort().isSorted()).isTrue();
-        assertThat(pageable.getSort().getOrderFor("name")).isNotNull();
-        assertThat(pageable.getSort().getOrderFor("name").getDirection()).isEqualTo(Sort.Direction.ASC);
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.getSort().isSorted());
+        org.junit.jupiter.api.Assertions.assertNotNull(pageable.getSort().getOrderFor("name"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Sort.Direction.ASC, pageable.getSort().getOrderFor("name").getDirection());
     }
 
     @Test
@@ -42,10 +41,12 @@ class PageRequestBuilderTest {
                 .sortBy(User_.age, Sort.Direction.DESC)
                 .sortBy(User_.name, Sort.Direction.ASC)
                 .build();
-        assertThat(pageable.getSort().isSorted()).isTrue();
-        assertThat(pageable.getSort().getOrderFor("age")).isNotNull();
-        assertThat(pageable.getSort().getOrderFor("name")).isNotNull();
-        assertThat(pageable.getSort().getOrderFor("age").getDirection()).isEqualTo(Sort.Direction.DESC);
-        assertThat(pageable.getSort().getOrderFor("name").getDirection()).isEqualTo(Sort.Direction.ASC);
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.getSort().isSorted());
+        org.junit.jupiter.api.Assertions.assertNotNull(pageable.getSort().getOrderFor("age"));
+        org.junit.jupiter.api.Assertions.assertNotNull(pageable.getSort().getOrderFor("name"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Sort.Direction.DESC, pageable.getSort().getOrderFor("age").getDirection());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Sort.Direction.ASC, pageable.getSort().getOrderFor("name").getDirection());
     }
 }

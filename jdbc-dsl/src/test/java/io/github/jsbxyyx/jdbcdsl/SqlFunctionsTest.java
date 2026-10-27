@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link SqlFunctions} and function-expression support in
@@ -25,29 +24,29 @@ class SqlFunctionsTest {
     @Test
     void upper_createsFunctionExpression() {
         FunctionExpression<String> expr = upper(TUser::getUsername);
-        assertThat(expr.getFunctionName()).isEqualTo("UPPER");
-        assertThat(expr.getArgs()).hasSize(1);
+        org.junit.jupiter.api.Assertions.assertEquals("UPPER", expr.getFunctionName());
+        org.junit.jupiter.api.Assertions.assertEquals(1, expr.getArgs().size());
     }
 
     @Test
     void countStar_createsAggregateWithStarLiteral() {
         AggregateExpression<Long> agg = countStar();
-        assertThat(agg.getFunctionName()).isEqualTo("COUNT");
-        assertThat(agg.getArgs()).hasSize(1);
-        assertThat(agg.isDistinct()).isFalse();
+        org.junit.jupiter.api.Assertions.assertEquals("COUNT", agg.getFunctionName());
+        org.junit.jupiter.api.Assertions.assertEquals(1, agg.getArgs().size());
+        org.junit.jupiter.api.Assertions.assertFalse(agg.isDistinct());
     }
 
     @Test
     void countDistinct_hasDistinctFlag() {
         AggregateExpression<Long> agg = countDistinct(TUser::getStatus);
-        assertThat(agg.isDistinct()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(agg.isDistinct());
     }
 
     @Test
     void fn_customName_wrapsPropInColumnExpression() {
         FunctionExpression<Object> expr = fn("MY_FUNC", TUser::getId);
-        assertThat(expr.getFunctionName()).isEqualTo("MY_FUNC");
-        assertThat(expr.getArgs()).hasSize(1);
+        org.junit.jupiter.api.Assertions.assertEquals("MY_FUNC", expr.getFunctionName());
+        org.junit.jupiter.api.Assertions.assertEquals(1, expr.getArgs().size());
     }
 
     // ------------------------------------------------------------------ //
@@ -62,8 +61,10 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("UPPER(t.email) = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "TEST@EXAMPLE.COM");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UPPER(t.email) = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "TEST@EXAMPLE.COM", rendered.getParams().get("p1"));
     }
 
     @Test
@@ -74,8 +75,10 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("LOWER(t.username) = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "alice");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("LOWER(t.username) = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "alice", rendered.getParams().get("p1"));
     }
 
     @Test
@@ -86,8 +89,9 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("LENGTH(t.username) > :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 5);
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("LENGTH(t.username) > :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(5, rendered.getParams().get("p1"));
     }
 
     @Test
@@ -98,7 +102,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("YEAR(t.email) = :p1");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("YEAR(t.email) = :p1"));
     }
 
     // ------------------------------------------------------------------ //
@@ -113,9 +117,9 @@ class SqlFunctionsTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         // ColumnExpression gets property-name alias; FunctionExpression gets no alias
-        assertThat(rendered.getSql()).contains("t.id AS id");
-        assertThat(rendered.getSql()).contains("UPPER(t.username)");
-        assertThat(rendered.getSql()).doesNotContain("UPPER(t.username) AS");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.id AS id"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UPPER(t.username)"));
+        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("UPPER(t.username) AS"));
     }
 
     @Test
@@ -125,8 +129,8 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("t.status AS status");
-        assertThat(rendered.getSql()).contains("COUNT(*)");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status AS status"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("COUNT(*)"));
     }
 
     @Test
@@ -136,7 +140,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("COUNT(DISTINCT t.status)");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("COUNT(DISTINCT t.status)"));
     }
 
     @Test
@@ -146,8 +150,8 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("t.id AS id");
-        assertThat(rendered.getSql()).contains("COALESCE(t.email, 'N/A')");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.id AS id"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("COALESCE(t.email, 'N/A')"));
     }
 
     // ------------------------------------------------------------------ //
@@ -162,7 +166,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("GROUP BY t.status");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("GROUP BY t.status"));
     }
 
     @Test
@@ -173,7 +177,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("GROUP BY UPPER(t.status)");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("GROUP BY UPPER(t.status)"));
     }
 
     @Test
@@ -185,9 +189,10 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("GROUP BY t.status");
-        assertThat(rendered.getSql()).contains("HAVING COUNT(*) > :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 5L);
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("GROUP BY t.status"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("HAVING COUNT(*) > :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(5L, rendered.getParams().get("p1"));
     }
 
     @Test
@@ -199,8 +204,10 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("HAVING SUM(t.amount) >= :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", BigDecimal.valueOf(1000));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("HAVING SUM(t.amount) >= :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                BigDecimal.valueOf(1000), rendered.getParams().get("p1"));
     }
 
     @Test
@@ -220,9 +227,9 @@ class SqlFunctionsTest {
         int groupByIdx = sql.indexOf("GROUP BY");
         int havingIdx = sql.indexOf("HAVING");
         int orderByIdx = sql.indexOf("ORDER BY");
-        assertThat(whereIdx).isLessThan(groupByIdx);
-        assertThat(groupByIdx).isLessThan(havingIdx);
-        assertThat(havingIdx).isLessThan(orderByIdx);
+        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) whereIdx).compareTo(groupByIdx) < 0);
+        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) groupByIdx).compareTo(havingIdx) < 0);
+        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) havingIdx).compareTo(orderByIdx) < 0);
     }
 
     // ------------------------------------------------------------------ //
@@ -237,7 +244,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("ORDER BY LOWER(t.username) ASC");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ORDER BY LOWER(t.username) ASC"));
     }
 
     @Test
@@ -248,7 +255,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("ORDER BY LENGTH(t.username) DESC");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ORDER BY LENGTH(t.username) DESC"));
     }
 
     // ------------------------------------------------------------------ //
@@ -264,8 +271,8 @@ class SqlFunctionsTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         // Function expressions get no alias by default
-        assertThat(rendered.getSql()).contains("UPPER(TRIM(t.username))");
-        assertThat(rendered.getSql()).doesNotContain("UPPER(TRIM(t.username)) AS");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UPPER(TRIM(t.username))"));
+        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("UPPER(TRIM(t.username)) AS"));
     }
 
     // ------------------------------------------------------------------ //
@@ -281,12 +288,11 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("t.id AS id")
-                .contains("t.username AS username")
-                .contains("t.status = :p1")
-                .contains("t.age > :p2")
-                .contains("ORDER BY t.username ASC");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.id AS id"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.username AS username"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.age > :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ORDER BY t.username ASC"));
     }
 
     // ------------------------------------------------------------------ //
@@ -300,7 +306,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("UPPER(t.email) AS emailUpper");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UPPER(t.email) AS emailUpper"));
     }
 
     @Test
@@ -309,7 +315,7 @@ class SqlFunctionsTest {
                 SelectBuilder.from(TUser.class).select(countStar().as("cnt")).mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("COUNT(*) AS cnt");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("COUNT(*) AS cnt"));
     }
 
     @Test
@@ -321,7 +327,7 @@ class SqlFunctionsTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         // WHERE should use the inner expression, not the alias
-        assertThat(rendered.getSql()).contains("UPPER(t.email) = :p1");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UPPER(t.email) = :p1"));
     }
 
     // ------------------------------------------------------------------ //
@@ -335,7 +341,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("CAST(t.age AS VARCHAR(10))");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("CAST(t.age AS VARCHAR(10))"));
     }
 
     @Test
@@ -345,7 +351,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("CAST(t.age AS VARCHAR(10)) AS ageStr");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("CAST(t.age AS VARCHAR(10)) AS ageStr"));
     }
 
     @Test
@@ -356,7 +362,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("CAST(UPPER(t.email) AS VARCHAR(200))");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("CAST(UPPER(t.email) AS VARCHAR(200))"));
     }
 
     @Test
@@ -367,8 +373,9 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("CAST(t.age AS VARCHAR(10)) = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "25");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("CAST(t.age AS VARCHAR(10)) = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("25", rendered.getParams().get("p1"));
     }
 
     // ------------------------------------------------------------------ //
@@ -382,7 +389,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("SUBSTRING(t.username, 1, 3)");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SUBSTRING(t.username, 1, 3)"));
     }
 
     @Test
@@ -392,7 +399,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("SUBSTRING(t.email, 5)");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SUBSTRING(t.email, 5)"));
     }
 
     @Test
@@ -403,7 +410,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("SUBSTR(t.username, 1, 3)");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SUBSTR(t.username, 1, 3)"));
     }
 
     @Test
@@ -414,8 +421,10 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("SUBSTRING(t.email, 1, 3) = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "adm");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SUBSTRING(t.email, 1, 3) = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "adm", rendered.getParams().get("p1"));
     }
 
     // ------------------------------------------------------------------ //
@@ -429,7 +438,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("NULLIF(t.age, 0) AS age");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NULLIF(t.age, 0) AS age"));
     }
 
     @Test
@@ -439,7 +448,7 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("NULLIF(t.status, 'N/A') AS status");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NULLIF(t.status, 'N/A') AS status"));
     }
 
     @Test
@@ -450,7 +459,8 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("NULLIF(TRIM(t.username), '') AS username");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                rendered.getSql().contains("NULLIF(TRIM(t.username), '') AS username"));
     }
 
     @Test
@@ -461,6 +471,6 @@ class SqlFunctionsTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("NULLIF(t.status, '') IS NOT NULL");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NULLIF(t.status, '') IS NOT NULL"));
     }
 }

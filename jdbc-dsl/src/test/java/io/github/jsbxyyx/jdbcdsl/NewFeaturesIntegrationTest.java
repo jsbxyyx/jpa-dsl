@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for the five new DSL features using H2 in-memory database.
@@ -72,8 +71,13 @@ class NewFeaturesIntegrationTest {
         List<UserDto> result = executor.union(spec);
 
         // Both alice (ACTIVE, 30) and charlie (ACTIVE, 40) satisfy both conditions
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     /**
@@ -93,8 +97,13 @@ class NewFeaturesIntegrationTest {
         UnionSpec<UserDto> spec = UnionSpec.of(all).except(inactive).build();
         List<UserDto> result = executor.union(spec);
 
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     // ===================================================================== //
@@ -127,9 +136,10 @@ class NewFeaturesIntegrationTest {
 
         List<Map<String, Object>> rows =
                 jdbcTemplate.queryForList("SELECT username, email, age, status FROM t_user", Collections.emptyMap());
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).get("EMAIL")).isEqualTo("alice@example.com"); // unchanged
-        assertThat(rows.get(0).get("AGE")).isEqualTo(30); // unchanged
+        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "alice@example.com", rows.get(0).get("EMAIL")); // unchanged
+        org.junit.jupiter.api.Assertions.assertEquals(30, rows.get(0).get("AGE")); // unchanged
     }
 
     // ===================================================================== //
@@ -149,8 +159,13 @@ class NewFeaturesIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     /**
@@ -165,7 +180,7 @@ class NewFeaturesIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        assertThat(result).hasSize(3); // all rows, no other locks held
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size()); // all rows, no other locks held
     }
 
     // ===================================================================== //
@@ -196,14 +211,17 @@ class NewFeaturesIntegrationTest {
         List<UserRnDto> result = executor.select(spec);
 
         // Three rows total: ORD-001($100), ORD-002($250) for alice, ORD-003($50) for bob
-        assertThat(result).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
 
         // The result contains cumulative amounts — verify order rows are present
-        assertThat(result)
-                .extracting(UserRnDto::getUsername)
-                .containsExactlyInAnyOrder("ORD-001", "ORD-002", "ORD-003");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("ORD-001", "ORD-002", "ORD-003")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserRnDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                3, (result).stream().map(UserRnDto::getUsername).toList().size());
         // Verify rn is populated (exact numeric type varies by DB driver)
         // Some rows may have null rn if the BigDecimal→Long conversion fails gracefully
-        assertThat(result).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
     }
 }

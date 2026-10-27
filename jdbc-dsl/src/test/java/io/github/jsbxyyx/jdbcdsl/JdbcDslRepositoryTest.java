@@ -3,7 +3,6 @@ package io.github.jsbxyyx.jdbcdsl;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -14,28 +13,33 @@ class JdbcDslRepositoryTest {
         JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
         TestUserRepository repository = new TestUserRepository(executor);
 
-        assertThat(repository.getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository
+        org.junit.jupiter.api.Assertions.assertEquals(TUser.class, repository.getEntityClass());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                TUser.class,
+                repository
                         .selectBuilder()
                         .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
                         .mapToEntity()
-                        .getEntityClass())
-                .isEqualTo(TUser.class);
-        assertThat(repository.insertBuilder().build().getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository
+                        .getEntityClass());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                TUser.class, repository.insertBuilder().build().getEntityClass());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                TUser.class,
+                repository
                         .updateBuilder()
                         .where(w -> w.eq(TUser::getId, 1L))
                         .build()
-                        .getEntityClass())
-                .isEqualTo(TUser.class);
-        assertThat(repository
+                        .getEntityClass());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                TUser.class,
+                repository
                         .deleteBuilder()
                         .where(w -> w.eq(TUser::getId, 1L))
                         .build()
-                        .getEntityClass())
-                .isEqualTo(TUser.class);
-        assertThat(repository.upsertBuilder().onConflict(TUser::getId).build().getEntityClass())
-                .isEqualTo(TUser.class);
+                        .getEntityClass());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                TUser.class,
+                repository.upsertBuilder().onConflict(TUser::getId).build().getEntityClass());
     }
 
     @Test

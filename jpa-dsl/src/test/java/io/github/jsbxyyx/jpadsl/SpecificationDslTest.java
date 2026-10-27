@@ -30,7 +30,6 @@ import static io.github.jsbxyyx.jpadsl.SpecificationDsl.ne;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.not;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.notIn;
 import static io.github.jsbxyyx.jpadsl.SpecificationDsl.or;
-import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 class SpecificationDslTest {
@@ -63,118 +62,189 @@ class SpecificationDslTest {
     void eq_shouldFilterByStatus() {
         Specification<User> spec = eq(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void ne_shouldExcludeStatus() {
         Specification<User> spec = ne(User_.status, "ACTIVE");
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Bob"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void like_shouldFilterByName() {
         Specification<User> spec = like(User_.name, "lic");
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Alice"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void gt_shouldFilterByAge() {
         Specification<User> spec = gt(User_.age, 25);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void lt_shouldFilterByAge() {
         Specification<User> spec = lt(User_.age, 30);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Bob"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void gte_shouldFilterByAge() {
         Specification<User> spec = gte(User_.age, 30);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void between_shouldFilterByAge() {
         Specification<User> spec = between(User_.age, 25, 30);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void in_shouldFilterByNames() {
         Specification<User> spec = in(User_.name, Arrays.asList("Alice", "Bob"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void in_collection_shouldFilterByNames() {
         Specification<User> spec = in(User_.name, List.of("Alice", "Charlie"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void notIn_shouldExcludeNames() {
         Specification<User> spec = notIn(User_.name, Arrays.asList("Alice", "Bob"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Charlie"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void isNull_shouldFindUsersWithNullEmail() {
         Specification<User> spec = isNull(User_.email);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Charlie"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void isNotNull_shouldFindUsersWithNonNullEmail() {
         Specification<User> spec = isNotNull(User_.email);
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void and_shouldCombinePredicates() {
         Specification<User> spec = and(eq(User_.status, "ACTIVE"), gt(User_.age, 35));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Charlie"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void or_shouldCombinePredicates() {
         Specification<User> spec = or(eq(User_.name, "Alice"), eq(User_.name, "Bob"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void not_shouldNegateSpec() {
         Specification<User> spec = not(eq(User_.status, "ACTIVE"));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("Bob"),
+                (result).stream().map(User::getName).toList());
     }
 
     @Test
     void nestedAndOr_shouldWorkCorrectly() {
         Specification<User> spec = and(eq(User_.status, "ACTIVE"), or(gt(User_.age, 35), like(User_.name, "lic")));
         List<User> result = userRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
+                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(User::getName).toList().size());
     }
 
     @Test
     void orderQuery_amountBetween() {
         Specification<Order> spec = between(Order_.amount, new BigDecimal("50.00"), new BigDecimal("200.00"));
         List<Order> result = orderRepository.findAll(spec);
-        assertThat(result).hasSize(2).extracting(Order::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-003");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("ORD-001", "ORD-003")),
+                new java.util.HashSet<>((result).stream().map(Order::getOrderNo).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(Order::getOrderNo).toList().size());
     }
 }

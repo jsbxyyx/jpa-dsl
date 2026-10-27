@@ -16,7 +16,6 @@ import java.util.List;
 import static io.github.jsbxyyx.jdbcdsl.Scalar.scalar;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.min;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for subquery support using H2 in-memory database.
@@ -61,7 +60,13 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "bob");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "bob")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     @Test
@@ -77,7 +82,13 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "bob");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "bob")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     // ------------------------------------------------------------------ //
@@ -96,7 +107,10 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("charlie"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 
     // ------------------------------------------------------------------ //
@@ -116,7 +130,8 @@ class SubqueryIntegrationTest {
 
         // EXISTS (non-correlated) is always true when subquery returns any rows
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(3); // all users, since subquery is non-correlated and has rows
+        org.junit.jupiter.api.Assertions.assertEquals(
+                3, result.size()); // all users, since subquery is non-correlated and has rows
     }
 
     @Test
@@ -133,7 +148,7 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
     }
 
     // ------------------------------------------------------------------ //
@@ -153,7 +168,13 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     // ------------------------------------------------------------------ //
@@ -174,6 +195,9 @@ class SubqueryIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("alice"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 }

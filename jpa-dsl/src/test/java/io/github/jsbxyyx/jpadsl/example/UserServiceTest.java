@@ -17,8 +17,6 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 @SpringBootTest(classes = TestApplication.class)
 @Transactional
 class UserServiceTest {
@@ -49,59 +47,62 @@ class UserServiceTest {
     @Test
     void testFindActiveUsersByName() {
         List<User> result = userService.findActiveUsersByName("John");
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getName()).isEqualTo("John Doe");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals("John Doe", result.get(0).getName());
     }
 
     @Test
     void testFindUsersWithComplexConditions() {
         List<User> result = userService.findUsersWithComplexConditions("ACTIVE", 20, Arrays.asList("ADMIN", "USER"));
-        assertThat(result).hasSize(3); // John(25,ACTIVE,ADMIN), Jane(30,ACTIVE,USER), Alice(22,ACTIVE,USER)
+        org.junit.jupiter.api.Assertions.assertEquals(
+                3, result.size()); // John(25,ACTIVE,ADMIN), Jane(30,ACTIVE,USER), Alice(22,ACTIVE,USER)
     }
 
     @Test
     void testFindByDsl() {
         List<User> result = userService.findByDsl("John Doe", 20);
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getName()).isEqualTo("John Doe");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals("John Doe", result.get(0).getName());
     }
 
     @Test
     void testFindByNameOrEmail() {
         List<User> result = userService.findByNameOrEmail("John", "jane");
-        assertThat(result)
-                .hasSize(3); // John Doe (name), Bob Johnson (name contains "John"), Jane Smith (email like "jane")
+        org.junit.jupiter.api.Assertions.assertEquals(
+                3,
+                result.size()); // John Doe (name), Bob Johnson (name contains "John"), Jane Smith (email like "jane")
     }
 
     @Test
     void testFindUsersPagedAndSorted() {
         Page<User> result = userService.findUsersPagedAndSorted("ACTIVE", 0, 2);
-        assertThat(result.getTotalElements()).isEqualTo(3);
-        assertThat(result.getContent()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.getTotalElements());
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.getContent().size());
     }
 
     @Test
     void testFindUsersByAgeRange() {
         List<User> result = userService.findUsersByAgeRange(20, 30);
-        assertThat(result).hasSize(3); // John(25), Jane(30), Alice(22)
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size()); // John(25), Jane(30), Alice(22)
     }
 
     @Test
     void testFindUsersWithNullEmail() {
         List<User> result = userService.findUsersWithNullEmail();
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getName()).isEqualTo("Alice Brown");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "Alice Brown", result.get(0).getName());
     }
 
     @Test
     void testFindUsersWithNotNullEmail() {
         List<User> result = userService.findUsersWithNotNullEmail();
-        assertThat(result).hasSize(4);
+        org.junit.jupiter.api.Assertions.assertEquals(4, result.size());
     }
 
     @Test
     void testFindNonActiveUsers() {
         List<User> result = userService.findNonActiveUsers();
-        assertThat(result).hasSize(2); // Bob(INACTIVE), Charlie(PENDING)
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size()); // Bob(INACTIVE), Charlie(PENDING)
     }
 }

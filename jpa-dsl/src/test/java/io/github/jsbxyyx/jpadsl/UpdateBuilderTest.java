@@ -12,9 +12,6 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 @DataJpaTest
 class UpdateBuilderTest {
 
@@ -45,11 +42,11 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear(); // evict stale first-level cache after bulk update
 
-        assertThat(affected).isEqualTo(2);
+        org.junit.jupiter.api.Assertions.assertEquals(2, affected);
         List<User> inactive = userRepository.findAll().stream()
                 .filter(u -> "INACTIVE".equals(u.getStatus()))
                 .toList();
-        assertThat(inactive).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, inactive.size());
     }
 
     @Test
@@ -62,12 +59,12 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear(); // evict stale first-level cache after bulk update
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         User found = userRepository.findAll().stream()
                 .filter(u -> "Alice".equals(u.getName()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(found.getEmail()).isNull();
+        org.junit.jupiter.api.Assertions.assertNull(found.getEmail());
     }
 
     @Test
@@ -81,12 +78,12 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear(); // evict stale first-level cache after bulk update
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         User found = userRepository.findAll().stream()
                 .filter(u -> "Bob-Updated".equals(u.getName()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(found.getStatus()).isEqualTo("BANNED");
+        org.junit.jupiter.api.Assertions.assertEquals("BANNED", found.getStatus());
     }
 
     @Test
@@ -98,7 +95,7 @@ class UpdateBuilderTest {
 
         int affected = userRepository.update(spec);
 
-        assertThat(affected).isEqualTo(0);
+        org.junit.jupiter.api.Assertions.assertEquals(0, affected);
     }
 
     @Test
@@ -108,9 +105,12 @@ class UpdateBuilderTest {
                 .build();
 
         // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
-        assertThatThrownBy(() -> userRepository.update(spec))
-                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
-                .hasMessageContaining("SET clause");
+        Throwable assertionThrown1 =
+                org.junit.jupiter.api.Assertions.assertThrows(Throwable.class, () -> userRepository.update(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(IllegalStateException.class.isInstance(assertionThrown1)
+                || InvalidDataAccessApiUsageException.class.isInstance(assertionThrown1));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown1.getMessage().contains("SET clause"));
     }
 
     @Test
@@ -123,7 +123,7 @@ class UpdateBuilderTest {
                 .build();
 
         int affected = userRepository.update(spec);
-        assertThat(affected).isGreaterThanOrEqualTo(0);
+        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) affected).compareTo(0) >= 0);
     }
 
     @Test
@@ -136,8 +136,11 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(3);
-        assertThat(userRepository.findAll()).extracting(User::getStatus).containsOnly("UPDATED");
+        org.junit.jupiter.api.Assertions.assertEquals(3, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("UPDATED")),
+                new java.util.HashSet<>(
+                        (userRepository.findAll()).stream().map(User::getStatus).toList()));
     }
 
     // ------------------------------------------------------------------ //
@@ -155,10 +158,14 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(2);
-        assertThat(userRepository.findAll())
-                .filteredOn(u -> "BLOCKED".equals(u.getStatus()))
-                .hasSize(2);
+        org.junit.jupiter.api.Assertions.assertEquals(2, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2,
+                (userRepository.findAll())
+                        .stream()
+                                .filter(u -> "BLOCKED".equals(u.getStatus()))
+                                .toList()
+                                .size());
     }
 
     @Test
@@ -173,12 +180,12 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         User alice = userRepository.findAll().stream()
                 .filter(u -> "Alice".equals(u.getName()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(alice.getStatus()).isEqualTo("BLOCKED");
+        org.junit.jupiter.api.Assertions.assertEquals("BLOCKED", alice.getStatus());
     }
 
     @Test
@@ -193,7 +200,7 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, affected);
     }
 
     @Test
@@ -207,12 +214,12 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         User charlie = userRepository.findAll().stream()
                 .filter(u -> "Charlie".equals(u.getName()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(charlie.getStatus()).isEqualTo("SENIOR");
+        org.junit.jupiter.api.Assertions.assertEquals("SENIOR", charlie.getStatus());
     }
 
     @Test
@@ -226,7 +233,7 @@ class UpdateBuilderTest {
                 .build();
         // Should not throw — no full-table guard because the predicate was registered
         int affected = userRepository.update(spec);
-        assertThat(affected).isGreaterThanOrEqualTo(0);
+        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) affected).compareTo(0) >= 0);
     }
 
     // ------------------------------------------------------------------ //
@@ -245,12 +252,12 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         User found = userRepository.findAll().stream()
                 .filter(u -> "Alice-Updated".equals(u.getName()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(found.getStatus()).isEqualTo("BLOCKED");
+        org.junit.jupiter.api.Assertions.assertEquals("BLOCKED", found.getStatus());
     }
 
     @Test
@@ -265,12 +272,12 @@ class UpdateBuilderTest {
         int affected = userRepository.update(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         User found = userRepository.findAll().stream()
                 .filter(u -> "Alice".equals(u.getName())) // name unchanged
                 .findFirst()
                 .orElseThrow();
-        assertThat(found.getStatus()).isEqualTo("BLOCKED");
+        org.junit.jupiter.api.Assertions.assertEquals("BLOCKED", found.getStatus());
     }
 
     @Test
@@ -282,9 +289,12 @@ class UpdateBuilderTest {
                 .eq(User_.name, "Alice")
                 .build();
 
-        assertThatThrownBy(() -> userRepository.update(spec))
-                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
-                .hasMessageContaining("SET clause");
+        Throwable assertionThrown2 =
+                org.junit.jupiter.api.Assertions.assertThrows(Throwable.class, () -> userRepository.update(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(IllegalStateException.class.isInstance(assertionThrown2)
+                || InvalidDataAccessApiUsageException.class.isInstance(assertionThrown2));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown2.getMessage().contains("SET clause"));
     }
 
     // ------------------------------------------------------------------ //
@@ -303,10 +313,10 @@ class UpdateBuilderTest {
         int affected = userRepository.executeUpdate(builder);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(2);
+        org.junit.jupiter.api.Assertions.assertEquals(2, affected);
         List<User> inactive = userRepository.findAll().stream()
                 .filter(u -> "INACTIVE".equals(u.getStatus()))
                 .toList();
-        assertThat(inactive).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, inactive.size());
     }
 }

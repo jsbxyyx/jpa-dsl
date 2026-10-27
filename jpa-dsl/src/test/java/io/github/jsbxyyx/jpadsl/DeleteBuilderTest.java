@@ -12,9 +12,6 @@ import org.springframework.dao.InvalidDataAccessApiUsageException;
 
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 @DataJpaTest
 class DeleteBuilderTest {
 
@@ -44,9 +41,13 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll()).hasSize(2);
-        assertThat(userRepository.findAll()).extracting(User::getStatus).containsOnly("ACTIVE");
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, userRepository.findAll().size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("ACTIVE")),
+                new java.util.HashSet<>(
+                        (userRepository.findAll()).stream().map(User::getStatus).toList()));
     }
 
     @Test
@@ -59,10 +60,11 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
         List<User> remaining = userRepository.findAll();
-        assertThat(remaining).hasSize(2);
-        assertThat(remaining).extracting(User::getName).doesNotContain("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
+        org.junit.jupiter.api.Assertions.assertFalse(
+                (remaining).stream().map(User::getName).toList().contains("Charlie"));
     }
 
     @Test
@@ -73,7 +75,7 @@ class DeleteBuilderTest {
 
         int affected = userRepository.delete(spec);
 
-        assertThat(affected).isEqualTo(0);
+        org.junit.jupiter.api.Assertions.assertEquals(0, affected);
     }
 
     @Test
@@ -81,9 +83,12 @@ class DeleteBuilderTest {
         DeleteSpec<User> spec = DeleteBuilder.<User>builder(User.class).build();
 
         // Spring JPA translates IllegalStateException to InvalidDataAccessApiUsageException
-        assertThatThrownBy(() -> userRepository.delete(spec))
-                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
-                .hasMessageContaining("WHERE condition");
+        Throwable assertionThrown1 =
+                org.junit.jupiter.api.Assertions.assertThrows(Throwable.class, () -> userRepository.delete(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(IllegalStateException.class.isInstance(assertionThrown1)
+                || InvalidDataAccessApiUsageException.class.isInstance(assertionThrown1));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown1.getMessage().contains("WHERE condition"));
     }
 
     @Test
@@ -94,9 +99,11 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll()).hasSize(2);
-        assertThat(userRepository.findAll()).extracting(User::getName).doesNotContain("Alice");
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, userRepository.findAll().size());
+        org.junit.jupiter.api.Assertions.assertFalse(
+                (userRepository.findAll()).stream().map(User::getName).toList().contains("Alice"));
     }
 
     @Test
@@ -108,9 +115,13 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(2);
-        assertThat(userRepository.findAll()).hasSize(1);
-        assertThat(userRepository.findAll()).extracting(User::getName).containsOnly("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                1, userRepository.findAll().size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Charlie")),
+                new java.util.HashSet<>(
+                        (userRepository.findAll()).stream().map(User::getName).toList()));
     }
 
     @Test
@@ -122,9 +133,13 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(2);
-        assertThat(userRepository.findAll()).hasSize(1);
-        assertThat(userRepository.findAll()).extracting(User::getName).containsOnly("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                1, userRepository.findAll().size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Charlie")),
+                new java.util.HashSet<>(
+                        (userRepository.findAll()).stream().map(User::getName).toList()));
     }
 
     @Test
@@ -135,9 +150,11 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll()).hasSize(2);
-        assertThat(userRepository.findAll()).extracting(User::getName).doesNotContain("Charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, userRepository.findAll().size());
+        org.junit.jupiter.api.Assertions.assertFalse(
+                (userRepository.findAll()).stream().map(User::getName).toList().contains("Charlie"));
     }
 
     // ------------------------------------------------------------------ //
@@ -153,8 +170,9 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, userRepository.findAll().size());
     }
 
     @Test
@@ -167,8 +185,9 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(1);
-        assertThat(userRepository.findAll()).extracting(User::getName).doesNotContain("Bob");
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        org.junit.jupiter.api.Assertions.assertFalse(
+                (userRepository.findAll()).stream().map(User::getName).toList().contains("Bob"));
     }
 
     @Test
@@ -178,9 +197,12 @@ class DeleteBuilderTest {
                 .eq(User_.name, "Alice", false)
                 .build();
 
-        assertThatThrownBy(() -> userRepository.delete(spec))
-                .isInstanceOfAny(IllegalStateException.class, InvalidDataAccessApiUsageException.class)
-                .hasMessageContaining("WHERE condition");
+        Throwable assertionThrown2 =
+                org.junit.jupiter.api.Assertions.assertThrows(Throwable.class, () -> userRepository.delete(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(IllegalStateException.class.isInstance(assertionThrown2)
+                || InvalidDataAccessApiUsageException.class.isInstance(assertionThrown2));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown2.getMessage().contains("WHERE condition"));
     }
 
     @Test
@@ -192,8 +214,12 @@ class DeleteBuilderTest {
         int affected = userRepository.delete(spec);
         testEntityManager.clear();
 
-        assertThat(affected).isEqualTo(2);
-        assertThat(userRepository.findAll()).hasSize(1);
-        assertThat(userRepository.findAll()).extracting(User::getName).containsOnly("Alice");
+        org.junit.jupiter.api.Assertions.assertEquals(2, affected);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                1, userRepository.findAll().size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("Alice")),
+                new java.util.HashSet<>(
+                        (userRepository.findAll()).stream().map(User::getName).toList()));
     }
 }

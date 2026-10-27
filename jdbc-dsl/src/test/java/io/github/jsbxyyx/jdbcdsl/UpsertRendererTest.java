@@ -12,9 +12,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 /**
  * Unit tests for UPSERT rendering across all dialects in {@link SqlRenderer}.
  * Verifies generated SQL strings and parameter bindings — no database required.
@@ -54,17 +51,22 @@ class UpsertRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new MySqlDialect());
 
         String sql = rendered.getSql();
-        assertThat(sql).startsWith("INSERT INTO t_user");
-        assertThat(sql).contains("(username, email, age, status)");
-        assertThat(sql).contains("VALUES (:username, :email, :age, :status)");
-        assertThat(sql).contains("ON DUPLICATE KEY UPDATE");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("INSERT INTO t_user"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("(username, email, age, status)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("VALUES (:username, :email, :age, :status)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ON DUPLICATE KEY UPDATE"));
         // username is conflict col → excluded from UPDATE
-        assertThat(sql).doesNotContain("username = VALUES(username)");
-        assertThat(sql).contains("email = VALUES(email)");
-        assertThat(sql).contains("age = VALUES(age)");
-        assertThat(sql).contains("status = VALUES(status)");
+        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("username = VALUES(username)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("email = VALUES(email)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("age = VALUES(age)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("status = VALUES(status)"));
 
-        assertThat(rendered.getParams()).containsEntry("username", "alice").containsEntry("email", "alice@example.com");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("username"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "alice", rendered.getParams().get("username"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("email"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "alice@example.com", rendered.getParams().get("email"));
     }
 
     @Test
@@ -78,11 +80,11 @@ class UpsertRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new MySqlDialect());
 
         String sql = rendered.getSql();
-        assertThat(sql).contains("ON DUPLICATE KEY UPDATE");
-        assertThat(sql).contains("email = VALUES(email)");
-        assertThat(sql).contains("status = VALUES(status)");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ON DUPLICATE KEY UPDATE"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("email = VALUES(email)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("status = VALUES(status)"));
         // age was not in doUpdate → must not appear in the UPDATE part
-        assertThat(sql).doesNotContain("age = VALUES(age)");
+        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("age = VALUES(age)"));
     }
 
     // ------------------------------------------------------------------ //
@@ -100,12 +102,12 @@ class UpsertRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new PostgresDialect());
 
         String sql = rendered.getSql();
-        assertThat(sql).startsWith("INSERT INTO t_user");
-        assertThat(sql).contains("ON CONFLICT (username) DO UPDATE SET");
-        assertThat(sql).doesNotContain("username = EXCLUDED.username");
-        assertThat(sql).contains("email = EXCLUDED.email");
-        assertThat(sql).contains("age = EXCLUDED.age");
-        assertThat(sql).contains("status = EXCLUDED.status");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("INSERT INTO t_user"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ON CONFLICT (username) DO UPDATE SET"));
+        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("username = EXCLUDED.username"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("email = EXCLUDED.email"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("age = EXCLUDED.age"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("status = EXCLUDED.status"));
     }
 
     @Test
@@ -118,10 +120,11 @@ class UpsertRendererTest {
         LinkedHashMap<String, Object> values = colValues(false);
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new PostgresDialect());
 
-        assertThat(rendered.getSql()).contains("ON CONFLICT (username, email) DO UPDATE SET");
-        assertThat(rendered.getSql()).doesNotContain("username = EXCLUDED.username");
-        assertThat(rendered.getSql()).doesNotContain("email = EXCLUDED.email");
-        assertThat(rendered.getSql()).contains("age = EXCLUDED.age");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                rendered.getSql().contains("ON CONFLICT (username, email) DO UPDATE SET"));
+        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("username = EXCLUDED.username"));
+        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("email = EXCLUDED.email"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("age = EXCLUDED.age"));
     }
 
     // ------------------------------------------------------------------ //
@@ -139,15 +142,15 @@ class UpsertRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new H2Dialect());
 
         String sql = rendered.getSql();
-        assertThat(sql).startsWith("MERGE INTO t_user t");
-        assertThat(sql).contains("USING (VALUES(");
-        assertThat(sql).contains(")) AS s(");
-        assertThat(sql).contains("ON (t.username = s.username)");
-        assertThat(sql).contains("WHEN MATCHED THEN UPDATE SET");
-        assertThat(sql).contains("WHEN NOT MATCHED THEN INSERT");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("MERGE INTO t_user t"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("USING (VALUES("));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(")) AS s("));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ON (t.username = s.username)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN MATCHED THEN UPDATE SET"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN NOT MATCHED THEN INSERT"));
         // Parameters use u_ prefix to avoid collision
-        assertThat(rendered.getParams()).containsKey("u_username");
-        assertThat(rendered.getParams()).doesNotContainKey("username");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("u_username"));
+        org.junit.jupiter.api.Assertions.assertFalse(rendered.getParams().containsKey("username"));
     }
 
     // ------------------------------------------------------------------ //
@@ -165,15 +168,16 @@ class UpsertRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new OracleDialect());
 
         String sql = rendered.getSql();
-        assertThat(sql).startsWith("MERGE INTO t_user t");
-        assertThat(sql).contains("USING (SELECT");
-        assertThat(sql).contains("FROM DUAL) s");
-        assertThat(sql).contains("ON (t.username = s.username)");
-        assertThat(sql).contains("WHEN MATCHED THEN UPDATE SET");
-        assertThat(sql).contains("WHEN NOT MATCHED THEN INSERT");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("MERGE INTO t_user t"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("USING (SELECT"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM DUAL) s"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ON (t.username = s.username)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN MATCHED THEN UPDATE SET"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN NOT MATCHED THEN INSERT"));
         // Parameters use u_ prefix to avoid collision
-        assertThat(rendered.getParams()).containsKey("u_username");
-        assertThat(rendered.getParams().get("u_username")).isEqualTo("alice");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("u_username"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "alice", rendered.getParams().get("u_username"));
     }
 
     @Test
@@ -191,8 +195,8 @@ class UpsertRendererTest {
         int matchedPos = sql.indexOf("WHEN MATCHED THEN UPDATE SET");
         int notMatchedPos = sql.indexOf("WHEN NOT MATCHED THEN INSERT");
         String updateClause = sql.substring(matchedPos, notMatchedPos);
-        assertThat(updateClause).doesNotContain("t.username = s.username");
-        assertThat(updateClause).contains("t.email = s.email");
+        org.junit.jupiter.api.Assertions.assertFalse(updateClause.contains("t.username = s.username"));
+        org.junit.jupiter.api.Assertions.assertTrue(updateClause.contains("t.email = s.email"));
     }
 
     // ------------------------------------------------------------------ //
@@ -211,8 +215,8 @@ class UpsertRendererTest {
         RenderedSql oracle11 =
                 SqlRenderer.renderUpsert(spec, meta, new LinkedHashMap<>(values), new Oracle11gDialect());
 
-        assertThat(oracle11.getSql()).isEqualTo(oracle12.getSql());
-        assertThat(oracle11.getParams()).isEqualTo(oracle12.getParams());
+        org.junit.jupiter.api.Assertions.assertEquals(oracle12.getSql(), oracle11.getSql());
+        org.junit.jupiter.api.Assertions.assertEquals(oracle12.getParams(), oracle11.getParams());
     }
 
     // ------------------------------------------------------------------ //
@@ -230,15 +234,15 @@ class UpsertRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, values, new SqlServerDialect());
 
         String sql = rendered.getSql();
-        assertThat(sql).startsWith("MERGE INTO t_user AS t");
-        assertThat(sql).contains("USING (SELECT");
-        assertThat(sql).contains(") AS s (");
-        assertThat(sql).contains("ON t.username = s.username");
-        assertThat(sql).contains("WHEN MATCHED THEN UPDATE SET");
-        assertThat(sql).contains("WHEN NOT MATCHED THEN INSERT");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("MERGE INTO t_user AS t"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("USING (SELECT"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(") AS s ("));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ON t.username = s.username"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN MATCHED THEN UPDATE SET"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN NOT MATCHED THEN INSERT"));
         // SQL Server terminates the MERGE with a semicolon
-        assertThat(sql).endsWith(";");
-        assertThat(rendered.getParams()).containsKey("u_username");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith(";"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("u_username"));
     }
 
     @Test
@@ -255,8 +259,8 @@ class UpsertRendererTest {
         int matchedPos = sql.indexOf("WHEN MATCHED THEN UPDATE SET");
         int notMatchedPos = sql.indexOf("WHEN NOT MATCHED THEN INSERT");
         String updateClause = sql.substring(matchedPos, notMatchedPos);
-        assertThat(updateClause).doesNotContain("t.username = s.username");
-        assertThat(updateClause).contains("t.email = s.email");
+        org.junit.jupiter.api.Assertions.assertFalse(updateClause.contains("t.username = s.username"));
+        org.junit.jupiter.api.Assertions.assertTrue(updateClause.contains("t.email = s.email"));
     }
 
     // ------------------------------------------------------------------ //
@@ -269,9 +273,11 @@ class UpsertRendererTest {
                 UpsertBuilder.into(TUser.class).onConflict(TUser::getUsername).build();
 
         LinkedHashMap<String, Object> values = colValues(false);
-        assertThatThrownBy(() -> SqlRenderer.renderUpsert(spec, meta, values, new Sql2008Dialect()))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("Sql2008Dialect");
+        Throwable assertionThrown3 = org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class,
+                () -> SqlRenderer.renderUpsert(spec, meta, values, new Sql2008Dialect()));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown3.getMessage().contains("Sql2008Dialect"));
     }
 
     // ------------------------------------------------------------------ //
@@ -288,8 +294,11 @@ class UpsertRendererTest {
         java.util.List<String> all = java.util.List.of("username", "email", "age", "status");
         java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, all);
 
-        assertThat(resolved).containsExactlyInAnyOrder("email", "age", "status");
-        assertThat(resolved).doesNotContain("username");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("email", "age", "status")),
+                new java.util.HashSet<>(resolved));
+        org.junit.jupiter.api.Assertions.assertEquals(3, resolved.size());
+        org.junit.jupiter.api.Assertions.assertFalse(resolved.contains("username"));
     }
 
     @Test
@@ -302,7 +311,7 @@ class UpsertRendererTest {
         java.util.List<String> all = java.util.List.of("username", "email", "age", "status");
         java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, all);
 
-        assertThat(resolved).containsExactly("email");
+        org.junit.jupiter.api.Assertions.assertIterableEquals(java.util.Arrays.asList("email"), resolved);
     }
 
     // ------------------------------------------------------------------ //
@@ -315,7 +324,8 @@ class UpsertRendererTest {
                 .onConflict(TUser::getUsername, TUser::getEmail)
                 .build();
 
-        assertThat(spec.getConflictColumns()).containsExactly("username", "email");
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("username", "email"), spec.getConflictColumns());
     }
 
     @Test
@@ -325,6 +335,7 @@ class UpsertRendererTest {
                 .doUpdate(TUser::getAge, TUser::getStatus)
                 .build();
 
-        assertThat(spec.getUpdateColumns()).containsExactly("age", "status");
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("age", "status"), spec.getUpdateColumns());
     }
 }

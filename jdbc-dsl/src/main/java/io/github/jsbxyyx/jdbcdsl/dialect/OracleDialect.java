@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
+import io.github.jsbxyyx.jdbcast.stmt.UpsertStatement;
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
@@ -38,6 +39,35 @@ public final class OracleDialect implements Dialect {
     @Override
     public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         return renderMergeViaDual(spec, meta, colValues);
+    }
+
+    @Override
+    public RenderedSql renderUpsert(UpsertStatement statement) {
+        return renderMergeViaDual(statement);
+    }
+
+    static RenderedSql renderMergeViaDual(UpsertStatement statement) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        StringJoiner using = new StringJoiner(", ");
+        for (String col : statement.columns()) {
+            String name = "u_" + col;
+            using.add(":" + name + " " + col);
+            params.put(name, statement.values().get(col));
+        }
+        StringJoiner on = new StringJoiner(" AND ");
+        statement.conflictColumns().forEach(col -> on.add("t." + col + " = s." + col));
+        StringJoiner updates = new StringJoiner(", ");
+        statement.updateColumns().forEach(col -> updates.add("t." + col + " = s." + col));
+        StringJoiner insertCols = new StringJoiner(", ");
+        StringJoiner insertVals = new StringJoiner(", ");
+        statement.columns().forEach(col -> {
+            insertCols.add(col);
+            insertVals.add("s." + col);
+        });
+        String matched = statement.doNothing() ? "" : " WHEN MATCHED THEN UPDATE SET " + updates;
+        String sql = "MERGE INTO " + statement.tableName() + " t USING (SELECT " + using + " FROM DUAL) s" + " ON ("
+                + on + ")" + matched + " WHEN NOT MATCHED THEN INSERT (" + insertCols + ") VALUES (" + insertVals + ")";
+        return new RenderedSql(sql, params);
     }
 
     /**

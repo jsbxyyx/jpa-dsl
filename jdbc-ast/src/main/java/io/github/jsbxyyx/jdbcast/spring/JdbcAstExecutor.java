@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcast.spring;
 
 import io.github.jsbxyyx.jdbcast.expr.AggExpr;
 import io.github.jsbxyyx.jdbcast.expr.StarExpr;
+import io.github.jsbxyyx.jdbcast.renderer.AnsiSqlRenderer;
 import io.github.jsbxyyx.jdbcast.renderer.MetaResolver;
 import io.github.jsbxyyx.jdbcast.renderer.RenderedSql;
 import io.github.jsbxyyx.jdbcast.renderer.SqlRenderer;
@@ -93,9 +94,7 @@ public class JdbcAstExecutor {
     public JdbcAstExecutor(NamedParameterJdbcTemplate jdbcTemplate, SqlRenderer renderer) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
         this.renderer = Objects.requireNonNull(renderer, "renderer");
-        this.meta = (renderer instanceof io.github.jsbxyyx.jdbcast.renderer.AnsiSqlRenderer ar)
-                ? ar.getMetaResolver()
-                : null;
+        this.meta = (renderer instanceof AnsiSqlRenderer ar) ? ar.getMetaResolver() : null;
     }
 
     // ================================================================== //

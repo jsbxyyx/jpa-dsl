@@ -9,8 +9,6 @@ import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countStar;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for JOIN clause rendering in {@link SqlRenderer}.
@@ -42,10 +40,9 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql)
-                .contains("FROM t_user u")
-                .contains("INNER JOIN t_order o ON u.id = o.user_id")
-                .contains("LEFT JOIN t_audit_user au ON u.id = au.id");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user u"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INNER JOIN t_order o ON u.id = o.user_id"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("LEFT JOIN t_audit_user au ON u.id = au.id"));
     }
 
     @Test
@@ -60,10 +57,9 @@ class JoinRendererTest {
         String sql = rendered.getSql();
 
         // With JOINs, must use COUNT(DISTINCT pk) to avoid duplicate rows
-        assertThat(sql)
-                .contains("COUNT(DISTINCT u.id)")
-                .contains("INNER JOIN t_order o")
-                .contains("LEFT JOIN t_audit_user au");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("COUNT(DISTINCT u.id)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INNER JOIN t_order o"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("LEFT JOIN t_audit_user au"));
     }
 
     // ------------------------------------------------------------------ //
@@ -86,13 +82,12 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql)
-                .contains("u.username AS username")
-                .contains("o.order_no AS orderNo")
-                .contains("o.amount AS amount")
-                .contains("o.status AS orderStatus")
-                .contains("FROM t_user u")
-                .contains("INNER JOIN t_order o ON u.id = o.user_id");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("u.username AS username"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("o.order_no AS orderNo"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("o.amount AS amount"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("o.status AS orderStatus"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user u"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INNER JOIN t_order o ON u.id = o.user_id"));
     }
 
     @Test
@@ -104,8 +99,10 @@ class JoinRendererTest {
                 .mapTo(UserOrderDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("o.status = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.status = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "PAID", rendered.getParams().get("p1"));
     }
 
     @Test
@@ -117,13 +114,15 @@ class JoinRendererTest {
                 .mapTo(TOrder.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql())
-                .contains("o.id AS id")
-                .contains("o.user_id AS userId")
-                .contains("o.status AS status")
-                .contains("LEFT JOIN t_order o ON u.id = o.user_id")
-                .contains("WHERE o.status = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.id AS id"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.user_id AS userId"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.status AS status"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                rendered.getSql().contains("LEFT JOIN t_order o ON u.id = o.user_id"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE o.status = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "PAID", rendered.getParams().get("p1"));
     }
 
     @Test
@@ -136,8 +135,14 @@ class JoinRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("u.status = :p1").contains("o.status = :p2");
-        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("p2", "PAID");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("u.status = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.status = :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "ACTIVE", rendered.getParams().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "PAID", rendered.getParams().get("p2"));
     }
 
     @Test
@@ -147,11 +152,14 @@ class JoinRendererTest {
                 .join(TUser.class, "u2", JoinType.LEFT, on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
                 .mapTo(UserDto.class);
 
-        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Ambiguous column reference")
-                .hasMessageContaining("u1")
-                .hasMessageContaining("u2");
+        Throwable assertionThrown7 = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class, () -> SqlRenderer.renderSelect(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown7.getMessage().contains("Ambiguous column reference"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown7.getMessage().contains("u1"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown7.getMessage().contains("u2"));
     }
 
     @Test
@@ -161,7 +169,8 @@ class JoinRendererTest {
                 .select(TUser.class, "u2")
                 .mapTo(UserDto.class);
 
-        assertThat(SqlRenderer.renderSelect(spec).getSql()).contains("u2.id AS id");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                SqlRenderer.renderSelect(spec).getSql().contains("u2.id AS id"));
     }
 
     @Test
@@ -170,9 +179,10 @@ class JoinRendererTest {
                 .where(TOrder.class, w -> w.eq(TOrder::getStatus, "PAID"))
                 .mapToEntity();
 
-        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("neither the root entity nor a joined entity");
+        Throwable assertionThrown8 = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class, () -> SqlRenderer.renderSelect(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown8.getMessage().contains("neither the root entity nor a joined entity"));
     }
 
     // ------------------------------------------------------------------ //
@@ -194,11 +204,12 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql)
-                .contains("FROM t_user u1")
-                .contains("INNER JOIN t_user u2 ON u1.status = u2.status")
-                .contains("u2.username = :p1");
-        assertThat(rendered.getParams()).containsEntry("p1", "alice");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user u1"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INNER JOIN t_user u2 ON u1.status = u2.status"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("u2.username = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "alice", rendered.getParams().get("p1"));
     }
 
     @Test
@@ -214,10 +225,9 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql)
-                .contains("u1.username AS username")
-                .contains("u2.status AS orderStatus")
-                .contains("LEFT JOIN t_user u2 ON u1.status = u2.status");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("u1.username AS username"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("u2.status AS orderStatus"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("LEFT JOIN t_user u2 ON u1.status = u2.status"));
     }
 
     /**
@@ -232,11 +242,14 @@ class JoinRendererTest {
                 .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
                 .mapTo(UserDto.class);
 
-        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Ambiguous column reference")
-                .hasMessageContaining("TUser.username")
-                .hasMessageContaining("col(TUser::getUsername, \"<alias>\")");
+        Throwable assertionThrown9 = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class, () -> SqlRenderer.renderSelect(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown9.getMessage().contains("Ambiguous column reference"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown9.getMessage().contains("TUser.username"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown9.getMessage().contains("col(TUser::getUsername, \"<alias>\")"));
     }
 
     /**
@@ -251,10 +264,12 @@ class JoinRendererTest {
                 .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getId, "u1", TUser::getId, "u2"))
                 .mapTo(UserDto.class);
 
-        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Ambiguous column reference")
-                .hasMessageContaining("TUser.");
+        Throwable assertionThrown10 = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class, () -> SqlRenderer.renderSelect(spec));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown10.getMessage().contains("Ambiguous column reference"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown10.getMessage().contains("TUser."));
     }
 
     // ------------------------------------------------------------------ //
@@ -278,11 +293,11 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql).contains("LEFT JOIN (");
-        assertThat(sql).contains("FROM t_order o");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("LEFT JOIN ("));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_order o"));
         // subquery side uses property alias (userId), entity side uses column name (id)
-        assertThat(sql).contains(") o ON o.userId = t.id");
-        assertThat(sql).contains("FROM t_user t");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(") o ON o.userId = t.id"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user t"));
     }
 
     @Test
@@ -299,9 +314,9 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql).contains("INNER JOIN (");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INNER JOIN ("));
         // "o" is a subquery alias → property name; "t" is a plain entity → column name
-        assertThat(sql).contains("o.userId = t.id");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("o.userId = t.id"));
     }
 
     @Test
@@ -318,7 +333,7 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        assertThat(sql).contains("LEFT JOIN (");
-        assertThat(sql).contains("o.userId = t.id AND o.status = 'PAID'");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("LEFT JOIN ("));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("o.userId = t.id AND o.status = 'PAID'"));
     }
 }

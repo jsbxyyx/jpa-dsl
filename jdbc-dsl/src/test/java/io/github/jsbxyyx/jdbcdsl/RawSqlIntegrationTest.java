@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.raw;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for the RawSql escape-hatch API using H2 in-memory database.
@@ -64,7 +63,13 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
+                new java.util.HashSet<>(
+                        (result).stream().map(UserDto::getUsername).toList()));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2, (result).stream().map(UserDto::getUsername).toList().size());
     }
 
     @Test
@@ -77,7 +82,10 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("charlie"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 
     @Test
@@ -92,7 +100,10 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("charlie"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 
     @Test
@@ -106,7 +117,7 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
     }
 
     // ------------------------------------------------------------------ //
@@ -124,7 +135,10 @@ class RawSqlIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        assertThat(result).hasSize(3).extracting(UserDto::getUsername).containsExactly("ALICE", "BOB", "CHARLIE");
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("ALICE", "BOB", "CHARLIE"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 
     @Test
@@ -140,10 +154,10 @@ class RawSqlIntegrationTest {
         List<UserDto> result = executor.select(spec);
 
         // ACTIVE: alice, charlie; INACTIVE: bob
-        assertThat(result).hasSize(3);
-        assertThat(result.get(0).getUsername()).isEqualTo("alice");
-        assertThat(result.get(1).getUsername()).isEqualTo("charlie");
-        assertThat(result.get(2).getUsername()).isEqualTo("bob");
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        org.junit.jupiter.api.Assertions.assertEquals("alice", result.get(0).getUsername());
+        org.junit.jupiter.api.Assertions.assertEquals("charlie", result.get(1).getUsername());
+        org.junit.jupiter.api.Assertions.assertEquals("bob", result.get(2).getUsername());
     }
 
     // ------------------------------------------------------------------ //
@@ -157,7 +171,10 @@ class RawSqlIntegrationTest {
                 Map.of("status", "ACTIVE"),
                 UserDto.class);
 
-        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactly("alice", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("alice", "charlie"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 
     @Test
@@ -165,7 +182,10 @@ class RawSqlIntegrationTest {
         List<UserDto> result =
                 executor.query("SELECT id, username FROM t_user ORDER BY username", Map.of(), UserDto.class);
 
-        assertThat(result).hasSize(3).extracting(UserDto::getUsername).containsExactly("alice", "bob", "charlie");
+        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("alice", "bob", "charlie"),
+                (result).stream().map(UserDto::getUsername).toList());
     }
 
     @Test
@@ -173,8 +193,8 @@ class RawSqlIntegrationTest {
         UserDto result = executor.queryOne(
                 "SELECT id, username FROM t_user WHERE username = :name", Map.of("name", "bob"), UserDto.class);
 
-        assertThat(result).isNotNull();
-        assertThat(result.getUsername()).isEqualTo("bob");
+        org.junit.jupiter.api.Assertions.assertNotNull(result);
+        org.junit.jupiter.api.Assertions.assertEquals("bob", result.getUsername());
     }
 
     @Test
@@ -182,7 +202,7 @@ class RawSqlIntegrationTest {
         UserDto result = executor.queryOne(
                 "SELECT id, username FROM t_user WHERE username = :name", Map.of("name", "nobody"), UserDto.class);
 
-        assertThat(result).isNull();
+        org.junit.jupiter.api.Assertions.assertNull(result);
     }
 
     // ------------------------------------------------------------------ //
@@ -195,12 +215,15 @@ class RawSqlIntegrationTest {
                 "UPDATE t_user SET status = :newStatus WHERE status = :oldStatus",
                 Map.of("newStatus", "DISABLED", "oldStatus", "INACTIVE"));
 
-        assertThat(affected).isEqualTo(1); // only bob
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected); // only bob
 
         // Verify with a subsequent query
         List<UserDto> active = executor.query(
                 "SELECT id, username FROM t_user WHERE status = :s", Map.of("s", "DISABLED"), UserDto.class);
-        assertThat(active).hasSize(1).extracting(UserDto::getUsername).containsExactly("bob");
+        org.junit.jupiter.api.Assertions.assertEquals(1, active.size());
+        org.junit.jupiter.api.Assertions.assertIterableEquals(
+                java.util.Arrays.asList("bob"),
+                (active).stream().map(UserDto::getUsername).toList());
     }
 
     @Test
@@ -209,10 +232,12 @@ class RawSqlIntegrationTest {
                 "INSERT INTO t_user (username, email, age, status) VALUES (:u, :e, :a, :s)",
                 Map.of("u", "dave", "e", "dave@example.com", "a", 28, "s", "ACTIVE"));
 
-        assertThat(affected).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
 
         List<UserDto> all =
                 executor.query("SELECT id, username FROM t_user ORDER BY username", Map.of(), UserDto.class);
-        assertThat(all).hasSize(4).extracting(UserDto::getUsername).contains("dave");
+        org.junit.jupiter.api.Assertions.assertEquals(4, all.size());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                (all).stream().map(UserDto::getUsername).toList().contains("dave"));
     }
 }

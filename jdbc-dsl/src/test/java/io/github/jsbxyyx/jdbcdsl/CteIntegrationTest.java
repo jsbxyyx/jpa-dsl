@@ -13,7 +13,7 @@ import org.springframework.test.context.jdbc.Sql;
 import java.util.List;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Integration tests for CTE ({@code WITH} clause) using H2.
@@ -65,9 +65,9 @@ class CteIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> rows = executor.select(spec);
-        assertThat(rows).hasSize(2);
-        assertThat(rows.get(0).getUsername()).isEqualTo("alice");
-        assertThat(rows.get(1).getUsername()).isEqualTo("charlie");
+        assertEquals(2, rows.size());
+        assertEquals("alice", rows.get(0).getUsername());
+        assertEquals("charlie", rows.get(1).getUsername());
     }
 
     // ------------------------------------------------------------------ //
@@ -95,9 +95,9 @@ class CteIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> rows = executor.select(spec);
-        assertThat(rows).hasSize(2);
-        assertThat(rows.get(0).getUsername()).isEqualTo("alice");
-        assertThat(rows.get(1).getUsername()).isEqualTo("charlie");
+        assertEquals(2, rows.size());
+        assertEquals("alice", rows.get(0).getUsername());
+        assertEquals("charlie", rows.get(1).getUsername());
     }
 
     // ------------------------------------------------------------------ //
@@ -121,10 +121,10 @@ class CteIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> rows = executor.select(spec);
-        assertThat(rows).hasSize(3);
-        assertThat(rows.get(0).getUsername()).isEqualTo("charlie"); // age=40
-        assertThat(rows.get(1).getUsername()).isEqualTo("alice"); // age=30
-        assertThat(rows.get(2).getUsername()).isEqualTo("bob"); // age=25
+        assertEquals(3, rows.size());
+        assertEquals("charlie", rows.get(0).getUsername()); // age=40
+        assertEquals("alice", rows.get(1).getUsername()); // age=30
+        assertEquals("bob", rows.get(2).getUsername()); // age=25
     }
 
     // ------------------------------------------------------------------ //
@@ -135,6 +135,18 @@ class CteIntegrationTest {
      * Custom alias: FROM active_users u (not the default "t").
      * Verifies that the custom alias is correctly propagated in the rendered SQL.
      */
+    @Test
+    void cteQuery_countWrapsTheCompleteWithQuery() {
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+        SelectSpec<TUser, TUser> spec = SelectBuilder.fromCte("active_users", TUser.class)
+                .withCte("active_users", cteBody)
+                .mapToEntity();
+
+        assertEquals(2L, executor.count(spec));
+    }
+
     @Test
     void cteQuery_customAlias_columnsMappedCorrectly() {
         SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
@@ -147,7 +159,7 @@ class CteIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> rows = executor.select(spec);
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).getUsername()).isEqualTo("bob");
+        assertEquals(1, rows.size());
+        assertEquals("bob", rows.get(0).getUsername());
     }
 }

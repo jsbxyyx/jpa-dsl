@@ -4,5 +4,9 @@
 <module name="Checker">
     <module name="TreeWalker">
         <module name="NeedBraces"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports"/>
+        <module name="AvoidStarImport"/>
+        <module name="com.puppycrawl.tools.checkstyle.checks.imports.UnnecessaryFullyQualifiedTypeCheck"/>
     </module>
 </module>

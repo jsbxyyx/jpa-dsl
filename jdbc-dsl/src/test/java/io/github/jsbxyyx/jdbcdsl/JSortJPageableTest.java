@@ -8,9 +8,6 @@ import org.springframework.data.domain.Sort;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 /**
  * Tests verifying that {@link JSort} and {@link JPageable} mirror Spring's
  * {@code Sort} / {@code PageRequest} API (with {@link SFunction} instead of {@code String}).
@@ -24,91 +21,94 @@ class JSortJPageableTest {
     @Test
     void jOrder_asc_isAscending() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername);
-        assertThat(o.isAscending()).isTrue();
-        assertThat(o.isDescending()).isFalse();
-        assertThat(o.getDirection()).isEqualTo(JOrder.Direction.ASC);
-        assertThat(o.getPropertyRef().propertyName()).isEqualTo("username");
+        org.junit.jupiter.api.Assertions.assertTrue(o.isAscending());
+        org.junit.jupiter.api.Assertions.assertFalse(o.isDescending());
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.Direction.ASC, o.getDirection());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "username", o.getPropertyRef().propertyName());
     }
 
     @Test
     void jOrder_desc_isDescending() {
         JOrder<TUser> o = JOrder.desc(TUser::getUsername);
-        assertThat(o.isDescending()).isTrue();
-        assertThat(o.isAscending()).isFalse();
-        assertThat(o.getDirection()).isEqualTo(JOrder.Direction.DESC);
+        org.junit.jupiter.api.Assertions.assertTrue(o.isDescending());
+        org.junit.jupiter.api.Assertions.assertFalse(o.isAscending());
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.Direction.DESC, o.getDirection());
     }
 
     @Test
     void jOrder_by_defaultsToAsc() {
         JOrder<TUser> o = JOrder.by(TUser::getUsername);
-        assertThat(o.isAscending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(o.isAscending());
     }
 
     @Test
     void jOrder_by_withDirection() {
         JOrder<TUser> o = JOrder.by(JOrder.Direction.DESC, TUser::getAge);
-        assertThat(o.isDescending()).isTrue();
-        assertThat(o.getPropertyRef().propertyName()).isEqualTo("age");
+        org.junit.jupiter.api.Assertions.assertTrue(o.isDescending());
+        org.junit.jupiter.api.Assertions.assertEquals("age", o.getPropertyRef().propertyName());
     }
 
     @Test
     void jOrder_reverse() {
         JOrder<TUser> asc = JOrder.asc(TUser::getUsername);
         JOrder<TUser> desc = asc.reverse();
-        assertThat(desc.isDescending()).isTrue();
-        assertThat(desc.reverse().isAscending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(desc.isDescending());
+        org.junit.jupiter.api.Assertions.assertTrue(desc.reverse().isAscending());
     }
 
     @Test
     void jOrder_withDirection() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername).with(JOrder.Direction.DESC);
-        assertThat(o.isDescending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(o.isDescending());
     }
 
     @Test
     void jOrder_withProperty() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername).withProperty(TUser::getEmail);
-        assertThat(o.getPropertyRef().propertyName()).isEqualTo("email");
-        assertThat(o.isAscending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "email", o.getPropertyRef().propertyName());
+        org.junit.jupiter.api.Assertions.assertTrue(o.isAscending());
     }
 
     @Test
     void jOrder_ignoreCase() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername);
-        assertThat(o.isIgnoreCase()).isFalse();
+        org.junit.jupiter.api.Assertions.assertFalse(o.isIgnoreCase());
         JOrder<TUser> ci = o.ignoreCase();
-        assertThat(ci.isIgnoreCase()).isTrue();
-        assertThat(ci.getPropertyRef().propertyName()).isEqualTo("username");
+        org.junit.jupiter.api.Assertions.assertTrue(ci.isIgnoreCase());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "username", ci.getPropertyRef().propertyName());
     }
 
     @Test
     void jOrder_nullHandling_default_isNative() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername);
-        assertThat(o.getNullHandling()).isEqualTo(JOrder.NullHandling.NATIVE);
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.NullHandling.NATIVE, o.getNullHandling());
     }
 
     @Test
     void jOrder_nullsFirst() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername).nullsFirst();
-        assertThat(o.getNullHandling()).isEqualTo(JOrder.NullHandling.NULLS_FIRST);
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.NullHandling.NULLS_FIRST, o.getNullHandling());
     }
 
     @Test
     void jOrder_nullsLast() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername).nullsLast();
-        assertThat(o.getNullHandling()).isEqualTo(JOrder.NullHandling.NULLS_LAST);
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.NullHandling.NULLS_LAST, o.getNullHandling());
     }
 
     @Test
     void jOrder_nullsNative() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername).nullsFirst().nullsNative();
-        assertThat(o.getNullHandling()).isEqualTo(JOrder.NullHandling.NATIVE);
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.NullHandling.NATIVE, o.getNullHandling());
     }
 
     @Test
     void jOrder_with_nullHandling() {
         JOrder<TUser> o = JOrder.asc(TUser::getUsername).with(JOrder.NullHandling.NULLS_LAST);
-        assertThat(o.getNullHandling()).isEqualTo(JOrder.NullHandling.NULLS_LAST);
+        org.junit.jupiter.api.Assertions.assertEquals(JOrder.NullHandling.NULLS_LAST, o.getNullHandling());
     }
 
     // ====================================================================
@@ -118,47 +118,48 @@ class JSortJPageableTest {
     @Test
     void jSort_unsorted_isEmpty() {
         JSort<TUser> s = JSort.unsorted();
-        assertThat(s.isUnsorted()).isTrue();
-        assertThat(s.isSorted()).isFalse();
-        assertThat(s.isEmpty()).isTrue();
-        assertThat(s.getOrders()).isEmpty();
+        org.junit.jupiter.api.Assertions.assertTrue(s.isUnsorted());
+        org.junit.jupiter.api.Assertions.assertFalse(s.isSorted());
+        org.junit.jupiter.api.Assertions.assertTrue(s.isEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(s.getOrders().isEmpty());
     }
 
     @Test
     void jSort_by_singleProp_defaultsToAsc() {
         JSort<TUser> s = JSort.by(TUser::getUsername);
-        assertThat(s.getOrders()).hasSize(1);
-        assertThat(s.getOrders().get(0).isAscending()).isTrue();
-        assertThat(s.getOrders().get(0).getPropertyRef().propertyName()).isEqualTo("username");
+        org.junit.jupiter.api.Assertions.assertEquals(1, s.getOrders().size());
+        org.junit.jupiter.api.Assertions.assertTrue(s.getOrders().get(0).isAscending());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "username", s.getOrders().get(0).getPropertyRef().propertyName());
     }
 
     @Test
     void jSort_by_multipleProps_allAsc() {
         JSort<TUser> s = JSort.by(TUser::getUsername, TUser::getAge);
-        assertThat(s.getOrders()).hasSize(2);
-        assertThat(s.getOrders()).allMatch(JOrder::isAscending);
+        org.junit.jupiter.api.Assertions.assertEquals(2, s.getOrders().size());
+        org.junit.jupiter.api.Assertions.assertTrue(s.getOrders().stream().allMatch(JOrder::isAscending));
     }
 
     @Test
     void jSort_by_direction_multipleProps() {
         JSort<TUser> s = JSort.by(JOrder.Direction.DESC, TUser::getUsername, TUser::getAge);
-        assertThat(s.getOrders()).hasSize(2);
-        assertThat(s.getOrders()).allMatch(JOrder::isDescending);
+        org.junit.jupiter.api.Assertions.assertEquals(2, s.getOrders().size());
+        org.junit.jupiter.api.Assertions.assertTrue(s.getOrders().stream().allMatch(JOrder::isDescending));
     }
 
     @Test
     void jSort_by_listOfOrders() {
         List<JOrder<TUser>> orders = List.of(JOrder.asc(TUser::getUsername), JOrder.desc(TUser::getAge));
         JSort<TUser> s = JSort.by(orders);
-        assertThat(s.getOrders()).hasSize(2);
-        assertThat(s.getOrders().get(0).isAscending()).isTrue();
-        assertThat(s.getOrders().get(1).isDescending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertEquals(2, s.getOrders().size());
+        org.junit.jupiter.api.Assertions.assertTrue(s.getOrders().get(0).isAscending());
+        org.junit.jupiter.api.Assertions.assertTrue(s.getOrders().get(1).isDescending());
     }
 
     @Test
     void jSort_by_varargOrders() {
         JSort<TUser> s = JSort.by(JOrder.asc(TUser::getUsername), JOrder.desc(TUser::getAge));
-        assertThat(s.getOrders()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertEquals(2, s.getOrders().size());
     }
 
     // ====================================================================
@@ -170,54 +171,58 @@ class JSortJPageableTest {
         JSort<TUser> s1 = JSort.byAsc(TUser::getUsername);
         JSort<TUser> s2 = JSort.byDesc(TUser::getAge);
         JSort<TUser> combined = s1.and(s2);
-        assertThat(combined.getOrders()).hasSize(2);
-        assertThat(combined.getOrders().get(0).getPropertyRef().propertyName()).isEqualTo("username");
-        assertThat(combined.getOrders().get(1).getPropertyRef().propertyName()).isEqualTo("age");
+        org.junit.jupiter.api.Assertions.assertEquals(2, combined.getOrders().size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "username", combined.getOrders().get(0).getPropertyRef().propertyName());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "age", combined.getOrders().get(1).getPropertyRef().propertyName());
     }
 
     @Test
     void jSort_ascending_switchesAllToAsc() {
         JSort<TUser> s = JSort.byDesc(TUser::getUsername).andDesc(TUser::getAge);
         JSort<TUser> asc = s.ascending();
-        assertThat(asc.getOrders()).allMatch(JOrder::isAscending);
+        org.junit.jupiter.api.Assertions.assertTrue(asc.getOrders().stream().allMatch(JOrder::isAscending));
     }
 
     @Test
     void jSort_descending_switchesAllToDesc() {
         JSort<TUser> s = JSort.byAsc(TUser::getUsername).andAsc(TUser::getAge);
         JSort<TUser> desc = s.descending();
-        assertThat(desc.getOrders()).allMatch(JOrder::isDescending);
+        org.junit.jupiter.api.Assertions.assertTrue(desc.getOrders().stream().allMatch(JOrder::isDescending));
     }
 
     @Test
     void jSort_reverse_reversesDirections() {
         JSort<TUser> s = JSort.byAsc(TUser::getUsername).andDesc(TUser::getAge);
         JSort<TUser> reversed = s.reverse();
-        assertThat(reversed.getOrders().get(0).isDescending()).isTrue();
-        assertThat(reversed.getOrders().get(1).isAscending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(reversed.getOrders().get(0).isDescending());
+        org.junit.jupiter.api.Assertions.assertTrue(reversed.getOrders().get(1).isAscending());
     }
 
     @Test
     void jSort_isSorted_isUnsorted() {
-        assertThat(JSort.byAsc(TUser::getUsername).isSorted()).isTrue();
-        assertThat(JSort.byAsc(TUser::getUsername).isUnsorted()).isFalse();
-        assertThat(JSort.unsorted().isSorted()).isFalse();
-        assertThat(JSort.unsorted().isUnsorted()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(
+                JSort.byAsc(TUser::getUsername).isSorted());
+        org.junit.jupiter.api.Assertions.assertFalse(
+                JSort.byAsc(TUser::getUsername).isUnsorted());
+        org.junit.jupiter.api.Assertions.assertFalse(JSort.unsorted().isSorted());
+        org.junit.jupiter.api.Assertions.assertTrue(JSort.unsorted().isUnsorted());
     }
 
     @Test
     void jSort_getOrderFor_found() {
         JSort<TUser> s = JSort.byAsc(TUser::getUsername).andDesc(TUser::getAge);
         Optional<JOrder<TUser>> order = s.getOrderFor(TUser::getUsername);
-        assertThat(order).isPresent();
-        assertThat(order.get().isAscending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(order.isPresent());
+        org.junit.jupiter.api.Assertions.assertTrue(order.get().isAscending());
     }
 
     @Test
     void jSort_getOrderFor_notFound() {
         JSort<TUser> s = JSort.byAsc(TUser::getUsername);
         Optional<JOrder<TUser>> order = s.getOrderFor(TUser::getAge);
-        assertThat(order).isEmpty();
+        org.junit.jupiter.api.Assertions.assertTrue(order.isEmpty());
     }
 
     @Test
@@ -227,22 +232,23 @@ class JSortJPageableTest {
         for (JOrder<TUser> o : s) {
             count++;
         }
-        assertThat(count).isEqualTo(2);
+        org.junit.jupiter.api.Assertions.assertEquals(2, count);
     }
 
     @Test
     void jSort_stream_worksCorrectly() {
         JSort<TUser> s = JSort.byAsc(TUser::getUsername).andDesc(TUser::getAge);
         long ascCount = s.stream().filter(JOrder::isAscending).count();
-        assertThat(ascCount).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, ascCount);
     }
 
     @Test
     void jSort_filter_returnsFiltered() {
         JSort<TUser> s = JSort.byAsc(TUser::getUsername).andDesc(TUser::getAge);
         JSort<TUser> ascOnly = s.filter(JOrder::isAscending);
-        assertThat(ascOnly.getOrders()).hasSize(1);
-        assertThat(ascOnly.getOrders().get(0).getPropertyRef().propertyName()).isEqualTo("username");
+        org.junit.jupiter.api.Assertions.assertEquals(1, ascOnly.getOrders().size());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "username", ascOnly.getOrders().get(0).getPropertyRef().propertyName());
     }
 
     // ====================================================================
@@ -252,28 +258,33 @@ class JSortJPageableTest {
     @Test
     void jSort_toSpringSort_unsorted() {
         Sort springSort = JSort.unsorted().toSpringSort();
-        assertThat(springSort.isUnsorted()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(springSort.isUnsorted());
     }
 
     @Test
     void jSort_toSpringSort_withOrders() {
         Sort springSort = JSort.byAsc(TUser::getUsername).andDesc(TUser::getAge).toSpringSort();
-        assertThat(springSort.isSorted()).isTrue();
-        assertThat(springSort.getOrderFor("username")).isNotNull();
-        assertThat(springSort.getOrderFor("username").isAscending()).isTrue();
-        assertThat(springSort.getOrderFor("age").isDescending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(springSort.isSorted());
+        org.junit.jupiter.api.Assertions.assertNotNull(springSort.getOrderFor("username"));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                springSort.getOrderFor("username").isAscending());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                springSort.getOrderFor("age").isDescending());
     }
 
     @Test
     void jSort_toSpringSort_propagatesIgnoreCase() {
         Sort springSort = JSort.by(JOrder.asc(TUser::getUsername).ignoreCase()).toSpringSort();
-        assertThat(springSort.getOrderFor("username").isIgnoreCase()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(
+                springSort.getOrderFor("username").isIgnoreCase());
     }
 
     @Test
     void jSort_toSpringSort_propagatesNullHandling() {
         Sort springSort = JSort.by(JOrder.asc(TUser::getUsername).nullsFirst()).toSpringSort();
-        assertThat(springSort.getOrderFor("username").getNullHandling()).isEqualTo(Sort.NullHandling.NULLS_FIRST);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Sort.NullHandling.NULLS_FIRST,
+                springSort.getOrderFor("username").getNullHandling());
     }
 
     // ====================================================================
@@ -288,7 +299,7 @@ class JSortJPageableTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("LOWER(t.username) ASC");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("LOWER(t.username) ASC"));
     }
 
     @Test
@@ -299,7 +310,7 @@ class JSortJPageableTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("NULLS FIRST");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NULLS FIRST"));
     }
 
     @Test
@@ -310,7 +321,7 @@ class JSortJPageableTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("NULLS LAST");
+        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NULLS LAST"));
     }
 
     // ====================================================================
@@ -320,58 +331,64 @@ class JSortJPageableTest {
     @Test
     void jPageable_of_pageAndSize() {
         JPageable<TUser> p = JPageable.of(2, 10);
-        assertThat(p.getPageNumber()).isEqualTo(2);
-        assertThat(p.getPageSize()).isEqualTo(10);
-        assertThat(p.getSort().isUnsorted()).isTrue();
-        assertThat(p.getOffset()).isEqualTo(20L);
+        org.junit.jupiter.api.Assertions.assertEquals(2, p.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(10, p.getPageSize());
+        org.junit.jupiter.api.Assertions.assertTrue(p.getSort().isUnsorted());
+        org.junit.jupiter.api.Assertions.assertEquals(20L, p.getOffset());
     }
 
     @Test
     void jPageable_of_withSort() {
         JSort<TUser> sort = JSort.byAsc(TUser::getUsername);
         JPageable<TUser> p = JPageable.of(1, 5, sort);
-        assertThat(p.getSort().isSorted()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(p.getSort().isSorted());
     }
 
     @Test
     void jPageable_of_withDirectionAndProps() {
         JPageable<TUser> p = JPageable.of(0, 10, JOrder.Direction.DESC, TUser::getUsername, TUser::getAge);
-        assertThat(p.getSort().getOrders()).hasSize(2);
-        assertThat(p.getSort().getOrders()).allMatch(JOrder::isDescending);
+        org.junit.jupiter.api.Assertions.assertEquals(2, p.getSort().getOrders().size());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                p.getSort().getOrders().stream().allMatch(JOrder::isDescending));
     }
 
     @Test
     void jPageable_ofSize_createsFirstPage() {
         JPageable<TUser> p = JPageable.ofSize(15);
-        assertThat(p.getPageNumber()).isEqualTo(0);
-        assertThat(p.getPageSize()).isEqualTo(15);
-        assertThat(p.getSort().isUnsorted()).isTrue();
+        org.junit.jupiter.api.Assertions.assertEquals(0, p.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(15, p.getPageSize());
+        org.junit.jupiter.api.Assertions.assertTrue(p.getSort().isUnsorted());
     }
 
     @Test
     void jPageable_negativePage_throws() {
-        assertThatThrownBy(() -> JPageable.of(-1, 10))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative");
+        Throwable assertionThrown1 = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class, () -> JPageable.of(-1, 10));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown1.getMessage().contains("negative"));
     }
 
     @Test
     void jPageable_zeroSize_throws() {
-        assertThatThrownBy(() -> JPageable.of(0, 0))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("positive");
+        Throwable assertionThrown2 =
+                org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> JPageable.of(0, 0));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown2.getMessage().contains("positive"));
     }
 
     @Test
     void jPageable_unpaged_withoutSort() {
         JPageable<TUser> pageable = JPageable.unpaged();
 
-        assertThat(pageable.isUnpaged()).isTrue();
-        assertThat(pageable.isPaged()).isFalse();
-        assertThat(pageable.getSort().isUnsorted()).isTrue();
-        assertThatThrownBy(pageable::getPageNumber).isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(pageable::getPageSize).isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(pageable::getOffset).isInstanceOf(UnsupportedOperationException.class);
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.isUnpaged());
+        org.junit.jupiter.api.Assertions.assertFalse(pageable.isPaged());
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.getSort().isUnsorted());
+        Throwable assertionThrown3 = org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class, pageable::getPageNumber);
+        Throwable assertionThrown4 = org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class, pageable::getPageSize);
+        Throwable assertionThrown5 =
+                org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class, pageable::getOffset);
     }
 
     @Test
@@ -379,11 +396,13 @@ class JSortJPageableTest {
         JSort<TUser> sort = JSort.byDesc(TUser::getUsername);
         JPageable<TUser> pageable = JPageable.unpaged(sort);
 
-        assertThat(pageable.isUnpaged()).isTrue();
-        assertThat(pageable.getSort()).isSameAs(sort);
-        assertThat(pageable.toSpringPageable().isUnpaged()).isTrue();
-        assertThat(pageable.toSpringPageable().getSort().isSorted()).isTrue();
-        assertThat(pageable.withSort(JSort.byAsc(TUser::getAge)).isUnpaged()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.isUnpaged());
+        org.junit.jupiter.api.Assertions.assertSame(sort, pageable.getSort());
+        org.junit.jupiter.api.Assertions.assertTrue(pageable.toSpringPageable().isUnpaged());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                pageable.toSpringPageable().getSort().isSorted());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                pageable.withSort(JSort.byAsc(TUser::getAge)).isUnpaged());
     }
 
     // ====================================================================
@@ -393,19 +412,22 @@ class JSortJPageableTest {
     @Test
     void jPageable_getPage_and_getPageNumber_match() {
         JPageable<TUser> p = JPageable.of(3, 10);
-        assertThat(p.getPage()).isEqualTo(p.getPageNumber()).isEqualTo(3);
+        org.junit.jupiter.api.Assertions.assertEquals(p.getPageNumber(), p.getPage());
+        org.junit.jupiter.api.Assertions.assertEquals(3, p.getPage());
     }
 
     @Test
     void jPageable_getSize_and_getPageSize_match() {
         JPageable<TUser> p = JPageable.of(0, 7);
-        assertThat(p.getSize()).isEqualTo(p.getPageSize()).isEqualTo(7);
+        org.junit.jupiter.api.Assertions.assertEquals(p.getPageSize(), p.getSize());
+        org.junit.jupiter.api.Assertions.assertEquals(7, p.getSize());
     }
 
     @Test
     void jPageable_offset_and_getOffset_match() {
         JPageable<TUser> p = JPageable.of(3, 10);
-        assertThat(p.offset()).isEqualTo(p.getOffset()).isEqualTo(30L);
+        org.junit.jupiter.api.Assertions.assertEquals(p.getOffset(), p.offset());
+        org.junit.jupiter.api.Assertions.assertEquals(30L, p.offset());
     }
 
     // ====================================================================
@@ -416,78 +438,79 @@ class JSortJPageableTest {
     void jPageable_next_incrementsPage() {
         JPageable<TUser> p = JPageable.of(1, 10);
         JPageable<TUser> next = p.next();
-        assertThat(next.getPageNumber()).isEqualTo(2);
-        assertThat(next.getPageSize()).isEqualTo(10);
+        org.junit.jupiter.api.Assertions.assertEquals(2, next.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(10, next.getPageSize());
     }
 
     @Test
     void jPageable_previous_decrementPage() {
         JPageable<TUser> p = JPageable.of(2, 10);
         JPageable<TUser> prev = p.previous();
-        assertThat(prev.getPageNumber()).isEqualTo(1);
+        org.junit.jupiter.api.Assertions.assertEquals(1, prev.getPageNumber());
     }
 
     @Test
     void jPageable_previous_onFirstPage_throws() {
         JPageable<TUser> p = JPageable.of(0, 10);
-        assertThatThrownBy(p::previous)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("previousOrFirst");
+        Throwable assertionThrown6 =
+                org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, p::previous);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                assertionThrown6.getMessage().contains("previousOrFirst"));
     }
 
     @Test
     void jPageable_previousOrFirst_onFirstPage_returnsSelf() {
         JPageable<TUser> p = JPageable.of(0, 10);
         JPageable<TUser> result = p.previousOrFirst();
-        assertThat(result.getPageNumber()).isEqualTo(0);
+        org.junit.jupiter.api.Assertions.assertEquals(0, result.getPageNumber());
     }
 
     @Test
     void jPageable_previousOrFirst_onLaterPage_decrementsPage() {
         JPageable<TUser> p = JPageable.of(3, 10);
         JPageable<TUser> result = p.previousOrFirst();
-        assertThat(result.getPageNumber()).isEqualTo(2);
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.getPageNumber());
     }
 
     @Test
     void jPageable_first_returnsPageZero() {
         JPageable<TUser> p = JPageable.of(5, 10);
         JPageable<TUser> first = p.first();
-        assertThat(first.getPageNumber()).isEqualTo(0);
-        assertThat(first.getPageSize()).isEqualTo(10);
+        org.junit.jupiter.api.Assertions.assertEquals(0, first.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(10, first.getPageSize());
     }
 
     @Test
     void jPageable_first_onFirstPage_returnsSelf() {
         JPageable<TUser> p = JPageable.of(0, 10);
-        assertThat(p.first()).isSameAs(p);
+        org.junit.jupiter.api.Assertions.assertSame(p, p.first());
     }
 
     @Test
     void jPageable_withPage_createsNewPageable() {
         JPageable<TUser> p = JPageable.of(0, 10);
         JPageable<TUser> p5 = p.withPage(5);
-        assertThat(p5.getPageNumber()).isEqualTo(5);
-        assertThat(p5.getPageSize()).isEqualTo(10);
+        org.junit.jupiter.api.Assertions.assertEquals(5, p5.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(10, p5.getPageSize());
     }
 
     @Test
     void jPageable_withPage_samePage_returnsSelf() {
         JPageable<TUser> p = JPageable.of(2, 10);
-        assertThat(p.withPage(2)).isSameAs(p);
+        org.junit.jupiter.api.Assertions.assertSame(p, p.withPage(2));
     }
 
     @Test
     void jPageable_hasPrevious() {
-        assertThat(JPageable.of(0, 10).hasPrevious()).isFalse();
-        assertThat(JPageable.of(1, 10).hasPrevious()).isTrue();
+        org.junit.jupiter.api.Assertions.assertFalse(JPageable.of(0, 10).hasPrevious());
+        org.junit.jupiter.api.Assertions.assertTrue(JPageable.of(1, 10).hasPrevious());
     }
 
     @Test
     void jPageable_isPaged_isUnpaged() {
         JPageable<TUser> p = JPageable.of(0, 10);
-        assertThat(p.isPaged()).isTrue();
-        assertThat(p.isUnpaged()).isFalse();
+        org.junit.jupiter.api.Assertions.assertTrue(p.isPaged());
+        org.junit.jupiter.api.Assertions.assertFalse(p.isUnpaged());
     }
 
     // ====================================================================
@@ -498,7 +521,7 @@ class JSortJPageableTest {
     void jPageable_getSortOr_unsorted_returnsDefault() {
         JPageable<TUser> p = JPageable.of(0, 10);
         JSort<TUser> defaultSort = JSort.byAsc(TUser::getUsername);
-        assertThat(p.getSortOr(defaultSort)).isSameAs(defaultSort);
+        org.junit.jupiter.api.Assertions.assertSame(defaultSort, p.getSortOr(defaultSort));
     }
 
     @Test
@@ -506,7 +529,7 @@ class JSortJPageableTest {
         JSort<TUser> mySort = JSort.byDesc(TUser::getAge);
         JPageable<TUser> p = JPageable.of(0, 10, mySort);
         JSort<TUser> defaultSort = JSort.byAsc(TUser::getUsername);
-        assertThat(p.getSortOr(defaultSort)).isSameAs(mySort);
+        org.junit.jupiter.api.Assertions.assertSame(mySort, p.getSortOr(defaultSort));
     }
 
     // ====================================================================
@@ -518,15 +541,16 @@ class JSortJPageableTest {
         JPageable<TUser> p = JPageable.of(1, 10);
         JSort<TUser> newSort = JSort.byDesc(TUser::getAge);
         JPageable<TUser> updated = p.withSort(newSort);
-        assertThat(updated.getPageNumber()).isEqualTo(1);
-        assertThat(updated.getSort()).isSameAs(newSort);
+        org.junit.jupiter.api.Assertions.assertEquals(1, updated.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertSame(newSort, updated.getSort());
     }
 
     @Test
     void jPageable_withSort_directionAndProps() {
         JPageable<TUser> p = JPageable.of(0, 10);
         JPageable<TUser> updated = p.withSort(JOrder.Direction.DESC, TUser::getUsername);
-        assertThat(updated.getSort().getOrders().get(0).isDescending()).isTrue();
+        org.junit.jupiter.api.Assertions.assertTrue(
+                updated.getSort().getOrders().get(0).isDescending());
     }
 
     // ====================================================================
@@ -537,8 +561,8 @@ class JSortJPageableTest {
     void jPageable_toSpringPageable_correctValues() {
         JPageable<TUser> p = JPageable.of(2, 5, JSort.byAsc(TUser::getUsername));
         org.springframework.data.domain.Pageable spring = p.toSpringPageable();
-        assertThat(spring.getPageNumber()).isEqualTo(2);
-        assertThat(spring.getPageSize()).isEqualTo(5);
-        assertThat(spring.getSort().isSorted()).isTrue();
+        org.junit.jupiter.api.Assertions.assertEquals(2, spring.getPageNumber());
+        org.junit.jupiter.api.Assertions.assertEquals(5, spring.getPageSize());
+        org.junit.jupiter.api.Assertions.assertTrue(spring.getSort().isSorted());
     }
 }

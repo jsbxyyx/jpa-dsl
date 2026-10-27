@@ -1,5 +1,7 @@
 package io.github.jsbxyyx.jdbcast.condition;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -11,7 +13,7 @@ import java.util.Map;
 public record RawCondition(String sql, Map<String, Object> params) implements Condition {
 
     public RawCondition {
-        params = Map.copyOf(params);
+        params = Collections.unmodifiableMap(new LinkedHashMap<>(params));
     }
 
     public static RawCondition of(String sql) {

@@ -20,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcast.builder.SQL.*;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link AnsiSqlRenderer} — pure renderer tests, no database.
@@ -130,8 +129,11 @@ class AnsiSqlRendererTest {
 
         RenderedSql r = renderer.render(stmt);
 
-        assertThat(r.sql()).isEqualTo("SELECT u.id, u.username FROM t_user u WHERE u.status = :p1");
-        assertThat(r.params()).hasSize(1).containsEntry("p1", "ACTIVE");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.id, u.username FROM t_user u WHERE u.status = :p1", r.sql());
+        org.junit.jupiter.api.Assertions.assertEquals(1, r.params().size());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", r.params().get("p1"));
     }
 
     @Test
@@ -139,7 +141,7 @@ class AnsiSqlRendererTest {
         SelectStatement stmt = SQL.from(u).build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT * FROM t_user u");
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT * FROM t_user u", r.sql());
     }
 
     @Test
@@ -148,8 +150,8 @@ class AnsiSqlRendererTest {
                 SQL.from(u).distinct().select(u.col(User::getStatus)).build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).startsWith("SELECT DISTINCT");
-        assertThat(r.sql()).contains("u.status");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().startsWith("SELECT DISTINCT"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.status"));
     }
 
     @Test
@@ -158,7 +160,7 @@ class AnsiSqlRendererTest {
                 SQL.from(u).select(u.col(User::getUsername).as("name")).build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.username AS name");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.username AS name"));
     }
 
     // ================================================================== //
@@ -174,9 +176,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("INNER JOIN t_order o ON u.id = o.user_id");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("INNER JOIN t_order o ON u.id = o.user_id"));
         // The right side is a ColExpr — rendered as expression, not a param
-        assertThat(r.params()).isEmpty();
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().isEmpty());
     }
 
     @Test
@@ -188,7 +190,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("LEFT JOIN t_order o");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("LEFT JOIN t_order o"));
     }
 
     // ================================================================== //
@@ -206,8 +208,11 @@ class AnsiSqlRendererTest {
 
         RenderedSql r = renderer.render(stmt);
         // AND wraps each child in parens
-        assertThat(r.sql()).contains("(u.status = :p1) AND (u.age >= :p2)");
-        assertThat(r.params()).containsEntry("p1", "ACTIVE").containsEntry("p2", 18);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("(u.status = :p1) AND (u.age >= :p2)"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(18, r.params().get("p2"));
     }
 
     @Test
@@ -220,7 +225,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("(u.status = :p1) OR (u.status = :p2)");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("(u.status = :p1) OR (u.status = :p2)"));
     }
 
     @Test
@@ -231,7 +236,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("NOT (u.status = :p1)");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("NOT (u.status = :p1)"));
     }
 
     @Test
@@ -242,8 +247,8 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.status IN (");
-        assertThat(r.params()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.status IN ("));
+        org.junit.jupiter.api.Assertions.assertEquals(2, r.params().size());
     }
 
     @Test
@@ -254,7 +259,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.status NOT IN (");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.status NOT IN ("));
     }
 
     @Test
@@ -265,7 +270,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.email IS NULL");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.email IS NULL"));
     }
 
     @Test
@@ -276,7 +281,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.email IS NOT NULL");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.email IS NOT NULL"));
     }
 
     @Test
@@ -287,8 +292,11 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.age BETWEEN :p1 AND :p2");
-        assertThat(r.params()).containsEntry("p1", 18).containsEntry("p2", 65);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.age BETWEEN :p1 AND :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(18, r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(65, r.params().get("p2"));
     }
 
     @Test
@@ -299,7 +307,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.age NOT BETWEEN");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.age NOT BETWEEN"));
     }
 
     @Test
@@ -310,8 +318,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.username LIKE :p1");
-        assertThat(r.params()).containsEntry("p1", "alice%");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.username LIKE :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("alice%", r.params().get("p1"));
     }
 
     @Test
@@ -322,7 +331,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.username NOT LIKE");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.username NOT LIKE"));
     }
 
     // ================================================================== //
@@ -338,9 +347,10 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("GROUP BY u.status");
-        assertThat(r.sql()).contains("HAVING COUNT(*) > :p1");
-        assertThat(r.params()).containsEntry("p1", 5L);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("GROUP BY u.status"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("HAVING COUNT(*) > :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(5L, r.params().get("p1"));
     }
 
     // ================================================================== //
@@ -355,7 +365,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("ORDER BY u.age DESC, u.username ASC");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("ORDER BY u.age DESC, u.username ASC"));
     }
 
     @Test
@@ -364,9 +374,12 @@ class AnsiSqlRendererTest {
                 SQL.from(u).select(u.col(User::getId)).limit(10).offset(20).build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("LIMIT :p1");
-        assertThat(r.sql()).contains("OFFSET :p2");
-        assertThat(r.params()).containsEntry("p1", 10L).containsEntry("p2", 20L);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("LIMIT :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("OFFSET :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(10L, r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(20L, r.params().get("p2"));
     }
 
     // ================================================================== //
@@ -379,7 +392,7 @@ class AnsiSqlRendererTest {
                 SQL.from(u).select(u.col(User::getId)).forUpdate().build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("FOR UPDATE");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("FOR UPDATE"));
     }
 
     @Test
@@ -390,7 +403,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("FOR UPDATE NOWAIT");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("FOR UPDATE NOWAIT"));
     }
 
     @Test
@@ -401,7 +414,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("FOR UPDATE SKIP LOCKED");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("FOR UPDATE SKIP LOCKED"));
     }
 
     @Test
@@ -410,7 +423,7 @@ class AnsiSqlRendererTest {
                 SQL.from(u).select(u.col(User::getId)).forUpdate(LockMode.SHARE).build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("FOR SHARE");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("FOR SHARE"));
     }
 
     // ================================================================== //
@@ -429,8 +442,8 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(active.union(inactive));
-        assertThat(r.sql()).contains(" UNION ");
-        assertThat(r.params()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains(" UNION "));
+        org.junit.jupiter.api.Assertions.assertEquals(2, r.params().size());
     }
 
     @Test
@@ -439,7 +452,7 @@ class AnsiSqlRendererTest {
         SelectStatement b = SQL.from(u).select(u.col(User::getId)).build();
 
         RenderedSql r = renderer.render(a.unionAll(b));
-        assertThat(r.sql()).contains(" UNION ALL ");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains(" UNION ALL "));
     }
 
     @Test
@@ -454,7 +467,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(a.intersect(b));
-        assertThat(r.sql()).contains(" INTERSECT ");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains(" INTERSECT "));
     }
 
     @Test
@@ -466,7 +479,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(a.except(b));
-        assertThat(r.sql()).contains(" EXCEPT ");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains(" EXCEPT "));
     }
 
     // ================================================================== //
@@ -486,7 +499,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("EXISTS (SELECT");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("EXISTS (SELECT"));
     }
 
     @Test
@@ -501,7 +514,7 @@ class AnsiSqlRendererTest {
                 .where(ExistsCondition.notExists(sub))
                 .build());
 
-        assertThat(r.sql()).contains("NOT EXISTS (SELECT");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("NOT EXISTS (SELECT"));
     }
 
     // ================================================================== //
@@ -520,7 +533,8 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("ROW_NUMBER() OVER (PARTITION BY u.status ORDER BY u.age DESC) AS rn");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                r.sql().contains("ROW_NUMBER() OVER (PARTITION BY u.status ORDER BY u.age DESC) AS rn"));
     }
 
     @Test
@@ -536,9 +550,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql())
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql()
                 .contains("SUM(o.amount) OVER (PARTITION BY o.user_id ORDER BY o.id ASC "
-                        + "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total");
+                        + "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total"));
     }
 
     @Test
@@ -548,7 +562,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("COUNT(DISTINCT u.status) AS statuses");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("COUNT(DISTINCT u.status) AS statuses"));
     }
 
     @Test
@@ -556,7 +570,7 @@ class AnsiSqlRendererTest {
         SelectStatement stmt = SQL.from(u).select(countStar().as("total")).build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("COUNT(*) AS total");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("COUNT(*) AS total"));
     }
 
     // ================================================================== //
@@ -572,14 +586,16 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).startsWith("UPDATE t_user SET");
-        assertThat(r.sql()).contains("status = :p1");
-        assertThat(r.sql()).contains("age = :p2");
-        assertThat(r.sql()).contains("WHERE u.id = :p3");
-        assertThat(r.params())
-                .containsEntry("p1", "INACTIVE")
-                .containsEntry("p2", 99)
-                .containsEntry("p3", 1L);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().startsWith("UPDATE t_user SET"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("status = :p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("age = :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("WHERE u.id = :p3"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("INACTIVE", r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(99, r.params().get("p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p3"));
+        org.junit.jupiter.api.Assertions.assertEquals(1L, r.params().get("p3"));
     }
 
     @Test
@@ -591,7 +607,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("RETURNING id, status");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("RETURNING id, status"));
     }
 
     // ================================================================== //
@@ -607,12 +623,11 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).startsWith("INSERT INTO t_user (");
-        assertThat(r.sql()).contains(") VALUES (");
-        assertThat(r.params())
-                .containsValue("alice")
-                .containsValue("alice@example.com")
-                .containsValue(30);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().startsWith("INSERT INTO t_user ("));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains(") VALUES ("));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsValue("alice"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsValue("alice@example.com"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsValue(30));
     }
 
     // ================================================================== //
@@ -626,8 +641,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("DELETE FROM t_user WHERE u.status = :p1");
-        assertThat(r.params()).containsEntry("p1", "INACTIVE");
+        org.junit.jupiter.api.Assertions.assertEquals("DELETE FROM t_user WHERE u.status = :p1", r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("INACTIVE", r.params().get("p1"));
     }
 
     @Test
@@ -638,7 +654,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("RETURNING id, username");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("RETURNING id, username"));
     }
 
     // ================================================================== //
@@ -659,9 +675,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).startsWith("WITH active_users AS (SELECT");
-        assertThat(r.sql()).contains("SELECT au.*");
-        assertThat(r.params()).containsValue("ACTIVE");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().startsWith("WITH active_users AS (SELECT"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("SELECT au.*"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsValue("ACTIVE"));
     }
 
     // ================================================================== //
@@ -675,7 +691,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("UPPER(u.username)");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("UPPER(u.username)"));
     }
 
     @Test
@@ -686,7 +702,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("u.age BETWEEN 18 AND 65");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("u.age BETWEEN 18 AND 65"));
     }
 
     // ================================================================== //
@@ -702,8 +718,8 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).contains("AND");
-        assertThat(r.params()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().contains("AND"));
+        org.junit.jupiter.api.Assertions.assertEquals(2, r.params().size());
     }
 
     // ================================================================== //
@@ -718,8 +734,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE u.status = :p1");
-        assertThat(r.params()).containsEntry("p1", "ACTIVE");
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT u.* FROM t_user u WHERE u.status = :p1", r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", r.params().get("p1"));
     }
 
     @Test
@@ -730,8 +747,12 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE (u.status = :p1) AND (u.age >= :p2)");
-        assertThat(r.params()).containsEntry("p1", "ACTIVE").containsEntry("p2", 18);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.* FROM t_user u WHERE (u.status = :p1) AND (u.age >= :p2)", r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(18, r.params().get("p2"));
     }
 
     @Test
@@ -744,8 +765,10 @@ class AnsiSqlRendererTest {
 
         RenderedSql r = renderer.render(stmt);
         // Only age condition should appear
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE u.age >= :p1");
-        assertThat(r.params()).hasSize(1).containsEntry("p1", 18);
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT u.* FROM t_user u WHERE u.age >= :p1", r.sql());
+        org.junit.jupiter.api.Assertions.assertEquals(1, r.params().size());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(18, r.params().get("p1"));
     }
 
     @Test
@@ -757,7 +780,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u");
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT u.* FROM t_user u", r.sql());
     }
 
     @Test
@@ -769,9 +792,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql())
-                .isEqualTo("SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age = :p2) OR (u.age = :p3))");
-        assertThat(r.params()).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age = :p2) OR (u.age = :p3))", r.sql());
+        org.junit.jupiter.api.Assertions.assertEquals(3, r.params().size());
     }
 
     @Test
@@ -783,9 +806,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql())
-                .isEqualTo("SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age >= :p2) AND (u.age <= :p3))");
-        assertThat(r.params()).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.* FROM t_user u WHERE (u.status = :p1) AND ((u.age >= :p2) AND (u.age <= :p3))", r.sql());
+        org.junit.jupiter.api.Assertions.assertEquals(3, r.params().size());
     }
 
     @Test
@@ -796,8 +819,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE NOT (u.status = :p1)");
-        assertThat(r.params()).containsEntry("p1", "DELETED");
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT u.* FROM t_user u WHERE NOT (u.status = :p1)", r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("DELETED", r.params().get("p1"));
     }
 
     @Test
@@ -808,8 +832,8 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE u.status IN (:p1, :p2)");
-        assertThat(r.params()).hasSize(2);
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT u.* FROM t_user u WHERE u.status IN (:p1, :p2)", r.sql());
+        org.junit.jupiter.api.Assertions.assertEquals(2, r.params().size());
     }
 
     @Test
@@ -820,7 +844,7 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE u.email IS NULL");
+        org.junit.jupiter.api.Assertions.assertEquals("SELECT u.* FROM t_user u WHERE u.email IS NULL", r.sql());
     }
 
     @Test
@@ -832,7 +856,8 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("SELECT u.* FROM t_user u WHERE u.age BETWEEN :p1 AND :p2");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.* FROM t_user u WHERE u.age BETWEEN :p1 AND :p2", r.sql());
     }
 
     @Test
@@ -843,8 +868,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("UPDATE t_user SET status = :p1 WHERE (u.id = :p2) AND (u.status <> :p3)");
-        assertThat(r.params()).hasSize(3);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "UPDATE t_user SET status = :p1 WHERE (u.id = :p2) AND (u.status <> :p3)", r.sql());
+        org.junit.jupiter.api.Assertions.assertEquals(3, r.params().size());
     }
 
     @Test
@@ -854,8 +880,9 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).isEqualTo("DELETE FROM t_user WHERE u.status = :p1");
-        assertThat(r.params()).containsEntry("p1", "DELETED");
+        org.junit.jupiter.api.Assertions.assertEquals("DELETE FROM t_user WHERE u.status = :p1", r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals("DELETED", r.params().get("p1"));
     }
 
     @Test
@@ -867,10 +894,11 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql())
-                .isEqualTo(
-                        "SELECT u.status, COUNT(u.id) AS cnt FROM t_user u GROUP BY u.status HAVING COUNT(u.id) > :p1");
-        assertThat(r.params()).containsEntry("p1", 5L);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.status, COUNT(u.id) AS cnt FROM t_user u GROUP BY u.status HAVING COUNT(u.id) > :p1",
+                r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(5L, r.params().get("p1"));
     }
 
     // ================================================================== //
@@ -888,25 +916,28 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = renderer.render(stmt); // renderer uses LimitOffsetDialect by default
-        assertThat(r.sql())
-                .isEqualTo("SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC LIMIT :p2 OFFSET :p3");
-        assertThat(r.params()).containsEntry("p2", 20L).containsEntry("p3", 40L);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC LIMIT :p2 OFFSET :p3", r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(20L, r.params().get("p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p3"));
+        org.junit.jupiter.api.Assertions.assertEquals(40L, r.params().get("p3"));
     }
 
     @Test
     void limitOffset_limitOnly() {
         SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).build();
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("LIMIT :p1");
-        assertThat(r.sql()).doesNotContain("OFFSET");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("LIMIT :p1"));
+        org.junit.jupiter.api.Assertions.assertFalse(r.sql().contains("OFFSET"));
     }
 
     @Test
     void limitOffset_offsetOnly() {
         SelectStatement stmt = SQL.from(u).select(u.star()).offset(5).build();
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("OFFSET :p1");
-        assertThat(r.sql()).doesNotContain("LIMIT");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("OFFSET :p1"));
+        org.junit.jupiter.api.Assertions.assertFalse(r.sql().contains("LIMIT"));
     }
 
     @Test
@@ -914,8 +945,11 @@ class AnsiSqlRendererTest {
         // .page(2, 10) → LIMIT 10 OFFSET 20
         SelectStatement stmt = SQL.from(u).select(u.star()).page(2, 10).build();
         RenderedSql r = renderer.render(stmt);
-        assertThat(r.sql()).endsWith("LIMIT :p1 OFFSET :p2");
-        assertThat(r.params()).containsEntry("p1", 10L).containsEntry("p2", 20L);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("LIMIT :p1 OFFSET :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(10L, r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(20L, r.params().get("p2"));
     }
 
     // ================================================================== //
@@ -935,10 +969,14 @@ class AnsiSqlRendererTest {
                 .build();
 
         RenderedSql r = sqlServerRenderer.render(stmt);
-        assertThat(r.sql())
-                .isEqualTo("SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC"
-                        + " OFFSET :p2 ROWS FETCH NEXT :p3 ROWS ONLY");
-        assertThat(r.params()).containsEntry("p2", 40L).containsEntry("p3", 20L);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "SELECT u.* FROM t_user u WHERE u.status = :p1 ORDER BY u.id ASC"
+                        + " OFFSET :p2 ROWS FETCH NEXT :p3 ROWS ONLY",
+                r.sql());
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(40L, r.params().get("p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p3"));
+        org.junit.jupiter.api.Assertions.assertEquals(20L, r.params().get("p3"));
     }
 
     @Test
@@ -947,7 +985,7 @@ class AnsiSqlRendererTest {
 
         SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).build();
         RenderedSql r = sqlServerRenderer.render(stmt);
-        assertThat(r.sql()).endsWith("OFFSET 0 ROWS FETCH NEXT :p1 ROWS ONLY");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("OFFSET 0 ROWS FETCH NEXT :p1 ROWS ONLY"));
     }
 
     @Test
@@ -956,8 +994,8 @@ class AnsiSqlRendererTest {
 
         SelectStatement stmt = SQL.from(u).select(u.star()).offset(5).build();
         RenderedSql r = sqlServerRenderer.render(stmt);
-        assertThat(r.sql()).endsWith("OFFSET :p1 ROWS");
-        assertThat(r.sql()).doesNotContain("FETCH NEXT");
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("OFFSET :p1 ROWS"));
+        org.junit.jupiter.api.Assertions.assertFalse(r.sql().contains("FETCH NEXT"));
     }
 
     @Test
@@ -970,7 +1008,10 @@ class AnsiSqlRendererTest {
 
         SelectStatement stmt = SQL.from(u).select(u.star()).limit(10).offset(20).build();
         RenderedSql r = customRenderer.render(stmt);
-        assertThat(r.sql()).endsWith("START AT :p1 LIMIT :p2");
-        assertThat(r.params()).containsEntry("p1", 21L).containsEntry("p2", 10L);
+        org.junit.jupiter.api.Assertions.assertTrue(r.sql().endsWith("START AT :p1 LIMIT :p2"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p1"));
+        org.junit.jupiter.api.Assertions.assertEquals(21L, r.params().get("p1"));
+        org.junit.jupiter.api.Assertions.assertTrue(r.params().containsKey("p2"));
+        org.junit.jupiter.api.Assertions.assertEquals(10L, r.params().get("p2"));
     }
 }
