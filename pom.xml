@@ -36,8 +36,8 @@
     </scm>
 
     <modules>
+<!--        <module>jpa-dsl</module>-->
         <module>jdbc-dsl</module>
-        <module>jpa-dsl</module>
         <module>jdbc-ast</module>
     </modules>
 
