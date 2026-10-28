@@ -2,7 +2,6 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.convert.support.DefaultConversionService;
 
@@ -49,7 +48,6 @@ class MapperCacheTest {
         assertEquals(1, cache.size(), "Cache should contain exactly one mapper");
     }
 
-    @Disabled("Temporarily disabled while bounded cache eviction behavior is investigated")
     @Test
     void testBoundedCacheWithLRU() throws SQLException {
         JdbcDslCacheManager cacheManager = new JdbcDslCacheManager(500, 100, 100, 100, 2);

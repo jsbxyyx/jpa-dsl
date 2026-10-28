@@ -13,6 +13,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * Tests for {@link JdbcDslAutoConfiguration}: enabled/disabled switches and Dialect auto-detection.
  */
@@ -40,30 +42,24 @@ class JdbcDslAutoConfigurationTest {
     @Test
     void whenJdbcDslEnabled_byDefault_beansAreRegistered() {
         contextRunner.run(context -> {
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(JdbcDslExecutor.class).size());
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(Dialect.class).size());
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
+            assertThat(context).hasSingleBean(Dialect.class);
         });
     }
 
     @Test
     void whenJdbcDslEnabled_explicitly_beansAreRegistered() {
         contextRunner.withPropertyValues("jdbcdsl.enabled=true").run(context -> {
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(JdbcDslExecutor.class).size());
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(Dialect.class).size());
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
+            assertThat(context).hasSingleBean(Dialect.class);
         });
     }
 
     @Test
     void whenJdbcDslDisabled_noBeansAreRegistered() {
         contextRunner.withPropertyValues("jdbcdsl.enabled=false").run(context -> {
-            org.junit.jupiter.api.Assertions.assertTrue(
-                    context.getBeansOfType(JdbcDslExecutor.class).isEmpty());
-            org.junit.jupiter.api.Assertions.assertTrue(
-                    context.getBeansOfType(Dialect.class).isEmpty());
+            assertThat(context).doesNotHaveBean(JdbcDslExecutor.class);
+            assertThat(context).doesNotHaveBean(Dialect.class);
         });
     }
 
@@ -74,21 +70,18 @@ class JdbcDslAutoConfigurationTest {
     @Test
     void dialectDetection_withH2_returnsH2Dialect() {
         contextRunner.run(context -> {
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(Dialect.class).size());
-            org.junit.jupiter.api.Assertions.assertInstanceOf(H2Dialect.class, context.getBean(Dialect.class));
+            assertThat(context).hasSingleBean(Dialect.class);
+            assertThat(context.getBean(Dialect.class)).isInstanceOf(H2Dialect.class);
         });
     }
 
     @Test
     void whenCustomDialectProvided_autoDetectionIsSkipped() {
         contextRunner.withUserConfiguration(CustomDialectConfig.class).run(context -> {
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(Dialect.class).size());
-            org.junit.jupiter.api.Assertions.assertInstanceOf(MySqlDialect.class, context.getBean(Dialect.class));
+            assertThat(context).hasSingleBean(Dialect.class);
+            assertThat(context.getBean(Dialect.class)).isInstanceOf(MySqlDialect.class);
             // JdbcDslExecutor should still be created using the custom dialect
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(JdbcDslExecutor.class).size());
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
         });
     }
 
@@ -96,8 +89,7 @@ class JdbcDslAutoConfigurationTest {
     void whenCustomExecutorProvided_autoConfigExecutorIsSkipped() {
         contextRunner.withUserConfiguration(CustomExecutorConfig.class).run(context -> {
             // Only one executor bean (the custom one)
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    1, context.getBeansOfType(JdbcDslExecutor.class).size());
+            assertThat(context).hasSingleBean(JdbcDslExecutor.class);
         });
     }
 
@@ -125,7 +117,7 @@ class JdbcDslAutoConfigurationTest {
             java.lang.reflect.Field dialectField = JdbcDslExecutor.class.getDeclaredField("dialect");
             dialectField.setAccessible(true);
             Dialect detected = (Dialect) dialectField.get(executorUnderTest);
-            org.junit.jupiter.api.Assertions.assertInstanceOf(H2Dialect.class, detected);
+            assertThat(detected).isInstanceOf(H2Dialect.class);
         });
     }
 
@@ -148,10 +140,10 @@ class JdbcDslAutoConfigurationTest {
     void allowEmptyWhere_setTrue_updateBuilder_noWhere_doesNotThrow() {
         contextRunner.withPropertyValues("jdbcdsl.allow-empty-where=true").run(context -> {
             // After context loads, JdbcDslConfig.isAllowEmptyWhere() must be true
-            org.junit.jupiter.api.Assertions.assertTrue(JdbcDslConfig.isAllowEmptyWhere());
+            assertThat(JdbcDslConfig.isAllowEmptyWhere()).isTrue();
             UpdateSpec<?> spec =
                     UpdateBuilder.from(TUser.class).set(TUser::getStatus, "X").build();
-            org.junit.jupiter.api.Assertions.assertNotNull(spec);
+            assertThat(spec).isNotNull();
         });
     }
 
@@ -159,7 +151,7 @@ class JdbcDslAutoConfigurationTest {
     void allowEmptyWhere_setTrue_deleteBuilder_noWhere_doesNotThrow() {
         contextRunner.withPropertyValues("jdbcdsl.allow-empty-where=true").run(context -> {
             DeleteSpec<?> spec = DeleteBuilder.from(TUser.class).build();
-            org.junit.jupiter.api.Assertions.assertNotNull(spec);
+            assertThat(spec).isNotNull();
         });
     }
 

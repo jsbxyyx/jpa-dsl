@@ -1,6 +1,5 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
-import io.github.jsbxyyx.jdbcast.stmt.UpsertStatement;
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
@@ -37,34 +36,6 @@ public final class H2Dialect implements Dialect {
         params.put("_limit", limit);
         params.put("_offset", offset);
         return sql + " LIMIT :_limit OFFSET :_offset";
-    }
-
-    @Override
-    public RenderedSql renderUpsert(UpsertStatement statement) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        StringJoiner values = new StringJoiner(", ");
-        StringJoiner aliases = new StringJoiner(", ");
-        for (String col : statement.columns()) {
-            String name = "u_" + col;
-            values.add(":" + name);
-            aliases.add(col);
-            params.put(name, statement.values().get(col));
-        }
-        StringJoiner on = new StringJoiner(" AND ");
-        statement.conflictColumns().forEach(col -> on.add("t." + col + " = s." + col));
-        StringJoiner updates = new StringJoiner(", ");
-        statement.updateColumns().forEach(col -> updates.add("t." + col + " = s." + col));
-        StringJoiner insertCols = new StringJoiner(", ");
-        StringJoiner insertVals = new StringJoiner(", ");
-        statement.columns().forEach(col -> {
-            insertCols.add(col);
-            insertVals.add("s." + col);
-        });
-        String matched = statement.doNothing() ? "" : " WHEN MATCHED THEN UPDATE SET " + updates;
-        String sql = "MERGE INTO " + statement.tableName() + " t USING (VALUES(" + values + ")) AS s(" + aliases + ")"
-                + " ON (" + on + ")" + matched + " WHEN NOT MATCHED THEN INSERT (" + insertCols + ") VALUES ("
-                + insertVals + ")";
-        return new RenderedSql(sql, params);
     }
 
     @Override

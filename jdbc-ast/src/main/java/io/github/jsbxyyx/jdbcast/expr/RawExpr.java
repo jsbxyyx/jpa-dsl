@@ -1,7 +1,5 @@
 package io.github.jsbxyyx.jdbcast.expr;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -15,7 +13,7 @@ import java.util.Map;
 public record RawExpr<V>(String sql, Map<String, Object> params) implements Expr<V> {
 
     public RawExpr {
-        params = Collections.unmodifiableMap(new LinkedHashMap<>(params));
+        params = Map.copyOf(params);
     }
 
     public static <V> RawExpr<V> of(String sql) {

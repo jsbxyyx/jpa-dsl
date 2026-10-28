@@ -1,7 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.convert.support.DefaultConversionService;
 
@@ -56,7 +55,6 @@ class ConverterRegistryTest {
         assertSame(converter1, converter2, "Same converter should be returned from cache");
     }
 
-    @Disabled("Temporarily disabled while numeric conversion behavior is investigated")
     @Test
     void testNumericConversions() {
         // Integer conversions

@@ -1,6 +1,5 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
-import io.github.jsbxyyx.jdbcast.stmt.UpsertStatement;
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
@@ -44,11 +43,6 @@ public final class Oracle11gDialect implements Dialect {
                 + "SELECT _q_.*, ROWNUM _rn_ FROM (" + sql + ") _q_"
                 + " WHERE ROWNUM <= :_end"
                 + ") WHERE _rn_ > :_offset";
-    }
-
-    @Override
-    public RenderedSql renderUpsert(UpsertStatement statement) {
-        return OracleDialect.renderMergeViaDual(statement);
     }
 
     @Override

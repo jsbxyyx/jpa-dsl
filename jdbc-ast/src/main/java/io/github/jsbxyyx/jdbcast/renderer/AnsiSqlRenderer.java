@@ -17,7 +17,6 @@ import io.github.jsbxyyx.jdbcast.condition.OrCondition;
 import io.github.jsbxyyx.jdbcast.condition.RawCondition;
 import io.github.jsbxyyx.jdbcast.expr.AggExpr;
 import io.github.jsbxyyx.jdbcast.expr.AliasedExpr;
-import io.github.jsbxyyx.jdbcast.expr.ArithmeticExpr;
 import io.github.jsbxyyx.jdbcast.expr.CaseExpr;
 import io.github.jsbxyyx.jdbcast.expr.CastExpr;
 import io.github.jsbxyyx.jdbcast.expr.ColExpr;
@@ -155,24 +154,13 @@ public class AnsiSqlRenderer implements SqlRenderer {
         }
 
         // FROM
-        sb.append(" FROM ");
-        if (stmt.fromSqlOverride() != null) {
-            ctx.mergeParams(stmt.fromParams());
-            sb.append(stmt.fromSqlOverride());
-        } else {
-            sb.append(renderTableRef(stmt.from().entityClass(), stmt.from().alias()));
-        }
+        sb.append(" FROM ")
+                .append(renderTableRef(stmt.from().entityClass(), stmt.from().alias()));
 
         // JOINs
         for (JoinClause join : stmt.joins()) {
             sb.append(" ").append(join.type().keyword()).append(" JOIN ");
-            if (join.tableSqlOverride() != null) {
-                ctx.mergeParams(join.tableParams());
-                sb.append(join.tableSqlOverride());
-            } else {
-                sb.append(
-                        renderTableRef(join.table().entityClass(), join.table().alias()));
-            }
+            sb.append(renderTableRef(join.table().entityClass(), join.table().alias()));
             if (join.on() != null) {
                 sb.append(" ON ").append(renderCondition(join.on(), ctx));
             }
@@ -252,7 +240,7 @@ public class AnsiSqlRenderer implements SqlRenderer {
         StringJoiner colJoiner = new StringJoiner(", ");
         StringJoiner valJoiner = new StringJoiner(", ");
         for (ColumnAssignment a : cols) {
-            colJoiner.add(a.columnName(meta));
+            colJoiner.add(meta.columnName(a.getter()));
             valJoiner.add(renderExpr(a.value(), ctx));
         }
         String sql = "INSERT INTO " + table + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
@@ -273,7 +261,7 @@ public class AnsiSqlRenderer implements SqlRenderer {
         sb.append(alias != null ? table + " " + alias : table);
         sb.append(" SET ");
         sb.append(stmt.assignments().stream()
-                .map(a -> a.columnName(meta) + " = " + renderExpr(a.value(), ctx))
+                .map(a -> meta.columnName(a.getter()) + " = " + renderExpr(a.value(), ctx))
                 .collect(Collectors.joining(", ")));
         if (stmt.where() != null) {
             sb.append(" WHERE ").append(renderCondition(stmt.where(), ctx));
@@ -307,10 +295,6 @@ public class AnsiSqlRenderer implements SqlRenderer {
     // ================================================================== //
 
     protected String renderExpr(Expr<?> expr, RenderContext ctx) {
-        if (expr instanceof ArithmeticExpr<?> arithmetic) {
-            return "(" + renderExpr(arithmetic.left(), ctx) + " " + arithmetic.operator() + " "
-                    + renderExpr(arithmetic.right(), ctx) + ")";
-        }
         if (expr instanceof ColExpr<?> c) {
             return renderCol(c);
         }
@@ -459,10 +443,7 @@ public class AnsiSqlRenderer implements SqlRenderer {
             return renderExpr(bc.column(), ctx) + (bc.negated() ? " NOT BETWEEN " : " BETWEEN ") + low + " AND " + high;
         }
         if (condition instanceof LikeCondition lc) {
-            String column = renderExpr(lc.column(), ctx);
-            String pattern = lc.caseInsensitive() ? "LOWER(" + column + ")" : column;
-            String value = lc.caseInsensitive() ? lc.pattern().toLowerCase(java.util.Locale.ROOT) : lc.pattern();
-            return pattern + (lc.negated() ? " NOT LIKE " : " LIKE ") + ctx.addParam(value);
+            return renderExpr(lc.column(), ctx) + (lc.negated() ? " NOT LIKE " : " LIKE ") + ctx.addParam(lc.pattern());
         }
         if (condition instanceof ExistsCondition ec) {
             return (ec.negated() ? "NOT EXISTS " : "EXISTS ") + "(" + renderSelect(ec.subquery(), ctx) + ")";

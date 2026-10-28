@@ -17,6 +17,8 @@ import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * Integration tests for both FK-based joins (via metamodel association attributes) and
  * no-FK joins (via {@link io.github.jsbxyyx.jpadsl.core.JoinCondition}).
@@ -71,9 +73,7 @@ class JoinTest {
 
         // Alice appears once (she has exactly one PAID order), Bob appears once
         List<String> names = result.stream().map(User::getName).toList();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")), new java.util.HashSet<>(names));
-        org.junit.jupiter.api.Assertions.assertEquals(2, names.size());
+        assertThat(names).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     /**
@@ -90,8 +90,8 @@ class JoinTest {
 
         List<User> result = userRepository.findAll(spec);
 
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("Alice", result.get(0).getName());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Alice");
     }
 
     /**
@@ -110,8 +110,8 @@ class JoinTest {
         List<User> result = userRepository.findAll(spec);
 
         // Only Alice is ACTIVE and has a PAID order
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("Alice", result.get(0).getName());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Alice");
     }
 
     // ------------------------------------------------------------------ //
@@ -139,10 +139,7 @@ class JoinTest {
         // JPA deduplicates entity instances, so Alice appears at most once per distinct identity.
         List<String> distinctNames =
                 result.stream().map(User::getName).distinct().toList();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
-                new java.util.HashSet<>(distinctNames));
-        org.junit.jupiter.api.Assertions.assertEquals(2, distinctNames.size());
+        assertThat(distinctNames).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     /**
@@ -163,9 +160,7 @@ class JoinTest {
         List<User> result = userRepository.findAll(spec);
 
         List<String> names = result.stream().map(User::getName).distinct().toList();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")), new java.util.HashSet<>(names));
-        org.junit.jupiter.api.Assertions.assertEquals(2, names.size());
+        assertThat(names).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     /**
@@ -187,9 +182,7 @@ class JoinTest {
 
         // Only Alice is ACTIVE and has a PAID order
         List<String> names = result.stream().map(User::getName).distinct().toList();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice")), new java.util.HashSet<>(names));
-        org.junit.jupiter.api.Assertions.assertEquals(1, names.size());
+        assertThat(names).containsExactlyInAnyOrder("Alice");
     }
 
     // ------------------------------------------------------------------ //
@@ -201,7 +194,7 @@ class JoinTest {
      */
     @Test
     void strategyResolver_returnsNonNull() {
-        org.junit.jupiter.api.Assertions.assertNotNull(JoinStrategyResolver.resolve());
+        assertThat(JoinStrategyResolver.resolve()).isNotNull();
     }
 
     /**
@@ -210,6 +203,6 @@ class JoinTest {
      */
     @Test
     void strategyResolver_usesHibernateStrategyInTestEnv() {
-        org.junit.jupiter.api.Assertions.assertInstanceOf(HibernateJoinStrategy.class, JoinStrategyResolver.resolve());
+        assertThat(JoinStrategyResolver.resolve()).isInstanceOf(HibernateJoinStrategy.class);
     }
 }

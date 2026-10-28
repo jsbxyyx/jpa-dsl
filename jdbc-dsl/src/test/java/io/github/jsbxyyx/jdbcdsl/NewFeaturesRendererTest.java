@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.util.LinkedHashMap;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for the five new DSL features (no database required):
@@ -47,13 +48,10 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = SqlRenderer.renderUnion(spec);
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INTERSECT"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("UNION"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(30, rendered.getParams().get("p2"));
+        assertThat(sql).contains("INTERSECT");
+        assertThat(sql).doesNotContain("UNION");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
+        assertThat(rendered.getParams()).containsEntry("p2", 30);
     }
 
     @Test
@@ -69,7 +67,7 @@ class NewFeaturesRendererTest {
         UnionSpec<UserDto> spec = UnionSpec.of(a).intersectAll(b).build();
         String sql = SqlRenderer.renderUnion(spec).getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("INTERSECT ALL"));
+        assertThat(sql).contains("INTERSECT ALL");
     }
 
     @Test
@@ -88,14 +86,10 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = SqlRenderer.renderUnion(spec);
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(" EXCEPT "));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("UNION"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "BANNED", rendered.getParams().get("p2"));
+        assertThat(sql).contains(" EXCEPT ");
+        assertThat(sql).doesNotContain("UNION");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
+        assertThat(rendered.getParams()).containsEntry("p2", "BANNED");
     }
 
     @Test
@@ -111,7 +105,7 @@ class NewFeaturesRendererTest {
         UnionSpec<UserDto> spec = UnionSpec.of(a).exceptAll(b).build();
         String sql = SqlRenderer.renderUnion(spec).getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("EXCEPT ALL"));
+        assertThat(sql).contains("EXCEPT ALL");
     }
 
     @Test
@@ -129,8 +123,8 @@ class NewFeaturesRendererTest {
         UnionSpec<UserDto> spec = UnionSpec.of(a).union(b).intersect(c).build();
         String sql = SqlRenderer.renderUnion(spec).getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(" UNION "));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(" INTERSECT "));
+        assertThat(sql).contains(" UNION ");
+        assertThat(sql).contains(" INTERSECT ");
     }
 
     // ===================================================================== //
@@ -156,8 +150,8 @@ class NewFeaturesRendererTest {
                 .build();
 
         RenderedSql rendered = new PostgresDialect().renderUpsert(spec, userMeta, colValues());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ON CONFLICT (username) DO NOTHING"));
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("DO UPDATE"));
+        assertThat(rendered.getSql()).contains("ON CONFLICT (username) DO NOTHING");
+        assertThat(rendered.getSql()).doesNotContain("DO UPDATE");
     }
 
     @Test
@@ -165,7 +159,7 @@ class NewFeaturesRendererTest {
         UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class).doNothing().build();
 
         RenderedSql rendered = new PostgresDialect().renderUpsert(spec, userMeta, colValues());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ON CONFLICT DO NOTHING"));
+        assertThat(rendered.getSql()).contains("ON CONFLICT DO NOTHING");
     }
 
     @Test
@@ -173,8 +167,8 @@ class NewFeaturesRendererTest {
         UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class).doNothing().build();
 
         RenderedSql rendered = new MySqlDialect().renderUpsert(spec, userMeta, colValues());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().startsWith("INSERT IGNORE INTO t_user"));
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("ON DUPLICATE KEY UPDATE"));
+        assertThat(rendered.getSql()).startsWith("INSERT IGNORE INTO t_user");
+        assertThat(rendered.getSql()).doesNotContain("ON DUPLICATE KEY UPDATE");
     }
 
     @Test
@@ -187,9 +181,9 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = new H2Dialect().renderUpsert(spec, userMeta, colValues());
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("MERGE INTO t_user"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN NOT MATCHED THEN INSERT"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("WHEN MATCHED"));
+        assertThat(sql).contains("MERGE INTO t_user");
+        assertThat(sql).contains("WHEN NOT MATCHED THEN INSERT");
+        assertThat(sql).doesNotContain("WHEN MATCHED");
     }
 
     @Test
@@ -202,9 +196,9 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = new SqlServerDialect().renderUpsert(spec, userMeta, colValues());
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("MERGE INTO t_user"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN NOT MATCHED THEN INSERT"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("WHEN MATCHED THEN UPDATE"));
+        assertThat(sql).contains("MERGE INTO t_user");
+        assertThat(sql).contains("WHEN NOT MATCHED THEN INSERT");
+        assertThat(sql).doesNotContain("WHEN MATCHED THEN UPDATE");
     }
 
     @Test
@@ -217,9 +211,9 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = new OracleDialect().renderUpsert(spec, userMeta, colValues());
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("MERGE INTO t_user"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHEN NOT MATCHED THEN INSERT"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("WHEN MATCHED THEN UPDATE"));
+        assertThat(sql).contains("MERGE INTO t_user");
+        assertThat(sql).contains("WHEN NOT MATCHED THEN INSERT");
+        assertThat(sql).doesNotContain("WHEN MATCHED THEN UPDATE");
     }
 
     // ===================================================================== //
@@ -234,7 +228,7 @@ class NewFeaturesRendererTest {
                 .mapTo(UserDto.class);
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("FOR UPDATE"));
+        assertThat(sql).endsWith("FOR UPDATE");
     }
 
     @Test
@@ -245,7 +239,7 @@ class NewFeaturesRendererTest {
                 .mapTo(UserDto.class);
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("FOR UPDATE"));
+        assertThat(sql).endsWith("FOR UPDATE");
     }
 
     @Test
@@ -256,7 +250,7 @@ class NewFeaturesRendererTest {
                 .mapTo(UserDto.class);
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("FOR UPDATE NOWAIT"));
+        assertThat(sql).endsWith("FOR UPDATE NOWAIT");
     }
 
     @Test
@@ -267,7 +261,7 @@ class NewFeaturesRendererTest {
                 .mapTo(UserDto.class);
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("FOR UPDATE SKIP LOCKED"));
+        assertThat(sql).endsWith("FOR UPDATE SKIP LOCKED");
     }
 
     @Test
@@ -278,7 +272,7 @@ class NewFeaturesRendererTest {
                 .mapTo(UserDto.class);
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("FOR SHARE"));
+        assertThat(sql).endsWith("FOR SHARE");
     }
 
     @Test
@@ -288,8 +282,8 @@ class NewFeaturesRendererTest {
                 .mapTo(UserDto.class);
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("FOR UPDATE"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("FOR SHARE"));
+        assertThat(sql).doesNotContain("FOR UPDATE");
+        assertThat(sql).doesNotContain("FOR SHARE");
     }
 
     @Test
@@ -307,7 +301,7 @@ class NewFeaturesRendererTest {
         String sql = SqlRenderer.renderSelect(outer).getSql();
         // The outer query wraps inner as a derived table; locking only on the inner which
         // is rendered without includeOrderBy (and thus without the lock clause)
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("FOR UPDATE NOWAIT"));
+        assertThat(sql).doesNotContain("FOR UPDATE NOWAIT");
     }
 
     // ===================================================================== //
@@ -329,7 +323,7 @@ class NewFeaturesRendererTest {
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"));
+        assertThat(sql).contains("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW");
     }
 
     @Test
@@ -346,7 +340,7 @@ class NewFeaturesRendererTest {
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("RANGE BETWEEN 3 PRECEDING AND 1 FOLLOWING"));
+        assertThat(sql).contains("RANGE BETWEEN 3 PRECEDING AND 1 FOLLOWING");
     }
 
     @Test
@@ -361,8 +355,7 @@ class NewFeaturesRendererTest {
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(
-                sql.contains("ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"));
+        assertThat(sql).contains("ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING");
     }
 
     @Test
@@ -374,9 +367,9 @@ class NewFeaturesRendererTest {
                 .mapToEntity();
 
         String sql = SqlRenderer.renderSelect(spec).getSql();
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("ROWS"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("RANGE"));
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("BETWEEN"));
+        assertThat(sql).doesNotContain("ROWS");
+        assertThat(sql).doesNotContain("RANGE");
+        assertThat(sql).doesNotContain("BETWEEN");
     }
 
     // ===================================================================== //
@@ -393,11 +386,11 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = SqlRenderer.renderUpdateReturning(spec, java.util.List.of("id", "username", "status"));
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("UPDATE t_user SET"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("WHERE"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("RETURNING id, username, status"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1")); // status value
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2")); // id value
+        assertThat(sql).contains("UPDATE t_user SET");
+        assertThat(sql).contains("WHERE");
+        assertThat(sql).endsWith("RETURNING id, username, status");
+        assertThat(rendered.getParams()).containsKey("p1"); // status value
+        assertThat(rendered.getParams()).containsKey("p2"); // id value
     }
 
     @Test
@@ -409,11 +402,9 @@ class NewFeaturesRendererTest {
         RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, java.util.List.of("id", "username"));
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("DELETE FROM t_user"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("RETURNING id, username"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "BANNED", rendered.getParams().get("p1"));
+        assertThat(sql).startsWith("DELETE FROM t_user");
+        assertThat(sql).endsWith("RETURNING id, username");
+        assertThat(rendered.getParams()).containsEntry("p1", "BANNED");
     }
 
     @Test
@@ -429,9 +420,9 @@ class NewFeaturesRendererTest {
                 InsertSpec.of(TUser.class), meta, cols, java.util.List.of("id", "username"));
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("INSERT INTO t_user"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("VALUES"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("RETURNING id, username"));
+        assertThat(sql).startsWith("INSERT INTO t_user");
+        assertThat(sql).contains("VALUES");
+        assertThat(sql).endsWith("RETURNING id, username");
     }
 
     @Test
@@ -444,7 +435,7 @@ class NewFeaturesRendererTest {
         RenderedSql base = SqlRenderer.renderUpdate(spec);
         RenderedSql withReturning = SqlRenderer.renderUpdateReturning(spec, java.util.List.of());
 
-        org.junit.jupiter.api.Assertions.assertEquals(base.getSql(), withReturning.getSql());
+        assertThat(withReturning.getSql()).isEqualTo(base.getSql());
     }
 
     @Test
@@ -456,6 +447,6 @@ class NewFeaturesRendererTest {
         RenderedSql base = SqlRenderer.renderDelete(spec);
         RenderedSql withReturning = SqlRenderer.renderDeleteReturning(spec, java.util.List.of());
 
-        org.junit.jupiter.api.Assertions.assertEquals(base.getSql(), withReturning.getSql());
+        assertThat(withReturning.getSql()).isEqualTo(base.getSql());
     }
 }

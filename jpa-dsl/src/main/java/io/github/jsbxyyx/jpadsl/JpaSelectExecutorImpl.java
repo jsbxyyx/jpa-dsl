@@ -2,7 +2,6 @@ package io.github.jsbxyyx.jpadsl;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
-import jakarta.persistence.criteria.CompoundSelection;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Order;
@@ -82,7 +81,7 @@ public class JpaSelectExecutorImpl<T> implements JpaSelectExecutor<T> {
         return new PageImpl<>(content, pageable, total);
     }
 
-    private <R> CompoundSelection<R> buildConstruct(
+    private <R> jakarta.persistence.criteria.CompoundSelection<R> buildConstruct(
             CriteriaBuilder cb, CriteriaQuery<R> cq, Root<T> root, SelectSpec<T, R> spec) {
 
         List<Selection<?>> selections = new ArrayList<>();

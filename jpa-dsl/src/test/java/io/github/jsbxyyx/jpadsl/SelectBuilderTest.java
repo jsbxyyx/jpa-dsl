@@ -15,6 +15,9 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 @DataJpaTest
 class SelectBuilderTest {
 
@@ -54,10 +57,10 @@ class SelectBuilderTest {
 
         List<UserIdNameDto> result = userRepository.select(spec);
 
-        org.junit.jupiter.api.Assertions.assertEquals(5, result.size());
-        (result).forEach(dto -> {
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.id());
-            org.junit.jupiter.api.Assertions.assertFalse(dto.name().isBlank());
+        assertThat(result).hasSize(5);
+        assertThat(result).allSatisfy(dto -> {
+            assertThat(dto.id()).isNotNull();
+            assertThat(dto.name()).isNotBlank();
         });
     }
 
@@ -73,13 +76,8 @@ class SelectBuilderTest {
 
         List<UserIdNameDto> result = userRepository.select(spec);
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie", "David")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserIdNameDto::name).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                3, (result).stream().map(UserIdNameDto::name).toList().size());
+        assertThat(result).hasSize(3);
+        assertThat(result).extracting(UserIdNameDto::name).containsExactlyInAnyOrder("Alice", "Charlie", "David");
     }
 
     @Test
@@ -95,15 +93,11 @@ class SelectBuilderTest {
         List<UserDto> result = userRepository.select(spec);
 
         // "Alice" and "Charlie" both contain "li"
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
-                new java.util.HashSet<>((result).stream().map(UserDto::name).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserDto::name).toList().size());
-        (result).forEach(dto -> {
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.id());
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.email());
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(UserDto::name).containsExactlyInAnyOrder("Alice", "Charlie");
+        assertThat(result).allSatisfy(dto -> {
+            assertThat(dto.id()).isNotNull();
+            assertThat(dto.email()).isNotNull();
         });
     }
 
@@ -119,11 +113,11 @@ class SelectBuilderTest {
 
         List<UserDto> result = userRepository.select(spec);
 
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        assertThat(result).hasSize(1);
         UserDto dto = result.get(0);
-        org.junit.jupiter.api.Assertions.assertNotNull(dto.id());
-        org.junit.jupiter.api.Assertions.assertEquals("Alice", dto.name());
-        org.junit.jupiter.api.Assertions.assertEquals("alice@example.com", dto.email());
+        assertThat(dto.id()).isNotNull();
+        assertThat(dto.name()).isEqualTo("Alice");
+        assertThat(dto.email()).isEqualTo("alice@example.com");
     }
 
     // ------------------------------------------------------------------ //
@@ -137,9 +131,9 @@ class SelectBuilderTest {
 
         Page<UserIdNameDto> page = userRepository.selectPage(spec, PageRequest.of(0, 3));
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getContent().size());
-        org.junit.jupiter.api.Assertions.assertEquals(5, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getTotalPages());
+        assertThat(page.getContent()).hasSize(3);
+        assertThat(page.getTotalElements()).isEqualTo(5);
+        assertThat(page.getTotalPages()).isEqualTo(2);
     }
 
     @Test
@@ -150,12 +144,12 @@ class SelectBuilderTest {
         Page<UserIdNameDto> page =
                 userRepository.selectPage(spec, PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "name")));
 
-        org.junit.jupiter.api.Assertions.assertEquals(5, page.getContent().size());
-        org.junit.jupiter.api.Assertions.assertEquals(5, page.getTotalElements());
+        assertThat(page.getContent()).hasSize(5);
+        assertThat(page.getTotalElements()).isEqualTo(5);
         // Sorted DESC by name: Eve, David, Charlie, Bob, Alice
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Eve", "David", "Charlie", "Bob", "Alice"),
-                (page.getContent()).stream().map(UserIdNameDto::name).toList());
+        assertThat(page.getContent())
+                .extracting(UserIdNameDto::name)
+                .containsExactly("Eve", "David", "Charlie", "Bob", "Alice");
     }
 
     @Test
@@ -168,11 +162,9 @@ class SelectBuilderTest {
 
         // First page (page 0, size 2, ASC): Alice, Bob
         // Second page (page 1, size 2, ASC): Charlie, David
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getContent().size());
-        org.junit.jupiter.api.Assertions.assertEquals(5, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Charlie", "David"),
-                (page.getContent()).stream().map(UserIdNameDto::name).toList());
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getTotalElements()).isEqualTo(5);
+        assertThat(page.getContent()).extracting(UserIdNameDto::name).containsExactly("Charlie", "David");
     }
 
     @Test
@@ -188,11 +180,9 @@ class SelectBuilderTest {
         Page<UserIdNameDto> page =
                 userRepository.selectPage(spec, PageRequest.of(0, 2, Sort.by(Sort.Direction.ASC, "name")));
 
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getContent().size());
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Alice", "Charlie"),
-                (page.getContent()).stream().map(UserIdNameDto::name).toList());
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent()).extracting(UserIdNameDto::name).containsExactly("Alice", "Charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -201,28 +191,24 @@ class SelectBuilderTest {
 
     @Test
     void selectSpec_noAttrs_shouldThrowException() {
-        Throwable assertionThrown1 = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class,
-                () -> SelectBuilder.from(User.class).mapTo(UserDto.class));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                assertionThrown1.getMessage().contains("select"));
+        assertThatThrownBy(() -> SelectBuilder.from(User.class).mapTo(UserDto.class))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("select");
     }
 
     @Test
     void selectSpec_nullDtoClass_shouldThrowException() {
-        Throwable assertionThrown2 = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class, () -> SelectBuilder.from(User.class)
+        assertThatThrownBy(() -> SelectBuilder.from(User.class)
                         .select(User_.id, User_.name)
-                        .mapTo(null));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                assertionThrown2.getMessage().contains("dtoClass"));
+                        .mapTo(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("dtoClass");
     }
 
     @Test
     void selectBuilder_nullEntityClass_shouldThrowException() {
-        Throwable assertionThrown3 = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class, () -> SelectBuilder.from(null));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                assertionThrown3.getMessage().contains("entityClass"));
+        assertThatThrownBy(() -> SelectBuilder.from(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("entityClass");
     }
 }

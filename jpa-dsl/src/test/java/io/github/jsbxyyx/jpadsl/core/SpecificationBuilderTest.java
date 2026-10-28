@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @SpringBootTest(classes = TestApplication.class)
 @Transactional
 class SpecificationBuilderTest {
@@ -39,8 +41,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        org.junit.jupiter.api.Assertions.assertTrue(result.stream().allMatch(u -> "ACTIVE".equals(u.getStatus())));
+        assertThat(result).hasSize(3);
+        assertThat(result).allMatch(u -> "ACTIVE".equals(u.getStatus()));
     }
 
     @Test
@@ -48,8 +50,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().ne(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertFalse(result.stream().anyMatch(u -> "ACTIVE".equals(u.getStatus())));
+        assertThat(result).hasSize(2);
+        assertThat(result).noneMatch(u -> "ACTIVE".equals(u.getStatus()));
     }
 
     @Test
@@ -57,7 +59,7 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().like(User_.name, "John").build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size()); // John Doe and Bob Johnson
+        assertThat(result).hasSize(2); // John Doe and Bob Johnson
     }
 
     @Test
@@ -66,7 +68,7 @@ class SpecificationBuilderTest {
                 .in(User_.status, Arrays.asList("ACTIVE", "PENDING"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(4, result.size());
+        assertThat(result).hasSize(4);
     }
 
     @Test
@@ -74,9 +76,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().between(User_.age, 20, 30).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size()); // John(25), Jane(30), Alice(22)
-        org.junit.jupiter.api.Assertions.assertTrue(
-                result.stream().allMatch(u -> u.getAge() >= 20 && u.getAge() <= 30));
+        assertThat(result).hasSize(3); // John(25), Jane(30), Alice(22)
+        assertThat(result).allMatch(u -> u.getAge() >= 20 && u.getAge() <= 30);
     }
 
     @Test
@@ -84,8 +85,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().gt(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size()); // Jane(30), Charlie(35)
-        org.junit.jupiter.api.Assertions.assertTrue(result.stream().allMatch(u -> u.getAge() > 25));
+        assertThat(result).hasSize(2); // Jane(30), Charlie(35)
+        assertThat(result).allMatch(u -> u.getAge() > 25);
     }
 
     @Test
@@ -93,8 +94,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().lt(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size()); // Bob(17), Alice(22)
-        org.junit.jupiter.api.Assertions.assertTrue(result.stream().allMatch(u -> u.getAge() < 25));
+        assertThat(result).hasSize(2); // Bob(17), Alice(22)
+        assertThat(result).allMatch(u -> u.getAge() < 25);
     }
 
     @Test
@@ -102,8 +103,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().gte(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size()); // John(25), Jane(30), Charlie(35)
-        org.junit.jupiter.api.Assertions.assertTrue(result.stream().allMatch(u -> u.getAge() >= 25));
+        assertThat(result).hasSize(3); // John(25), Jane(30), Charlie(35)
+        assertThat(result).allMatch(u -> u.getAge() >= 25);
     }
 
     @Test
@@ -111,8 +112,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().lte(User_.age, 25).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size()); // John(25), Bob(17), Alice(22)
-        org.junit.jupiter.api.Assertions.assertTrue(result.stream().allMatch(u -> u.getAge() <= 25));
+        assertThat(result).hasSize(3); // John(25), Bob(17), Alice(22)
+        assertThat(result).allMatch(u -> u.getAge() <= 25);
     }
 
     @Test
@@ -120,9 +121,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().isNull(User_.email).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size()); // Alice Brown
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "Alice Brown", result.get(0).getName());
+        assertThat(result).hasSize(1); // Alice Brown
+        assertThat(result.get(0).getName()).isEqualTo("Alice Brown");
     }
 
     @Test
@@ -130,8 +130,8 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().isNotNull(User_.email).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(4, result.size());
-        org.junit.jupiter.api.Assertions.assertTrue(result.stream().allMatch(u -> u.getEmail() != null));
+        assertThat(result).hasSize(4);
+        assertThat(result).allMatch(u -> u.getEmail() != null);
     }
 
     @Test
@@ -140,7 +140,7 @@ class SpecificationBuilderTest {
                 .or(SpecificationDsl.eq(User_.status, "INACTIVE"), SpecificationDsl.eq(User_.status, "PENDING"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
+        assertThat(result).hasSize(2);
     }
 
     @Test
@@ -149,8 +149,8 @@ class SpecificationBuilderTest {
                 .not(SpecificationDsl.eq(User_.status, "ACTIVE"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertFalse(result.stream().anyMatch(u -> "ACTIVE".equals(u.getStatus())));
+        assertThat(result).hasSize(2);
+        assertThat(result).noneMatch(u -> "ACTIVE".equals(u.getStatus()));
     }
 
     @Test
@@ -160,7 +160,7 @@ class SpecificationBuilderTest {
                 .gt(User_.age, 24)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size()); // John(25,ACTIVE), Jane(30,ACTIVE)
+        assertThat(result).hasSize(2); // John(25,ACTIVE), Jane(30,ACTIVE)
     }
 
     @Test
@@ -173,12 +173,10 @@ class SpecificationBuilderTest {
                 .sortBy(User_.age, Sort.Direction.DESC)
                 .build();
         Page<User> page = userRepository.findAll(spec, pageRequest);
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getContent().size());
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent()).hasSize(2);
         // Sorted by age DESC: Jane(30), John(25), Alice(22) — first page has Jane and John
-        org.junit.jupiter.api.Assertions.assertTrue(
-                ((java.lang.Comparable) page.getContent().get(0).getAge())
-                                .compareTo(page.getContent().get(1).getAge())
-                        >= 0);
+        assertThat(page.getContent().get(0).getAge())
+                .isGreaterThanOrEqualTo(page.getContent().get(1).getAge());
     }
 }

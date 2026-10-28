@@ -10,10 +10,7 @@ import io.github.jsbxyyx.jdbcast.clause.TableRef;
 import io.github.jsbxyyx.jdbcast.condition.Condition;
 import io.github.jsbxyyx.jdbcast.expr.Expr;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * An immutable SELECT statement AST node.
@@ -40,8 +37,6 @@ public final class SelectStatement {
     private final Long offset;
     private final LockMode lockMode;
     private final SetOp setOp;
-    private final String fromSqlOverride;
-    private final Map<String, Object> fromParams;
 
     public SelectStatement(
             List<CteDef> with,
@@ -57,40 +52,6 @@ public final class SelectStatement {
             Long offset,
             LockMode lockMode,
             SetOp setOp) {
-        this(
-                with,
-                distinct,
-                select,
-                from,
-                joins,
-                where,
-                groupBy,
-                having,
-                orderBy,
-                limit,
-                offset,
-                lockMode,
-                setOp,
-                null,
-                java.util.Map.of());
-    }
-
-    public SelectStatement(
-            List<CteDef> with,
-            boolean distinct,
-            List<Expr<?>> select,
-            TableRef<?> from,
-            List<JoinClause> joins,
-            Condition where,
-            List<Expr<?>> groupBy,
-            Condition having,
-            List<OrderItem> orderBy,
-            Long limit,
-            Long offset,
-            LockMode lockMode,
-            SetOp setOp,
-            String fromSqlOverride,
-            Map<String, Object> fromParams) {
         this.with = List.copyOf(with);
         this.distinct = distinct;
         this.select = List.copyOf(select);
@@ -104,8 +65,6 @@ public final class SelectStatement {
         this.offset = offset;
         this.lockMode = lockMode;
         this.setOp = setOp;
-        this.fromSqlOverride = fromSqlOverride;
-        this.fromParams = Collections.unmodifiableMap(new LinkedHashMap<>(fromParams));
     }
 
     // ------------------------------------------------------------------ //
@@ -126,14 +85,6 @@ public final class SelectStatement {
 
     public TableRef<?> from() {
         return from;
-    }
-
-    public String fromSqlOverride() {
-        return fromSqlOverride;
-    }
-
-    public Map<String, Object> fromParams() {
-        return fromParams;
     }
 
     public List<JoinClause> joins() {

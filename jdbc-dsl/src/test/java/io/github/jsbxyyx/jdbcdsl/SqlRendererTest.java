@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.subquery;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link SqlRenderer} — verifies SQL string generation and parameter binding.
@@ -22,15 +23,14 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.id AS id"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.username AS username"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("FROM t_user t"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql())
+                .contains("SELECT")
+                .contains("t.id AS id")
+                .contains("t.username AS username")
+                .contains("FROM t_user t")
+                .contains("WHERE")
+                .contains("t.status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
     }
 
     @Test
@@ -41,7 +41,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ORDER BY t.username ASC, t.age DESC"));
+        assertThat(rendered.getSql()).contains("ORDER BY t.username ASC, t.age DESC");
     }
 
     @Test
@@ -52,10 +52,8 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("LIKE :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "%ali%", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).contains("LIKE :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "%ali%");
     }
 
     @Test
@@ -66,11 +64,8 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("BETWEEN :p1 AND :p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(20, rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(40, rendered.getParams().get("p2"));
+        assertThat(rendered.getSql()).contains("BETWEEN :p1 AND :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", 20).containsEntry("p2", 40);
     }
 
     @Test
@@ -81,7 +76,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("IN (:p1)"));
+        assertThat(rendered.getSql()).contains("IN (:p1)");
     }
 
     @Test
@@ -92,7 +87,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("IS NULL"));
+        assertThat(rendered.getSql()).contains("IS NULL");
     }
 
     @Test
@@ -103,7 +98,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("OR"));
+        assertThat(rendered.getSql()).contains("OR");
     }
 
     @Test
@@ -113,9 +108,8 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().startsWith("SELECT COUNT(*)"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("FROM t_user t"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().isEmpty());
+        assertThat(rendered.getSql()).startsWith("SELECT COUNT(*)").contains("FROM t_user t");
+        assertThat(rendered.getParams()).isEmpty();
     }
 
     @Test
@@ -129,11 +123,12 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().startsWith("SELECT COUNT(DISTINCT u.id)"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("LEFT JOIN t_order o"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE"));
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("ORDER BY"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(DISTINCT u.id)")
+                .contains("LEFT JOIN t_order o")
+                .contains("WHERE")
+                .doesNotContain("ORDER BY");
+        assertThat(rendered.getParams()).containsKey("p1");
     }
 
     @Test
@@ -148,10 +143,11 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().startsWith("SELECT COUNT(*) FROM ("));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("GROUP BY"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("_count_t"));
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("ORDER BY"));
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(*) FROM (")
+                .contains("GROUP BY")
+                .contains("_count_t")
+                .doesNotContain("ORDER BY");
     }
 
     @Test
@@ -166,10 +162,11 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().startsWith("SELECT COUNT(*) FROM ("));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("GROUP BY"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("HAVING"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("_count_t"));
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(*) FROM (")
+                .contains("GROUP BY")
+                .contains("HAVING")
+                .contains("_count_t");
     }
 
     @Test
@@ -179,14 +176,14 @@ class SqlRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
         // All columns should be expanded with property-name aliases
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("t.id AS id"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("t.username AS username"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("t.email AS email"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("t.age AS age"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("t.status AS status"));
+        assertThat(sql).contains("t.id AS id");
+        assertThat(sql).contains("t.username AS username");
+        assertThat(sql).contains("t.email AS email");
+        assertThat(sql).contains("t.age AS age");
+        assertThat(sql).contains("t.status AS status");
         // Must NOT use t.*
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("t.*"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user t"));
+        assertThat(sql).doesNotContain("t.*");
+        assertThat(sql).contains("FROM t_user t");
     }
 
     @Test
@@ -209,10 +206,10 @@ class SqlRendererTest {
         int posAge = selectClause.indexOf("t.age AS age");
         int posStatus = selectClause.indexOf("t.status AS status");
 
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) posId).compareTo(posUsername) < 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) posUsername).compareTo(posEmail) < 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) posEmail).compareTo(posAge) < 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) posAge).compareTo(posStatus) < 0);
+        assertThat(posId).isLessThan(posUsername);
+        assertThat(posUsername).isLessThan(posEmail);
+        assertThat(posEmail).isLessThan(posAge);
+        assertThat(posAge).isLessThan(posStatus);
     }
 
     @Test
@@ -222,7 +219,7 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UPPER(t.email) AS emailUpper"));
+        assertThat(rendered.getSql()).contains("UPPER(t.email) AS emailUpper");
     }
 
     @Test
@@ -234,7 +231,7 @@ class SqlRendererTest {
                 break;
             }
         }
-        org.junit.jupiter.api.Assertions.assertFalse(hasFromSpring);
+        assertThat(hasFromSpring).as("JSort must not have fromSpring methods").isFalse();
     }
 
     @Test
@@ -246,7 +243,9 @@ class SqlRendererTest {
                 break;
             }
         }
-        org.junit.jupiter.api.Assertions.assertFalse(hasFromSpring);
+        assertThat(hasFromSpring)
+                .as("JPageable must not have fromSpring methods")
+                .isFalse();
     }
 
     // ------------------------------------------------------------------ //
@@ -260,10 +259,8 @@ class SqlRendererTest {
                 .buildUnsafe();
 
         RenderedSql rendered = SqlRenderer.renderUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals("UPDATE t_user SET status = :p1", rendered.getSql());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "DISABLED", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).isEqualTo("UPDATE t_user SET status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "DISABLED");
     }
 
     @Test
@@ -275,18 +272,15 @@ class SqlRendererTest {
                 .build();
 
         RenderedSql rendered = SqlRenderer.renderUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().startsWith("UPDATE t_user SET"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("age = :p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE username = :p3"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "INACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(0, rendered.getParams().get("p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p3"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "bob", rendered.getParams().get("p3"));
+        assertThat(rendered.getSql())
+                .startsWith("UPDATE t_user SET")
+                .contains("status = :p1")
+                .contains("age = :p2")
+                .contains("WHERE username = :p3");
+        assertThat(rendered.getParams())
+                .containsEntry("p1", "INACTIVE")
+                .containsEntry("p2", 0)
+                .containsEntry("p3", "bob");
     }
 
     @Test
@@ -295,27 +289,26 @@ class SqlRendererTest {
                 .add(TUser::getAge, TUser::getId)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(added.getSql().contains("SET age = age + id"));
-        org.junit.jupiter.api.Assertions.assertTrue(added.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals("alice", added.getParams().get("p1"));
+        assertThat(added.getSql()).contains("SET age = age + id");
+        assertThat(added.getParams()).containsEntry("p1", "alice");
 
         RenderedSql subtracted = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .subtract(TUser::getAge, TUser::getId)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(subtracted.getSql().contains("SET age = age - id"));
+        assertThat(subtracted.getSql()).contains("SET age = age - id");
 
         RenderedSql multiplied = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .multiply(TUser::getAge, TUser::getId)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(multiplied.getSql().contains("SET age = age * id"));
+        assertThat(multiplied.getSql()).contains("SET age = age * id");
 
         RenderedSql divided = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .divide(TUser::getAge, TUser::getId)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(divided.getSql().contains("SET age = age / id"));
+        assertThat(divided.getSql()).contains("SET age = age / id");
     }
 
     @Test
@@ -324,36 +317,29 @@ class SqlRendererTest {
                 .add(TUser::getAge, 10)
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(added.getSql().contains("SET age = age + :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(added.getSql().contains("WHERE id = :p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(added.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(10, added.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(added.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(1L, added.getParams().get("p2"));
+        assertThat(added.getSql()).contains("SET age = age + :p1").contains("WHERE id = :p2");
+        assertThat(added.getParams()).containsEntry("p1", 10).containsEntry("p2", 1L);
 
         RenderedSql subtracted = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .subtract(TUser::getAge, 5)
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(subtracted.getSql().contains("SET age = age - :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(subtracted.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(5, subtracted.getParams().get("p1"));
+        assertThat(subtracted.getSql()).contains("SET age = age - :p1");
+        assertThat(subtracted.getParams()).containsEntry("p1", 5);
 
         RenderedSql multiplied = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .multiply(TUser::getAge, 2)
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(multiplied.getSql().contains("SET age = age * :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(multiplied.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(2, multiplied.getParams().get("p1"));
+        assertThat(multiplied.getSql()).contains("SET age = age * :p1");
+        assertThat(multiplied.getParams()).containsEntry("p1", 2);
 
         RenderedSql divided = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .divide(TUser::getAge, 4)
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
-        org.junit.jupiter.api.Assertions.assertTrue(divided.getSql().contains("SET age = age / :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(divided.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(4, divided.getParams().get("p1"));
+        assertThat(divided.getSql()).contains("SET age = age / :p1");
+        assertThat(divided.getParams()).containsEntry("p1", 4);
     }
 
     @Test
@@ -364,14 +350,11 @@ class SqlRendererTest {
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SET age = (age + :p1) * :p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE id = :p3"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(10, rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(2, rendered.getParams().get("p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p3"));
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rendered.getParams().get("p3"));
+        assertThat(rendered.getSql()).contains("SET age = (age + :p1) * :p2").contains("WHERE id = :p3");
+        assertThat(rendered.getParams())
+                .containsEntry("p1", 10)
+                .containsEntry("p2", 2)
+                .containsEntry("p3", 1L);
     }
 
     @Test
@@ -384,12 +367,9 @@ class SqlRendererTest {
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
 
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("SET age ="));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("p1")),
-                rendered.getParams().keySet());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).doesNotContain("SET age =");
+        assertThat(rendered.getParams()).containsOnlyKeys("p1");
+        assertThat(rendered.getParams()).containsEntry("p1", 1L);
     }
 
     @Test
@@ -399,12 +379,8 @@ class SqlRendererTest {
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SET age = age + :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE id = :p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(10, rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rendered.getParams().get("p2"));
+        assertThat(rendered.getSql()).contains("SET age = age + :p1").contains("WHERE id = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", 10).containsEntry("p2", 1L);
     }
 
     @Test
@@ -420,7 +396,7 @@ class SqlRendererTest {
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build();
-        org.junit.jupiter.api.Assertions.assertNotNull(spec);
+        assertThat(spec).isNotNull();
     }
 
     @Test
@@ -437,7 +413,7 @@ class SqlRendererTest {
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
                 .set(TUser::getStatus, "INACTIVE")
                 .buildUnsafe();
-        org.junit.jupiter.api.Assertions.assertNotNull(spec);
+        assertThat(spec).isNotNull();
     }
 
     // ------------------------------------------------------------------ //
@@ -451,10 +427,8 @@ class SqlRendererTest {
                 .build();
 
         RenderedSql rendered = SqlRenderer.renderDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals("DELETE FROM t_user WHERE status = :p1", rendered.getSql());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "INACTIVE", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).isEqualTo("DELETE FROM t_user WHERE status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE");
     }
 
     @Test
@@ -464,22 +438,18 @@ class SqlRendererTest {
                 .build();
 
         RenderedSql rendered = SqlRenderer.renderDelete(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("DELETE FROM t_user WHERE"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("age < :p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "INACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(18, rendered.getParams().get("p2"));
+        assertThat(rendered.getSql()).contains("DELETE FROM t_user WHERE");
+        assertThat(rendered.getSql()).contains("status = :p1");
+        assertThat(rendered.getSql()).contains("age < :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE").containsEntry("p2", 18);
     }
 
     @Test
     void renderDelete_noWhere_buildUnsafe() {
         DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class).buildUnsafe();
         RenderedSql rendered = SqlRenderer.renderDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals("DELETE FROM t_user", rendered.getSql());
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().isEmpty());
+        assertThat(rendered.getSql()).isEqualTo("DELETE FROM t_user");
+        assertThat(rendered.getParams()).isEmpty();
     }
 
     @Test
@@ -498,10 +468,8 @@ class SqlRendererTest {
                 .where(w -> w.like(TUser::getUsername, "ali%"))
                 .mapTo(UserDto.class);
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("LIKE :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ali%", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).contains("LIKE :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ali%");
     }
 
     @Test
@@ -510,9 +478,7 @@ class SqlRendererTest {
                 .where(w -> w.like(TUser::getUsername, "%ice"))
                 .mapTo(UserDto.class);
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "%ice", rendered.getParams().get("p1"));
+        assertThat(rendered.getParams()).containsEntry("p1", "%ice");
     }
 
     // ------------------------------------------------------------------ //
@@ -525,11 +491,9 @@ class SqlRendererTest {
                 .where(w -> w.not(n -> n.eq(TUser::getStatus, "INACTIVE")))
                 .mapTo(UserDto.class);
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NOT ("));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "INACTIVE", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).contains("NOT (");
+        assertThat(rendered.getSql()).contains("status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE");
     }
 
     // ------------------------------------------------------------------ //
@@ -543,11 +507,9 @@ class SqlRendererTest {
                 .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
                 .build();
         RenderedSql rendered = SqlRenderer.renderUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SET age = age + 1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).contains("SET age = age + 1");
+        assertThat(rendered.getSql()).contains("WHERE status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
     }
 
     @Test
@@ -568,12 +530,12 @@ class SqlRendererTest {
         String sql = rendered.getSql();
 
         // SET clause must contain an inline scalar subquery
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("SET age = (SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("MAX(o.amount)"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_order o"));
+        assertThat(sql).contains("SET age = (SELECT");
+        assertThat(sql).contains("MAX(o.amount)");
+        assertThat(sql).contains("FROM t_order o");
         // Subquery WHERE parameter and outer WHERE parameter must both be present
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsValue(42L));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsValue(1L));
+        assertThat(rendered.getParams()).containsValue(42L);
+        assertThat(rendered.getParams()).containsValue(1L);
     }
 
     // ------------------------------------------------------------------ //
@@ -591,9 +553,9 @@ class SqlRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("FROM (SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains(") sub"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("sub.id AS id"));
+        assertThat(rendered.getSql()).contains("FROM (SELECT");
+        assertThat(rendered.getSql()).contains(") sub");
+        assertThat(rendered.getSql()).contains("sub.id AS id");
     }
 
     // ------------------------------------------------------------------ //
@@ -607,7 +569,7 @@ class SqlRendererTest {
                 .forUpdate()
                 .mapTo(UserDto.class);
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().endsWith("FOR UPDATE"));
+        assertThat(rendered.getSql()).endsWith("FOR UPDATE");
     }
 
     @Test
@@ -618,7 +580,7 @@ class SqlRendererTest {
         // render as subquery (includeOrderBy=false path)
         RenderContext ctx = new RenderContext();
         String sql = SqlRenderer.buildSelectSql(inner, ctx, false);
-        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("FOR UPDATE"));
+        assertThat(sql).doesNotContain("FOR UPDATE");
     }
 
     // ------------------------------------------------------------------ //
@@ -642,7 +604,7 @@ class SqlRendererTest {
                 .build();
 
         RenderedSql rendered = SqlRenderer.renderUnion(union);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("UNION ALL"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().endsWith("ORDER BY username ASC"));
+        assertThat(rendered.getSql()).contains("UNION ALL");
+        assertThat(rendered.getSql()).endsWith("ORDER BY username ASC");
     }
 }

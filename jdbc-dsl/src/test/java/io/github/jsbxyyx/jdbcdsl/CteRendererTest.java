@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countStar;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for CTE (WITH clause) rendering in {@link SqlRenderer}.
@@ -32,13 +33,11 @@ class CteRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("WITH active_users AS ("));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains(") SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
+        assertThat(sql).startsWith("WITH active_users AS (");
+        assertThat(sql).contains("SELECT");
+        assertThat(sql).contains("FROM t_user");
+        assertThat(sql).contains(") SELECT");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
     }
 
     @Test
@@ -55,9 +54,9 @@ class CteRendererTest {
 
         // The outer FROM must reference the CTE name, not t_user
         // Pattern: ") SELECT ... FROM active_users t"
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM active_users t"));
+        assertThat(sql).contains("FROM active_users t");
         // The CTE body is allowed to reference t_user (inside the WITH clause)
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_user"));
+        assertThat(sql).contains("FROM t_user");
     }
 
     @Test
@@ -79,13 +78,13 @@ class CteRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.startsWith("WITH "));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("active_users AS ("));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("paid_orders AS ("));
+        assertThat(sql).startsWith("WITH ");
+        assertThat(sql).contains("active_users AS (");
+        assertThat(sql).contains("paid_orders AS (");
         // Both CTEs appear before the outer SELECT
         int withPos = sql.indexOf("WITH ");
         int outerSelectPos = sql.lastIndexOf("SELECT");
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) withPos).compareTo(outerSelectPos) < 0);
+        assertThat(withPos).isLessThan(outerSelectPos);
     }
 
     @Test
@@ -103,11 +102,7 @@ class CteRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(20, rendered.getParams().get("p2"));
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("p2", 20);
     }
 
     @Test
@@ -130,7 +125,7 @@ class CteRendererTest {
         int cteStart = sql.indexOf("WITH ");
         int cteBodyEnd = sql.indexOf(") SELECT");
         String cteBodySql = sql.substring(cteStart, cteBodyEnd);
-        org.junit.jupiter.api.Assertions.assertFalse(cteBodySql.contains("ORDER BY"));
+        assertThat(cteBodySql).doesNotContain("ORDER BY");
     }
 
     @Test
@@ -146,7 +141,7 @@ class CteRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.endsWith("ORDER BY t.username ASC"));
+        assertThat(sql).endsWith("ORDER BY t.username ASC");
     }
 
     @Test
@@ -162,7 +157,7 @@ class CteRendererTest {
         String sql = rendered.getSql();
 
         // The outer FROM alias must be "u", not "t"
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM active_users u"));
+        assertThat(sql).contains("FROM active_users u");
     }
 
     @Test
@@ -173,7 +168,7 @@ class CteRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("WITH "));
+        assertThat(rendered.getSql()).doesNotContain("WITH ");
     }
 
     // ------------------------------------------------------------------ //
@@ -196,11 +191,9 @@ class CteRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
 
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("paid_counts AS ("));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("COUNT(*)"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM paid_counts o"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "PAID", rendered.getParams().get("p1"));
+        assertThat(sql).contains("paid_counts AS (");
+        assertThat(sql).contains("COUNT(*)");
+        assertThat(sql).contains("FROM paid_counts o");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
     }
 }

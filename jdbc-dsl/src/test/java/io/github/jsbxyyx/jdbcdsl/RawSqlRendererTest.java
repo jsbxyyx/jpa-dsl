@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.raw;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for raw SQL escape-hatch rendering in {@link SqlRenderer}.
@@ -34,8 +35,8 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE t.age > t.id"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().isEmpty());
+        assertThat(rendered.getSql()).contains("WHERE t.age > t.id");
+        assertThat(rendered.getParams()).isEmpty();
     }
 
     @Test
@@ -47,11 +48,8 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.age > 18"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("t.age > 18");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE");
     }
 
     @Test
@@ -63,8 +61,7 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertFalse(rendered.getSql().contains("t.age > 18"));
+        assertThat(rendered.getSql()).contains("t.status = :p1").doesNotContain("t.age > 18");
     }
 
     // ------------------------------------------------------------------ //
@@ -80,9 +77,8 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE YEAR(t.created_at) = :yr"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("yr"));
-        org.junit.jupiter.api.Assertions.assertEquals(2024, rendered.getParams().get("yr"));
+        assertThat(rendered.getSql()).contains("WHERE YEAR(t.created_at) = :yr");
+        assertThat(rendered.getParams()).containsEntry("yr", 2024);
     }
 
     @Test
@@ -95,13 +91,8 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("yr"));
-        org.junit.jupiter.api.Assertions.assertEquals(2024, rendered.getParams().get("yr"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("YEAR(t.created_at) = :yr"));
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("yr", 2024);
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("YEAR(t.created_at) = :yr");
     }
 
     // ------------------------------------------------------------------ //
@@ -119,8 +110,7 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("CASE WHEN t.age >= 18 THEN 'ADULT' ELSE 'MINOR' END AS username"));
+        assertThat(rendered.getSql()).contains("CASE WHEN t.age >= 18 THEN 'ADULT' ELSE 'MINOR' END AS username");
     }
 
     @Test
@@ -132,8 +122,7 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("ORDER BY CASE WHEN t.status = 'ACTIVE' THEN 0 ELSE 1 END ASC"));
+        assertThat(rendered.getSql()).contains("ORDER BY CASE WHEN t.status = 'ACTIVE' THEN 0 ELSE 1 END ASC");
     }
 
     // ------------------------------------------------------------------ //
@@ -149,6 +138,6 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("(t.status = :p1 OR t.age > 40)"));
+        assertThat(rendered.getSql()).contains("(t.status = :p1 OR t.age > 40)");
     }
 }

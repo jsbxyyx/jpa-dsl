@@ -1,22 +1,8 @@
 package io.github.jsbxyyx.jpadsl.core;
 
 import io.github.jsbxyyx.jpadsl.join.JoinStrategyResolver;
-import io.github.jsbxyyx.jpadsl.spec.AndSpecification;
-import io.github.jsbxyyx.jpadsl.spec.BetweenSpecification;
-import io.github.jsbxyyx.jpadsl.spec.EqualSpecification;
-import io.github.jsbxyyx.jpadsl.spec.GreaterThanOrEqualSpecification;
-import io.github.jsbxyyx.jpadsl.spec.GreaterThanSpecification;
-import io.github.jsbxyyx.jpadsl.spec.InSpecification;
-import io.github.jsbxyyx.jpadsl.spec.IsNotNullSpecification;
-import io.github.jsbxyyx.jpadsl.spec.IsNullSpecification;
-import io.github.jsbxyyx.jpadsl.spec.LessThanOrEqualSpecification;
-import io.github.jsbxyyx.jpadsl.spec.LessThanSpecification;
-import io.github.jsbxyyx.jpadsl.spec.LikeSpecification;
-import io.github.jsbxyyx.jpadsl.spec.NotEqualSpecification;
-import io.github.jsbxyyx.jpadsl.spec.NotSpecification;
-import io.github.jsbxyyx.jpadsl.spec.OrSpecification;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
+import io.github.jsbxyyx.jpadsl.spec.*;
+import jakarta.persistence.criteria.*;
 import jakarta.persistence.metamodel.SingularAttribute;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -164,7 +150,8 @@ public class SpecificationBuilder<T> {
      * @param onCondition  factory for the JOIN ON predicate
      * @param <J>          the joined entity type
      */
-    public <J> SpecificationBuilder<T> join(Class<J> targetEntity, JoinType joinType, JoinCondition<T, J> onCondition) {
+    public <J> SpecificationBuilder<T> join(
+            Class<J> targetEntity, jakarta.persistence.criteria.JoinType joinType, JoinCondition<T, J> onCondition) {
         specifications.add((root, query, cb) ->
                 JoinStrategyResolver.resolve().buildJoin(root, query, cb, targetEntity, joinType, onCondition));
         return this;

@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for window functions and scalar subqueries using H2.
@@ -65,17 +66,17 @@ class WindowFunctionIntegrationTest {
                 .mapTo(UserRnDto.class);
 
         List<UserRnDto> rows = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
+        assertThat(rows).hasSize(3);
 
         // Rows are sorted ACTIVE-alice, ACTIVE-charlie, INACTIVE-bob
-        org.junit.jupiter.api.Assertions.assertEquals("alice", rows.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rows.get(0).getRn());
+        assertThat(rows.get(0).getUsername()).isEqualTo("alice");
+        assertThat(rows.get(0).getRn()).isEqualTo(1L);
 
-        org.junit.jupiter.api.Assertions.assertEquals("charlie", rows.get(1).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(2L, rows.get(1).getRn());
+        assertThat(rows.get(1).getUsername()).isEqualTo("charlie");
+        assertThat(rows.get(1).getRn()).isEqualTo(2L);
 
-        org.junit.jupiter.api.Assertions.assertEquals("bob", rows.get(2).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rows.get(2).getRn());
+        assertThat(rows.get(2).getUsername()).isEqualTo("bob");
+        assertThat(rows.get(2).getRn()).isEqualTo(1L);
     }
 
     // ------------------------------------------------------------------ //
@@ -96,13 +97,13 @@ class WindowFunctionIntegrationTest {
                 .mapTo(UserRnDto.class);
 
         List<UserRnDto> rows = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals("bob", rows.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rows.get(0).getRn());
-        org.junit.jupiter.api.Assertions.assertEquals("alice", rows.get(1).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(2L, rows.get(1).getRn());
-        org.junit.jupiter.api.Assertions.assertEquals("charlie", rows.get(2).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(3L, rows.get(2).getRn());
+        assertThat(rows).hasSize(3);
+        assertThat(rows.get(0).getUsername()).isEqualTo("bob");
+        assertThat(rows.get(0).getRn()).isEqualTo(1L);
+        assertThat(rows.get(1).getUsername()).isEqualTo("alice");
+        assertThat(rows.get(1).getRn()).isEqualTo(2L);
+        assertThat(rows.get(2).getUsername()).isEqualTo("charlie");
+        assertThat(rows.get(2).getRn()).isEqualTo(3L);
     }
 
     // ------------------------------------------------------------------ //
@@ -121,11 +122,11 @@ class WindowFunctionIntegrationTest {
                 .mapTo(UserRnDto.class);
 
         List<UserRnDto> rows = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
+        assertThat(rows).hasSize(3);
         // No ties, so RANK and DENSE_RANK produce the same result here
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rows.get(0).getRn());
-        org.junit.jupiter.api.Assertions.assertEquals(2L, rows.get(1).getRn());
-        org.junit.jupiter.api.Assertions.assertEquals(3L, rows.get(2).getRn());
+        assertThat(rows.get(0).getRn()).isEqualTo(1L);
+        assertThat(rows.get(1).getRn()).isEqualTo(2L);
+        assertThat(rows.get(2).getRn()).isEqualTo(3L);
     }
 
     // ------------------------------------------------------------------ //
@@ -151,15 +152,14 @@ class WindowFunctionIntegrationTest {
         // Verify via SQL rendering (the SQL was verified in the unit test).
         // Here just confirm no exception is thrown and we get 3 rows.
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("SUM(o.amount) OVER ()"));
+        assertThat(rendered.getSql()).contains("SUM(o.amount) OVER ()");
 
         // Execute raw to verify actual values
         List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
+        assertThat(rows).hasSize(3);
         rows.forEach(row -> {
             Object total = row.get("RUNNINGTOTAL");
-            org.junit.jupiter.api.Assertions.assertEquals(
-                    0, ((java.lang.Comparable) new BigDecimal(total.toString())).compareTo(new BigDecimal("400.00")));
+            assertThat(new BigDecimal(total.toString())).isEqualByComparingTo(new BigDecimal("400.00"));
         });
     }
 
@@ -181,17 +181,13 @@ class WindowFunctionIntegrationTest {
                 .orderBy(JSort.by(JOrder.asc(TOrder::getId)))
                 .mapToEntity());
 
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("LAG(o.amount, 1) OVER (ORDER BY o.id ASC)"));
+        assertThat(rendered.getSql()).contains("LAG(o.amount, 1) OVER (ORDER BY o.id ASC)");
 
         List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
-        org.junit.jupiter.api.Assertions.assertNull(rows.get(0).get("PREVAMOUNT")); // first row has no predecessor
-        org.junit.jupiter.api.Assertions.assertEquals(
-                0,
-                ((java.lang.Comparable)
-                                new BigDecimal(rows.get(1).get("PREVAMOUNT").toString()))
-                        .compareTo(new BigDecimal("100.00"))); // ORD-002 follows ORD-001
+        assertThat(rows).hasSize(3);
+        assertThat(rows.get(0).get("PREVAMOUNT")).isNull(); // first row has no predecessor
+        assertThat(new BigDecimal(rows.get(1).get("PREVAMOUNT").toString()))
+                .isEqualByComparingTo(new BigDecimal("100.00")); // ORD-002 follows ORD-001
     }
 
     /**
@@ -209,13 +205,10 @@ class WindowFunctionIntegrationTest {
                 .mapToEntity());
 
         List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                0,
-                ((java.lang.Comparable)
-                                new BigDecimal(rows.get(0).get("NEXTAMOUNT").toString()))
-                        .compareTo(new BigDecimal("250.00"))); // ORD-001 → ORD-002
-        org.junit.jupiter.api.Assertions.assertNull(rows.get(2).get("NEXTAMOUNT")); // last row has no successor
+        assertThat(rows).hasSize(3);
+        assertThat(new BigDecimal(rows.get(0).get("NEXTAMOUNT").toString()))
+                .isEqualByComparingTo(new BigDecimal("250.00")); // ORD-001 → ORD-002
+        assertThat(rows.get(2).get("NEXTAMOUNT")).isNull(); // last row has no successor
     }
 
     // ------------------------------------------------------------------ //
@@ -242,13 +235,13 @@ class WindowFunctionIntegrationTest {
                 .mapTo(UserOrderCountDto.class);
 
         List<UserOrderCountDto> rows = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals("alice", rows.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(2L, rows.get(0).getOrderCount());
-        org.junit.jupiter.api.Assertions.assertEquals("bob", rows.get(1).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(1L, rows.get(1).getOrderCount());
-        org.junit.jupiter.api.Assertions.assertEquals("charlie", rows.get(2).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(0L, rows.get(2).getOrderCount());
+        assertThat(rows).hasSize(3);
+        assertThat(rows.get(0).getUsername()).isEqualTo("alice");
+        assertThat(rows.get(0).getOrderCount()).isEqualTo(2L);
+        assertThat(rows.get(1).getUsername()).isEqualTo("bob");
+        assertThat(rows.get(1).getOrderCount()).isEqualTo(1L);
+        assertThat(rows.get(2).getUsername()).isEqualTo("charlie");
+        assertThat(rows.get(2).getOrderCount()).isEqualTo(0L);
     }
 
     /**
@@ -272,11 +265,11 @@ class WindowFunctionIntegrationTest {
                 .mapTo(UserOrderCountDto.class);
 
         List<UserOrderCountDto> rows = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals("alice", rows.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(2L, rows.get(0).getOrderCount());
-        org.junit.jupiter.api.Assertions.assertEquals("charlie", rows.get(1).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(0L, rows.get(1).getOrderCount());
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).getUsername()).isEqualTo("alice");
+        assertThat(rows.get(0).getOrderCount()).isEqualTo(2L);
+        assertThat(rows.get(1).getUsername()).isEqualTo("charlie");
+        assertThat(rows.get(1).getOrderCount()).isEqualTo(0L);
     }
 
     // ------------------------------------------------------------------ //
@@ -291,10 +284,10 @@ class WindowFunctionIntegrationTest {
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapTo(UserRnDto.class));
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ABS(t.age)"));
+        assertThat(rendered.getSql()).contains("ABS(t.age)");
         List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
-        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals(30, rows.get(0).get("AGE"));
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("AGE")).isEqualTo(30);
     }
 
     @Test
@@ -304,12 +297,9 @@ class WindowFunctionIntegrationTest {
                 .where(w -> w.eq(TOrder::getOrderNo, "ORD-001"))
                 .mapToEntity());
 
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ROUND(o.amount)"));
+        assertThat(rendered.getSql()).contains("ROUND(o.amount)");
         List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(rendered.getSql(), rendered.getParams());
-        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                0,
-                ((java.lang.Comparable) new BigDecimal(rows.get(0).get("RN").toString()))
-                        .compareTo(new BigDecimal("100")));
+        assertThat(rows).hasSize(1);
+        assertThat(new BigDecimal(rows.get(0).get("RN").toString())).isEqualByComparingTo(new BigDecimal("100"));
     }
 }

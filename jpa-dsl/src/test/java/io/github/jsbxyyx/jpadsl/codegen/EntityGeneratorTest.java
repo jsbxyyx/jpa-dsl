@@ -13,6 +13,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class EntityGeneratorTest {
 
     private static final String DB_URL = "jdbc:h2:mem:entitygen;DB_CLOSE_DELAY=-1;MODE=MySQL";
@@ -54,7 +56,7 @@ class EntityGeneratorTest {
         EntityGenerator.generate(dataSource, "com.example.entity", outputDir.getAbsolutePath());
 
         File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
 
         String content = readFile(entityFile);
         assertEntityContent(content);
@@ -69,7 +71,7 @@ class EntityGeneratorTest {
         EntityGenerator.generate(dataSource, "com.example.entity", outputDir.getAbsolutePath(), "user_order");
 
         File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
 
         String content = readFile(entityFile);
         assertEntityContent(content);
@@ -89,18 +91,18 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
         // Lombok annotations present
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.Data;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.experimental.Accessors;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Data"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Accessors(chain = true)"));
+        assertThat(content).contains("import lombok.Data;");
+        assertThat(content).contains("import lombok.experimental.Accessors;");
+        assertThat(content).contains("@Data");
+        assertThat(content).contains("@Accessors(chain = true)");
 
         // No getter/setter methods generated
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("public Long getId()"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("public UserOrder setId("));
+        assertThat(content).doesNotContain("public Long getId()");
+        assertThat(content).doesNotContain("public UserOrder setId(");
     }
 
     // -------------------------------------------------------------------------
@@ -117,23 +119,22 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
         // No Lombok annotations
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@Data"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@Accessors"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("import lombok"));
+        assertThat(content).doesNotContain("@Data");
+        assertThat(content).doesNotContain("@Accessors");
+        assertThat(content).doesNotContain("import lombok");
 
         // Standard getter methods
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public Long getId()"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public String getOrderNumber()"));
+        assertThat(content).contains("public Long getId()");
+        assertThat(content).contains("public String getOrderNumber()");
 
         // Chain setter methods (return this)
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public UserOrder setId(Long id) {"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("return this;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("public UserOrder setOrderNumber(String orderNumber) {"));
+        assertThat(content).contains("public UserOrder setId(Long id) {");
+        assertThat(content).contains("return this;");
+        assertThat(content).contains("public UserOrder setOrderNumber(String orderNumber) {");
     }
 
     // -------------------------------------------------------------------------
@@ -160,17 +161,17 @@ class EntityGeneratorTest {
 
         // t_user -> User
         File userFile = new File(outputDir, "com/example/entity/User.java");
-        org.junit.jupiter.api.Assertions.assertTrue(userFile.exists());
+        assertThat(userFile).exists();
         String userContent = readFile(userFile);
-        org.junit.jupiter.api.Assertions.assertTrue(userContent.contains("public class User {"));
-        org.junit.jupiter.api.Assertions.assertTrue(userContent.contains("@Table(name = \"t_user\")"));
+        assertThat(userContent).contains("public class User {");
+        assertThat(userContent).contains("@Table(name = \"t_user\")");
 
         // sys_config -> Config
         File configFile = new File(outputDir, "com/example/entity/Config.java");
-        org.junit.jupiter.api.Assertions.assertTrue(configFile.exists());
+        assertThat(configFile).exists();
         String configContent = readFile(configFile);
-        org.junit.jupiter.api.Assertions.assertTrue(configContent.contains("public class Config {"));
-        org.junit.jupiter.api.Assertions.assertTrue(configContent.contains("@Table(name = \"sys_config\")"));
+        assertThat(configContent).contains("public class Config {");
+        assertThat(configContent).contains("@Table(name = \"sys_config\")");
     }
 
     // -------------------------------------------------------------------------
@@ -198,9 +199,9 @@ class EntityGeneratorTest {
         File productFile = new File(outputDir, "com/example/entity/TProduct.java");
         File categoryFile = new File(outputDir, "com/example/entity/TCategory.java");
 
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
-        org.junit.jupiter.api.Assertions.assertFalse(productFile.exists());
-        org.junit.jupiter.api.Assertions.assertFalse(categoryFile.exists());
+        assertThat(entityFile).exists();
+        assertThat(productFile).doesNotExist();
+        assertThat(categoryFile).doesNotExist();
     }
 
     // -------------------------------------------------------------------------
@@ -218,10 +219,10 @@ class EntityGeneratorTest {
                     // intentionally NOT calling .outputDir(...)
                     .generate("user_order");
 
-            org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+            assertThat(entityFile).exists();
             String content = readFile(entityFile);
-            org.junit.jupiter.api.Assertions.assertTrue(content.contains("package com.example.entity;"));
-            org.junit.jupiter.api.Assertions.assertTrue(content.contains("public class UserOrder {"));
+            assertThat(content).contains("package com.example.entity;");
+            assertThat(content).contains("public class UserOrder {");
         } finally {
             // Clean up generated file and empty parent directories
             Files.deleteIfExists(entityFile.toPath());
@@ -236,48 +237,46 @@ class EntityGeneratorTest {
 
     private void assertEntityContent(String content) {
         // Package declaration
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("package com.example.entity;"));
+        assertThat(content).contains("package com.example.entity;");
 
         // Imports
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Column;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Entity;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.GeneratedValue;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.GenerationType;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Id;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Table;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import java.math.BigDecimal;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import java.time.LocalDateTime;"));
+        assertThat(content).contains("import jakarta.persistence.Column;");
+        assertThat(content).contains("import jakarta.persistence.Entity;");
+        assertThat(content).contains("import jakarta.persistence.GeneratedValue;");
+        assertThat(content).contains("import jakarta.persistence.GenerationType;");
+        assertThat(content).contains("import jakarta.persistence.Id;");
+        assertThat(content).contains("import jakarta.persistence.Table;");
+        assertThat(content).contains("import java.math.BigDecimal;");
+        assertThat(content).contains("import java.time.LocalDateTime;");
 
         // Lombok annotations (default useLombok=true via static generate())
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.Data;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.experimental.Accessors;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Data"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Accessors(chain = true)"));
+        assertThat(content).contains("import lombok.Data;");
+        assertThat(content).contains("import lombok.experimental.Accessors;");
+        assertThat(content).contains("@Data");
+        assertThat(content).contains("@Accessors(chain = true)");
 
         // Class-level annotations
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Entity"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Table(name = \"user_order\")"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public class UserOrder {"));
+        assertThat(content).contains("@Entity");
+        assertThat(content).contains("@Table(name = \"user_order\")");
+        assertThat(content).contains("public class UserOrder {");
 
         // id field — primary key, auto-increment, not-null
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Id"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("@GeneratedValue(strategy = GenerationType.IDENTITY)"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Column(name = \"id\", nullable = false)"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private Long id;"));
+        assertThat(content).contains("@Id");
+        assertThat(content).contains("@GeneratedValue(strategy = GenerationType.IDENTITY)");
+        assertThat(content).contains("@Column(name = \"id\", nullable = false)");
+        assertThat(content).contains("private Long id;");
 
         // order_number — not-null
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("@Column(name = \"order_number\", nullable = false)"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private String orderNumber;"));
+        assertThat(content).contains("@Column(name = \"order_number\", nullable = false)");
+        assertThat(content).contains("private String orderNumber;");
 
         // amount — nullable
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Column(name = \"amount\")"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private BigDecimal amount;"));
+        assertThat(content).contains("@Column(name = \"amount\")");
+        assertThat(content).contains("private BigDecimal amount;");
 
         // created_at — nullable
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Column(name = \"created_at\")"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private LocalDateTime createdAt;"));
+        assertThat(content).contains("@Column(name = \"created_at\")");
+        assertThat(content).contains("private LocalDateTime createdAt;");
     }
 
     // -------------------------------------------------------------------------
@@ -294,27 +293,21 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         File repoFile = new File(outputDir, "com/example/repository/UserOrderRepository.java");
-        org.junit.jupiter.api.Assertions.assertTrue(repoFile.exists());
+        assertThat(repoFile).exists();
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("package com.example.repository;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import com.example.entity.UserOrder;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.data.jpa.repository.JpaRepository;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import io.github.jsbxyyx.jpadsl.JpaUpdateExecutor;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import io.github.jsbxyyx.jpadsl.JpaDeleteExecutor;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.stereotype.Repository;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Repository"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("public interface UserOrderRepository extends JpaRepository<UserOrder, Long>"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("JpaSpecificationExecutor<UserOrder>"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("JpaUpdateExecutor<UserOrder>"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("JpaDeleteExecutor<UserOrder>"));
+        assertThat(content).contains("package com.example.repository;");
+        assertThat(content).contains("import com.example.entity.UserOrder;");
+        assertThat(content).contains("import org.springframework.data.jpa.repository.JpaRepository;");
+        assertThat(content).contains("import org.springframework.data.jpa.repository.JpaSpecificationExecutor;");
+        assertThat(content).contains("import io.github.jsbxyyx.jpadsl.JpaUpdateExecutor;");
+        assertThat(content).contains("import io.github.jsbxyyx.jpadsl.JpaDeleteExecutor;");
+        assertThat(content).contains("import org.springframework.stereotype.Repository;");
+        assertThat(content).contains("@Repository");
+        assertThat(content).contains("public interface UserOrderRepository extends JpaRepository<UserOrder, Long>");
+        assertThat(content).contains("JpaSpecificationExecutor<UserOrder>");
+        assertThat(content).contains("JpaUpdateExecutor<UserOrder>");
+        assertThat(content).contains("JpaDeleteExecutor<UserOrder>");
     }
 
     @Test
@@ -327,7 +320,7 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         File repoFile = new File(outputDir, "com/example/repository/UserOrderRepository.java");
-        org.junit.jupiter.api.Assertions.assertFalse(repoFile.exists());
+        assertThat(repoFile).doesNotExist();
     }
 
     @Test
@@ -340,7 +333,7 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         File repoFile = new File(outputDir, "com/example/repository/UserOrderRepository.java");
-        org.junit.jupiter.api.Assertions.assertFalse(repoFile.exists());
+        assertThat(repoFile).doesNotExist();
     }
 
     @Test
@@ -359,7 +352,7 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertEquals("original content", content);
+        assertThat(content).isEqualTo("original content");
     }
 
     @Test
@@ -378,8 +371,8 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public interface UserOrderRepository"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("original content"));
+        assertThat(content).contains("public interface UserOrderRepository");
+        assertThat(content).doesNotContain("original content");
     }
 
     @Test
@@ -399,12 +392,11 @@ class EntityGeneratorTest {
                 .generate("t_product");
 
         File repoFile = new File(outputDir, "com/example/repository/ProductRepository.java");
-        org.junit.jupiter.api.Assertions.assertTrue(repoFile.exists());
+        assertThat(repoFile).exists();
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import com.example.entity.Product;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("public interface ProductRepository extends JpaRepository<Product, Long>"));
+        assertThat(content).contains("import com.example.entity.Product;");
+        assertThat(content).contains("public interface ProductRepository extends JpaRepository<Product, Long>");
     }
 
     // -------------------------------------------------------------------------
@@ -420,15 +412,15 @@ class EntityGeneratorTest {
                 .generate("user_order");
 
         File entityFile = new File(outputDir, "com/example/entity/UserOrder.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
         // Javadoc comments should appear for all commented columns
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("/**"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("     * Primary key ID"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("     * Order number"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("     * Order amount"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("     * Creation time"));
+        assertThat(content).contains("/**");
+        assertThat(content).contains("     * Primary key ID");
+        assertThat(content).contains("     * Order number");
+        assertThat(content).contains("     * Order amount");
+        assertThat(content).contains("     * Creation time");
     }
 
     // -------------------------------------------------------------------------
@@ -437,33 +429,31 @@ class EntityGeneratorTest {
 
     @Test
     void testToPascalCase() {
-        org.junit.jupiter.api.Assertions.assertEquals("UserOrder", EntityGenerator.toPascalCase("user_order"));
-        org.junit.jupiter.api.Assertions.assertEquals("User", EntityGenerator.toPascalCase("user"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "OrderItemDetail", EntityGenerator.toPascalCase("order_item_detail"));
+        assertThat(EntityGenerator.toPascalCase("user_order")).isEqualTo("UserOrder");
+        assertThat(EntityGenerator.toPascalCase("user")).isEqualTo("User");
+        assertThat(EntityGenerator.toPascalCase("order_item_detail")).isEqualTo("OrderItemDetail");
     }
 
     @Test
     void testToCamelCase() {
-        org.junit.jupiter.api.Assertions.assertEquals("createdAt", EntityGenerator.toCamelCase("created_at"));
-        org.junit.jupiter.api.Assertions.assertEquals("id", EntityGenerator.toCamelCase("id"));
-        org.junit.jupiter.api.Assertions.assertEquals("orderNumber", EntityGenerator.toCamelCase("order_number"));
+        assertThat(EntityGenerator.toCamelCase("created_at")).isEqualTo("createdAt");
+        assertThat(EntityGenerator.toCamelCase("id")).isEqualTo("id");
+        assertThat(EntityGenerator.toCamelCase("order_number")).isEqualTo("orderNumber");
     }
 
     @Test
     void testToJavaType() {
-        org.junit.jupiter.api.Assertions.assertEquals("String", EntityGenerator.toJavaType("VARCHAR"));
-        org.junit.jupiter.api.Assertions.assertEquals("Long", EntityGenerator.toJavaType("BIGINT"));
-        org.junit.jupiter.api.Assertions.assertEquals("Integer", EntityGenerator.toJavaType("INTEGER"));
-        org.junit.jupiter.api.Assertions.assertEquals("Short", EntityGenerator.toJavaType("SMALLINT"));
-        org.junit.jupiter.api.Assertions.assertEquals("java.math.BigDecimal", EntityGenerator.toJavaType("DECIMAL"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "java.time.LocalDateTime", EntityGenerator.toJavaType("TIMESTAMP"));
-        org.junit.jupiter.api.Assertions.assertEquals("java.time.LocalDate", EntityGenerator.toJavaType("DATE"));
-        org.junit.jupiter.api.Assertions.assertEquals("java.time.LocalTime", EntityGenerator.toJavaType("TIME"));
-        org.junit.jupiter.api.Assertions.assertEquals("Boolean", EntityGenerator.toJavaType("BOOLEAN"));
-        org.junit.jupiter.api.Assertions.assertEquals("byte[]", EntityGenerator.toJavaType("BLOB"));
-        org.junit.jupiter.api.Assertions.assertEquals("Object", EntityGenerator.toJavaType("UNKNOWN_TYPE"));
+        assertThat(EntityGenerator.toJavaType("VARCHAR")).isEqualTo("String");
+        assertThat(EntityGenerator.toJavaType("BIGINT")).isEqualTo("Long");
+        assertThat(EntityGenerator.toJavaType("INTEGER")).isEqualTo("Integer");
+        assertThat(EntityGenerator.toJavaType("SMALLINT")).isEqualTo("Short");
+        assertThat(EntityGenerator.toJavaType("DECIMAL")).isEqualTo("java.math.BigDecimal");
+        assertThat(EntityGenerator.toJavaType("TIMESTAMP")).isEqualTo("java.time.LocalDateTime");
+        assertThat(EntityGenerator.toJavaType("DATE")).isEqualTo("java.time.LocalDate");
+        assertThat(EntityGenerator.toJavaType("TIME")).isEqualTo("java.time.LocalTime");
+        assertThat(EntityGenerator.toJavaType("BOOLEAN")).isEqualTo("Boolean");
+        assertThat(EntityGenerator.toJavaType("BLOB")).isEqualTo("byte[]");
+        assertThat(EntityGenerator.toJavaType("UNKNOWN_TYPE")).isEqualTo("Object");
     }
 
     // -------------------------------------------------------------------------

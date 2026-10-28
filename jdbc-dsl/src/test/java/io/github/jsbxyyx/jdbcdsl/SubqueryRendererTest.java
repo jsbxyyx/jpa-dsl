@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import static io.github.jsbxyyx.jdbcdsl.Scalar.scalar;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for subquery rendering in {@link SqlRenderer}.
@@ -32,14 +33,13 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.id IN (SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("FROM t_order o"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.user_id"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("WHERE"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "PAID", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql())
+                .contains("t.id IN (SELECT")
+                .contains("FROM t_order o")
+                .contains("o.user_id")
+                .contains("WHERE")
+                .contains("o.status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
     }
 
     @Test
@@ -54,7 +54,7 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.id NOT IN (SELECT"));
+        assertThat(rendered.getSql()).contains("t.id NOT IN (SELECT");
     }
 
     // ------------------------------------------------------------------ //
@@ -74,11 +74,8 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("EXISTS (SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("FROM t_order o"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "PAID", rendered.getParams().get("p1"));
+        assertThat(rendered.getSql()).contains("EXISTS (SELECT").contains("FROM t_order o");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
     }
 
     @Test
@@ -93,7 +90,7 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NOT EXISTS (SELECT"));
+        assertThat(rendered.getSql()).contains("NOT EXISTS (SELECT");
     }
 
     // ------------------------------------------------------------------ //
@@ -113,9 +110,10 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.age > (SELECT"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("MAX(t.age)"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("FROM t_user"));
+        assertThat(rendered.getSql())
+                .contains("t.age > (SELECT")
+                .contains("MAX(t.age)")
+                .contains("FROM t_user");
     }
 
     @Test
@@ -130,7 +128,7 @@ class SubqueryRendererTest {
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.age = (SELECT"));
+        assertThat(rendered.getSql()).contains("t.age = (SELECT");
     }
 
     // ------------------------------------------------------------------ //
@@ -151,14 +149,8 @@ class SubqueryRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(outer);
         // Outer param is :p1, inner param is :p2 — no collision
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "PAID", rendered.getParams().get("p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.status = :p2"));
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("p2", "PAID");
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("o.status = :p2");
     }
 
     // ------------------------------------------------------------------ //
@@ -184,6 +176,6 @@ class SubqueryRendererTest {
         int inPos = sql.indexOf("IN (");
         int closePos = sql.indexOf(")", inPos);
         String subquerySql = sql.substring(inPos, closePos + 1);
-        org.junit.jupiter.api.Assertions.assertFalse(subquerySql.contains("ORDER BY"));
+        assertThat(subquerySql).doesNotContain("ORDER BY");
     }
 }

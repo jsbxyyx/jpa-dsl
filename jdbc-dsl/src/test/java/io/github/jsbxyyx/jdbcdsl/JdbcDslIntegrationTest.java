@@ -18,6 +18,8 @@ import java.util.List;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Integration tests for {@link JdbcDslExecutor} using H2 in-memory database.
@@ -52,7 +54,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        assertThat(result).hasSize(3);
     }
 
     @Test
@@ -63,13 +65,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserDto::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserDto::getUsername).toList().size());
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -80,10 +76,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -94,13 +87,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "bob")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserDto::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserDto::getUsername).toList().size());
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
@@ -111,7 +98,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        assertThat(result).hasSize(3);
     }
 
     @Test
@@ -122,10 +109,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("charlie"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -136,9 +120,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "bob", "charlie"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("alice", "bob", "charlie");
     }
 
     @Test
@@ -149,9 +131,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("charlie", "bob", "alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("charlie", "bob", "alice");
     }
 
     // ------------------------------------------------------------------ //
@@ -168,12 +148,12 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(0, 2);
         Page<UserDto> page = executor.selectPage(spec, pageable);
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getTotalPages());
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getContent().size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "bob"),
-                (page.getContent()).stream().map(UserDto::getUsername).toList());
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getTotalPages()).isEqualTo(2);
+        assertThat(page.getContent())
+                .hasSize(2)
+                .extracting(UserDto::getUsername)
+                .containsExactly("alice", "bob");
     }
 
     @Test
@@ -186,11 +166,11 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(1, 2);
         Page<UserDto> page = executor.selectPage(spec, pageable);
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertEquals(1, page.getContent().size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("charlie"),
-                (page.getContent()).stream().map(UserDto::getUsername).toList());
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent())
+                .hasSize(1)
+                .extracting(UserDto::getUsername)
+                .containsExactly("charlie");
     }
 
     @Test
@@ -203,8 +183,8 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(0, 2);
         Page<UserDto> page = mysqlExecutor.selectPage(spec, pageable);
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertEquals(2, page.getContent().size());
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent()).hasSize(2);
     }
 
     @Test
@@ -216,10 +196,8 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(0, 2, JSort.byAsc(TUser::getUsername));
         Page<UserDto> page = executor.selectPage(spec, pageable);
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, page.getTotalElements());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "bob"),
-                (page.getContent()).stream().map(UserDto::getUsername).toList());
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent()).extracting(UserDto::getUsername).containsExactly("alice", "bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -234,8 +212,8 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         UserDto result = executor.findOne(spec);
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
-        org.junit.jupiter.api.Assertions.assertEquals("alice", result.getUsername());
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice");
     }
 
     @Test
@@ -246,7 +224,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         UserDto result = executor.findOne(spec);
-        org.junit.jupiter.api.Assertions.assertNull(result);
+        assertThat(result).isNull();
     }
 
     @Test
@@ -259,8 +237,8 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         UserDto result = executor.findOne(spec);
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
-        org.junit.jupiter.api.Assertions.assertEquals("alice", result.getUsername()); // first alphabetically
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice"); // first alphabetically
     }
 
     @Test
@@ -273,8 +251,8 @@ class JdbcDslIntegrationTest {
         // Sort descending: charlie comes first
         JPageable<TUser> pageable = JPageable.of(0, 10, JSort.byDesc(TUser::getUsername));
         UserDto result = executor.findOne(spec, pageable);
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
-        org.junit.jupiter.api.Assertions.assertEquals("charlie", result.getUsername());
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("charlie");
     }
 
     @Test
@@ -286,7 +264,7 @@ class JdbcDslIntegrationTest {
 
         JPageable<TUser> pageable = JPageable.of(0, 10, JSort.byAsc(TUser::getUsername));
         UserDto result = executor.findOne(spec, pageable);
-        org.junit.jupiter.api.Assertions.assertNull(result);
+        assertThat(result).isNull();
     }
 
     // ------------------------------------------------------------------ //
@@ -302,10 +280,7 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(0, 2, JSort.byAsc(TUser::getUsername));
         List<UserDto> result = executor.select(spec, pageable);
 
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "bob"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactly("alice", "bob");
     }
 
     @Test
@@ -317,10 +292,7 @@ class JdbcDslIntegrationTest {
         JPageable<TUser> pageable = JPageable.of(1, 2, JSort.byAsc(TUser::getUsername));
         List<UserDto> result = executor.select(spec, pageable);
 
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("charlie"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("charlie");
     }
 
     @Test
@@ -331,10 +303,7 @@ class JdbcDslIntegrationTest {
 
         List<UserDto> result = executor.select(spec, JPageable.unpaged(JSort.byDesc(TUser::getUsername)));
 
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("charlie", "bob", "alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(3).extracting(UserDto::getUsername).containsExactly("charlie", "bob", "alice");
     }
 
     @Test
@@ -343,10 +312,9 @@ class JdbcDslIntegrationTest {
                 .select(TUser::getId, TUser::getUsername)
                 .mapTo(UserDto.class);
 
-        Throwable assertionThrown1 = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class, () -> executor.selectPage(spec, JPageable.unpaged()));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                assertionThrown1.getMessage().contains("requires a paged JPageable"));
+        assertThatThrownBy(() -> executor.selectPage(spec, JPageable.unpaged()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires a paged JPageable");
     }
 
     @Test
@@ -358,7 +326,7 @@ class JdbcDslIntegrationTest {
 
         JPageable<TUser> pageable = JPageable.of(0, 10);
         List<UserDto> result = executor.select(spec, pageable);
-        org.junit.jupiter.api.Assertions.assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
     // ------------------------------------------------------------------ //
@@ -374,13 +342,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(OrderDto.class);
 
         List<OrderDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("ORD-001", "ORD-002")),
-                new java.util.HashSet<>(
-                        (result).stream().map(OrderDto::getOrderNo).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(OrderDto::getOrderNo).toList().size());
+        assertThat(result).hasSize(2).extracting(OrderDto::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-002");
     }
 
     // ------------------------------------------------------------------ //
@@ -391,15 +353,15 @@ class JdbcDslIntegrationTest {
     void jSort_toSpringSort_works() {
         JSort<TUser> sort = JSort.byAsc(TUser::getUsername).andDesc(TUser::getAge);
         org.springframework.data.domain.Sort springSort = sort.toSpringSort();
-        org.junit.jupiter.api.Assertions.assertTrue(springSort.isSorted());
+        assertThat(springSort.isSorted()).isTrue();
     }
 
     @Test
     void jPageable_toSpringPageable_works() {
         JPageable<TUser> pageable = JPageable.of(1, 10, JSort.byAsc(TUser::getUsername));
         org.springframework.data.domain.Pageable springPageable = pageable.toSpringPageable();
-        org.junit.jupiter.api.Assertions.assertEquals(1, springPageable.getPageNumber());
-        org.junit.jupiter.api.Assertions.assertEquals(10, springPageable.getPageSize());
+        assertThat(springPageable.getPageNumber()).isEqualTo(1);
+        assertThat(springPageable.getPageSize()).isEqualTo(10);
     }
 
     // ------------------------------------------------------------------ //
@@ -415,13 +377,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserDto::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserDto::getUsername).toList().size());
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -433,12 +389,12 @@ class JdbcDslIntegrationTest {
         SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
 
         List<TUser> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        assertThat(result).hasSize(3);
         // All fields should be non-null (populated via setter/field injection)
-        (result).forEach(u -> {
-            org.junit.jupiter.api.Assertions.assertNotNull(u.getId());
-            org.junit.jupiter.api.Assertions.assertNotNull(u.getUsername());
-            org.junit.jupiter.api.Assertions.assertNotNull(u.getStatus());
+        assertThat(result).allSatisfy(u -> {
+            assertThat(u.getId()).as("id must not be null").isNotNull();
+            assertThat(u.getUsername()).as("username must not be null").isNotNull();
+            assertThat(u.getStatus()).as("status must not be null").isNotNull();
         });
     }
 
@@ -449,16 +405,8 @@ class JdbcDslIntegrationTest {
                 .mapToEntity();
 
         List<TUser> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("ACTIVE")),
-                new java.util.HashSet<>((result).stream().map(TUser::getStatus).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
-                new java.util.HashSet<>(
-                        (result).stream().map(TUser::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(TUser::getUsername).toList().size());
+        assertThat(result).hasSize(2).extracting(TUser::getStatus).containsOnly("ACTIVE");
+        assertThat(result).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -466,11 +414,11 @@ class JdbcDslIntegrationTest {
         SelectSpec<TOrder, TOrder> spec = SelectBuilder.from(TOrder.class, "o").mapToEntity();
 
         List<TOrder> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        (result).forEach(o -> {
-            org.junit.jupiter.api.Assertions.assertNotNull(o.getId());
-            org.junit.jupiter.api.Assertions.assertNotNull(o.getOrderNo());
-            org.junit.jupiter.api.Assertions.assertNotNull(o.getAmount());
+        assertThat(result).hasSize(3);
+        assertThat(result).allSatisfy(o -> {
+            assertThat(o.getId()).as("id must not be null").isNotNull();
+            assertThat(o.getOrderNo()).as("orderNo must not be null").isNotNull();
+            assertThat(o.getAmount()).as("amount must not be null").isNotNull();
         });
     }
 
@@ -485,10 +433,9 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        (result).forEach(dto -> {
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.getId());
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.getUsername());
+        assertThat(result).hasSize(3).allSatisfy(dto -> {
+            assertThat(dto.getId()).as("id must not be null").isNotNull();
+            assertThat(dto.getUsername()).as("username must not be null").isNotNull();
         });
     }
 
@@ -520,9 +467,8 @@ class JdbcDslIntegrationTest {
                 .mapTo(EmailUpperDto.class);
 
         List<EmailUpperDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ALICE@EXAMPLE.COM", result.get(0).getEmailUpper());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmailUpper()).isEqualTo("ALICE@EXAMPLE.COM");
     }
 
     // ------------------------------------------------------------------ //
@@ -540,17 +486,11 @@ class JdbcDslIntegrationTest {
                 .mapTo(OrderDto.class);
 
         List<OrderDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("ORD-001", "ORD-002")),
-                new java.util.HashSet<>(
-                        (result).stream().map(OrderDto::getOrderNo).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(OrderDto::getOrderNo).toList().size());
+        assertThat(result).hasSize(2).extracting(OrderDto::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-002");
         // id and amount should be populated via setter
-        (result).forEach(dto -> {
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.getId());
-            org.junit.jupiter.api.Assertions.assertNotNull(dto.getAmount());
+        assertThat(result).allSatisfy(dto -> {
+            assertThat(dto.getId()).isNotNull();
+            assertThat(dto.getAmount()).isNotNull();
         });
     }
 
@@ -566,15 +506,15 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         // Verify the change
         SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("DISABLED", result.get(0).getStatus());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo("DISABLED");
     }
 
     @Test
@@ -586,15 +526,15 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("SUSPENDED", result.get(0).getStatus());
-        org.junit.jupiter.api.Assertions.assertEquals(99, result.get(0).getAge());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo("SUSPENDED");
+        assertThat(result.get(0).getAge()).isEqualTo(99);
     }
 
     @Test
@@ -605,7 +545,7 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(0, affected);
+        assertThat(affected).isEqualTo(0);
     }
 
     @Test
@@ -614,7 +554,7 @@ class JdbcDslIntegrationTest {
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build();
-        org.junit.jupiter.api.Assertions.assertNotNull(spec);
+        assertThat(spec).isNotNull();
     }
 
     @Test
@@ -625,15 +565,14 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "CONDITION_TRUE", result.get(0).getStatus());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo("CONDITION_TRUE");
     }
 
     @Test
@@ -657,11 +596,10 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        assertThat(result).hasSize(1);
         // age updated, status unchanged
-        org.junit.jupiter.api.Assertions.assertEquals(77, result.get(0).getAge());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                originalStatus, result.get(0).getStatus());
+        assertThat(result.get(0).getAge()).isEqualTo(77);
+        assertThat(result.get(0).getStatus()).isEqualTo(originalStatus);
     }
 
     @Test
@@ -671,7 +609,7 @@ class JdbcDslIntegrationTest {
                 .set(TUser::getStatus, "SKIPPED", false)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .build();
-        org.junit.jupiter.api.Assertions.assertNotNull(spec);
+        assertThat(spec).isNotNull();
     }
 
     @Test
@@ -688,7 +626,7 @@ class JdbcDslIntegrationTest {
         UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
                 .set(TUser::getStatus, "INACTIVE")
                 .buildUnsafe();
-        org.junit.jupiter.api.Assertions.assertNotNull(spec);
+        assertThat(spec).isNotNull();
     }
 
     // ------------------------------------------------------------------ //
@@ -702,14 +640,14 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         // Verify deletion
         SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -719,17 +657,11 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected); // only charlie (age=40, ACTIVE) matches
+        assertThat(affected).isEqualTo(1); // only charlie (age=40, ACTIVE) matches
 
         SelectSpec<TUser, TUser> verify = SelectBuilder.from(TUser.class).mapToEntity();
         List<TUser> remaining = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "bob")),
-                new java.util.HashSet<>(
-                        (remaining).stream().map(TUser::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (remaining).stream().map(TUser::getUsername).toList().size());
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
@@ -742,7 +674,7 @@ class JdbcDslIntegrationTest {
     void deleteBuilder_buildUnsafe_allowsNoWhere() {
         // buildUnsafe() bypasses the WHERE guard; we verify it doesn't throw
         DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class).buildUnsafe();
-        org.junit.jupiter.api.Assertions.assertNotNull(spec);
+        assertThat(spec).isNotNull();
     }
 
     // ------------------------------------------------------------------ //
@@ -760,7 +692,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size()); // no WHERE → all rows
+        assertThat(result).hasSize(3); // no WHERE → all rows
     }
 
     @Test
@@ -774,7 +706,7 @@ class JdbcDslIntegrationTest {
 
         // No user has username=null → 0 results, but the query must execute without error
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -785,10 +717,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -800,10 +729,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("bob"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -815,17 +741,16 @@ class JdbcDslIntegrationTest {
         TUser newUser = new TUser("dave", "dave@example.com", 28, "ACTIVE");
         executor.save(newUser);
         // Generated IDENTITY pk must be set back
-        org.junit.jupiter.api.Assertions.assertNotNull(newUser.getId());
+        assertThat(newUser.getId()).isNotNull();
 
         SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "dave"))
                 .mapToEntity();
         List<TUser> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "dave@example.com", result.get(0).getEmail());
-        org.junit.jupiter.api.Assertions.assertEquals(28, result.get(0).getAge());
-        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", result.get(0).getStatus());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmail()).isEqualTo("dave@example.com");
+        assertThat(result.get(0).getAge()).isEqualTo(28);
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -840,12 +765,12 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.eq(TUser::getUsername, "eve"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("eve", result.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", result.get(0).getStatus());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("eve");
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
         // email and age were not in spec → should be null / default
-        org.junit.jupiter.api.Assertions.assertNull(result.get(0).getEmail());
-        org.junit.jupiter.api.Assertions.assertNull(result.get(0).getAge());
+        assertThat(result.get(0).getEmail()).isNull();
+        assertThat(result.get(0).getAge()).isNull();
     }
 
     @Test
@@ -861,12 +786,12 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.eq(TUser::getUsername, "eve2"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("eve2", result.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", result.get(0).getStatus());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("eve2");
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
         // email and age were not in spec → should be null / default
-        org.junit.jupiter.api.Assertions.assertNull(result.get(0).getEmail());
-        org.junit.jupiter.api.Assertions.assertNull(result.get(0).getAge());
+        assertThat(result.get(0).getEmail()).isNull();
+        assertThat(result.get(0).getAge()).isNull();
     }
 
     @Test
@@ -879,10 +804,9 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.eq(TUser::getUsername, "frank"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "frank@example.com", result.get(0).getEmail());
-        org.junit.jupiter.api.Assertions.assertEquals(45, result.get(0).getAge());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmail()).isEqualTo("frank@example.com");
+        assertThat(result.get(0).getAge()).isEqualTo(45);
     }
 
     @Test
@@ -895,10 +819,10 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.eq(TUser::getUsername, "grace"))
                 .mapToEntity();
         List<TUser> result = executor.select(verify);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("grace", result.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(22, result.get(0).getAge());
-        org.junit.jupiter.api.Assertions.assertNull(result.get(0).getEmail()); // omitted from insert
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("grace");
+        assertThat(result.get(0).getAge()).isEqualTo(22);
+        assertThat(result.get(0).getEmail()).isNull(); // omitted from insert
     }
 
     @Test
@@ -912,14 +836,14 @@ class JdbcDslIntegrationTest {
         alice.setEmail("alice_new@example.com");
         alice.setAge(99);
         int affected = executor.updateById(alice);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         TUser updated = executor.select(SelectBuilder.from(TUser.class)
                         .where(w -> w.eq(TUser::getUsername, "alice"))
                         .mapToEntity())
                 .get(0);
-        org.junit.jupiter.api.Assertions.assertEquals("alice_new@example.com", updated.getEmail());
-        org.junit.jupiter.api.Assertions.assertEquals(99, updated.getAge());
+        assertThat(updated.getEmail()).isEqualTo("alice_new@example.com");
+        assertThat(updated.getAge()).isEqualTo(99);
     }
 
     @Test
@@ -930,12 +854,10 @@ class JdbcDslIntegrationTest {
                 .get(0);
 
         int affected = executor.deleteById(TUser.class, bob.getId());
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
-        org.junit.jupiter.api.Assertions.assertFalse(
-                (remaining).stream().map(TUser::getUsername).toList().contains("bob"));
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).doesNotContain("bob");
     }
 
     // ------------------------------------------------------------------ //
@@ -950,12 +872,12 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         TUser bob = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals("DISABLED", bob.getStatus());
+        assertThat(bob.getStatus()).isEqualTo("DISABLED");
     }
 
     @Test
@@ -967,12 +889,12 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "charlie"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals("SENIOR", charlie.getStatus());
+        assertThat(charlie.getStatus()).isEqualTo("SENIOR");
     }
 
     @Test
@@ -985,18 +907,18 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "charlie"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals("VETERAN", charlie.getStatus());
+        assertThat(charlie.getStatus()).isEqualTo("VETERAN");
 
         // alice (ACTIVE, age=25) should be unchanged
         TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", alice.getStatus());
+        assertThat(alice.getStatus()).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -1010,18 +932,18 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(55, alice.getAge());
+        assertThat(alice.getAge()).isEqualTo(55);
 
         // bob's age must not be changed
         TUser bob = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertNotEquals(55, bob.getAge());
+        assertThat(bob.getAge()).isNotEqualTo(55);
     }
 
     @Test
@@ -1034,18 +956,18 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeUpdate(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(77, alice.getAge());
+        assertThat(alice.getAge()).isEqualTo(77);
 
         // charlie is also ACTIVE but username != alice → must not be updated
         TUser charlie = executor.findOne(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "charlie"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertNotEquals(77, charlie.getAge());
+        assertThat(charlie.getAge()).isNotEqualTo(77);
     }
 
     // ------------------------------------------------------------------ //
@@ -1058,12 +980,10 @@ class JdbcDslIntegrationTest {
                 DeleteBuilder.from(TUser.class).eq(TUser::getUsername, "bob").build();
 
         int affected = executor.executeDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
-        org.junit.jupiter.api.Assertions.assertFalse(
-                (remaining).stream().map(TUser::getUsername).toList().contains("bob"));
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).doesNotContain("bob");
     }
 
     @Test
@@ -1075,16 +995,10 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "bob")),
-                new java.util.HashSet<>(
-                        (remaining).stream().map(TUser::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (remaining).stream().map(TUser::getUsername).toList().size());
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "bob");
     }
 
     @Test
@@ -1096,16 +1010,10 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
-                new java.util.HashSet<>(
-                        (remaining).stream().map(TUser::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (remaining).stream().map(TUser::getUsername).toList().size());
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -1117,17 +1025,11 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int affected = executor.executeDelete(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, affected);
+        assertThat(affected).isEqualTo(1);
 
         List<TUser> remaining = executor.select(SelectBuilder.from(TUser.class).mapToEntity());
         // charlie is also ACTIVE but was not deleted (username != alice)
-        org.junit.jupiter.api.Assertions.assertEquals(2, remaining.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("bob", "charlie")),
-                new java.util.HashSet<>(
-                        (remaining).stream().map(TUser::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (remaining).stream().map(TUser::getUsername).toList().size());
+        assertThat(remaining).hasSize(2).extracting(TUser::getUsername).containsExactlyInAnyOrder("bob", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -1141,10 +1043,7 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.like(TUser::getUsername, "ali%"))
                 .mapTo(UserDto.class);
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -1154,10 +1053,7 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.like(TUser::getUsername, "%ice"))
                 .mapTo(UserDto.class);
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -1167,10 +1063,7 @@ class JdbcDslIntegrationTest {
                 .where(w -> w.like(TUser::getUsername, "alice"))
                 .mapTo(UserDto.class);
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     // ------------------------------------------------------------------ //
@@ -1185,13 +1078,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
         List<UserDto> result = executor.select(spec);
         // bob is INACTIVE; alice and charlie are ACTIVE → 2 rows returned
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserDto::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserDto::getUsername).toList().size());
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     // ------------------------------------------------------------------ //
@@ -1210,9 +1097,9 @@ class JdbcDslIntegrationTest {
         List<TUser> result = executor.select(SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity());
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
+        assertThat(result).hasSize(1);
         // alice's original age is 30 (from test data), after +10 should be 40
-        org.junit.jupiter.api.Assertions.assertEquals(40, result.get(0).getAge());
+        assertThat(result.get(0).getAge()).isEqualTo(40);
     }
 
     // ------------------------------------------------------------------ //
@@ -1232,10 +1119,7 @@ class JdbcDslIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(outer);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     // ------------------------------------------------------------------ //
@@ -1255,33 +1139,28 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int[] results = executor.executeBatchUpdate(List.of(spec1, spec2));
-        org.junit.jupiter.api.Assertions.assertEquals(2, results.length);
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList(1)),
-                java.util.Arrays.stream(results).boxed().collect(java.util.stream.Collectors.toSet()));
+        assertThat(results).hasSize(2);
+        assertThat(results).containsOnly(1);
 
         // Verify
         SelectSpec<TUser, TUser> alice = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
                 .mapToEntity();
-        org.junit.jupiter.api.Assertions.assertEquals(1, executor.select(alice).size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("INACTIVE"),
-                (executor.select(alice)).stream().map(TUser::getStatus).toList());
+        assertThat(executor.select(alice))
+                .hasSize(1)
+                .extracting(TUser::getStatus)
+                .containsExactly("INACTIVE");
 
         SelectSpec<TUser, TUser> bob = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "bob"))
                 .mapToEntity();
-        org.junit.jupiter.api.Assertions.assertEquals(1, executor.select(bob).size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("ACTIVE"),
-                (executor.select(bob)).stream().map(TUser::getStatus).toList());
+        assertThat(executor.select(bob)).hasSize(1).extracting(TUser::getStatus).containsExactly("ACTIVE");
     }
 
     @Test
     void executeBatchUpdate_emptyList_returnsEmptyArray() {
         int[] results = executor.executeBatchUpdate(List.of());
-        org.junit.jupiter.api.Assertions.assertEquals(0, results.length);
+        assertThat(results).isEmpty();
     }
 
     @Test
@@ -1295,24 +1174,19 @@ class JdbcDslIntegrationTest {
                 .build();
 
         int[] results = executor.executeBatchDelete(List.of(spec1, spec2));
-        org.junit.jupiter.api.Assertions.assertEquals(2, results.length);
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList(1)),
-                java.util.Arrays.stream(results).boxed().collect(java.util.stream.Collectors.toSet()));
+        assertThat(results).hasSize(2);
+        assertThat(results).containsOnly(1);
 
         // Only charlie should remain
         SelectSpec<TUser, TUser> all = SelectBuilder.from(TUser.class).mapToEntity();
         List<TUser> remaining = executor.select(all);
-        org.junit.jupiter.api.Assertions.assertEquals(1, remaining.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("charlie"),
-                (remaining).stream().map(TUser::getUsername).toList());
+        assertThat(remaining).hasSize(1).extracting(TUser::getUsername).containsExactly("charlie");
     }
 
     @Test
     void executeBatchDelete_emptyList_returnsEmptyArray() {
         int[] results = executor.executeBatchDelete(List.of());
-        org.junit.jupiter.api.Assertions.assertEquals(0, results.length);
+        assertThat(results).isEmpty();
     }
 
     // ------------------------------------------------------------------ //
@@ -1336,10 +1210,9 @@ class JdbcDslIntegrationTest {
                 .build();
 
         List<UserDto> result = executor.union(union);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        assertThat(result).hasSize(3);
         // Descending: charlie, bob, alice
-        org.junit.jupiter.api.Assertions.assertEquals("charlie", result.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "alice", result.get(result.size() - 1).getUsername());
+        assertThat(result.get(0).getUsername()).isEqualTo("charlie");
+        assertThat(result.get(result.size() - 1).getUsername()).isEqualTo("alice");
     }
 }

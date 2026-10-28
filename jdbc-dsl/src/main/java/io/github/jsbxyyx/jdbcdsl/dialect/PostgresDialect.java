@@ -1,6 +1,5 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
-import io.github.jsbxyyx.jdbcast.stmt.UpsertStatement;
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
@@ -30,31 +29,6 @@ public final class PostgresDialect implements Dialect {
     @Override
     public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         return renderOnConflict(spec, meta, colValues);
-    }
-
-    @Override
-    public RenderedSql renderUpsert(UpsertStatement statement) {
-        StringJoiner cols = new StringJoiner(", ");
-        StringJoiner vals = new StringJoiner(", ");
-        statement.columns().forEach(col -> {
-            cols.add(col);
-            vals.add(":" + col);
-        });
-        String action;
-        if (statement.doNothing()) {
-            action = " DO NOTHING";
-        } else {
-            StringJoiner updates = new StringJoiner(", ");
-            statement.updateColumns().forEach(col -> updates.add(col + " = EXCLUDED." + col));
-            action = " DO UPDATE SET " + updates;
-        }
-        String target = statement.conflictColumns().isEmpty()
-                ? ""
-                : " (" + String.join(", ", statement.conflictColumns()) + ")";
-        return new RenderedSql(
-                "INSERT INTO " + statement.tableName() + " (" + cols + ") VALUES (" + vals + ") ON CONFLICT" + target
-                        + action,
-                new LinkedHashMap<>(statement.values()));
     }
 
     /**

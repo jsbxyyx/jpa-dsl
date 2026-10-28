@@ -17,6 +17,8 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @DataJpaTest
 class SpecificationBuilderTest {
 
@@ -49,12 +51,7 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().eq(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -64,10 +61,7 @@ class SpecificationBuilderTest {
                 .gt(User_.age, 35)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Charlie"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
@@ -77,10 +71,7 @@ class SpecificationBuilderTest {
                 .gte(User_.age, 30)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Alice"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
@@ -88,12 +79,7 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().between(User_.age, 25, 30).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -102,12 +88,7 @@ class SpecificationBuilderTest {
                 .in(User_.name, Arrays.asList("Alice", "Charlie"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -116,10 +97,7 @@ class SpecificationBuilderTest {
                 .notIn(User_.name, Arrays.asList("Alice", "Bob"))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Charlie"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Charlie");
     }
 
     @Test
@@ -127,20 +105,12 @@ class SpecificationBuilderTest {
         Specification<User> nullEmail =
                 SpecificationBuilder.<User>builder().isNull(User_.email).build();
         List<User> withNullEmail = userRepository.findAll(nullEmail);
-        org.junit.jupiter.api.Assertions.assertEquals(1, withNullEmail.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Charlie"),
-                (withNullEmail).stream().map(User::getName).toList());
+        assertThat(withNullEmail).hasSize(1).extracting(User::getName).containsExactly("Charlie");
 
         Specification<User> notNullEmail =
                 SpecificationBuilder.<User>builder().isNotNull(User_.email).build();
         List<User> withEmail = userRepository.findAll(notNullEmail);
-        org.junit.jupiter.api.Assertions.assertEquals(2, withEmail.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
-                new java.util.HashSet<>((withEmail).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (withEmail).stream().map(User::getName).toList().size());
+        assertThat(withEmail).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -148,10 +118,7 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().ne(User_.status, "ACTIVE").build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Bob"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
@@ -159,12 +126,7 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().lte(User_.age, 30).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -173,10 +135,7 @@ class SpecificationBuilderTest {
                 .likeIgnoreCase(User_.name, "alice")
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Alice"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
@@ -186,12 +145,7 @@ class SpecificationBuilderTest {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().predicate(orSpec).build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -203,12 +157,7 @@ class SpecificationBuilderTest {
                         (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(User_.status), "ACTIVE")))
                 .build();
         List<Order> result = orderRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("ORD-001", "ORD-002")),
-                new java.util.HashSet<>((result).stream().map(Order::getOrderNo).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(Order::getOrderNo).toList().size());
+        assertThat(result).hasSize(2).extracting(Order::getOrderNo).containsExactlyInAnyOrder("ORD-001", "ORD-002");
     }
 
     @Test
@@ -220,10 +169,7 @@ class SpecificationBuilderTest {
                         (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(User_.name), "Bob")))
                 .build();
         List<Order> result = orderRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("ORD-003"),
-                (result).stream().map(Order::getOrderNo).toList());
+        assertThat(result).hasSize(1).extracting(Order::getOrderNo).containsExactly("ORD-003");
     }
 
     @Test
@@ -235,11 +181,7 @@ class SpecificationBuilderTest {
                         (join, query, cb, predicates) -> predicates.add(cb.equal(join.get(Order_.status), "PAID")))
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
@@ -251,7 +193,7 @@ class SpecificationBuilderTest {
                 .build();
         List<User> result = userRepository.findAll(spec);
         // JPA "= null" semantics may return 0 rows depending on provider, but must not throw
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
+        assertThat(result).isNotNull();
     }
 
     @Test
@@ -259,7 +201,7 @@ class SpecificationBuilderTest {
         // An empty builder (no predicates) returns every row — no safety guard
         Specification<User> spec = SpecificationBuilder.<User>builder().build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        assertThat(result).hasSize(3);
     }
 
     // ------------------------------------------------------------------ //
@@ -273,12 +215,7 @@ class SpecificationBuilderTest {
                 .eq(User_.status, "ACTIVE", true)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
-                new java.util.HashSet<>((result).stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(User::getName).toList().size());
+        assertThat(result).hasSize(2).extracting(User::getName).containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -289,10 +226,7 @@ class SpecificationBuilderTest {
                 .eq(User_.name, "Alice", true) // applied
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Alice"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Alice");
     }
 
     @Test
@@ -304,10 +238,7 @@ class SpecificationBuilderTest {
                 .eq(User_.name, "Bob", true)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Bob"),
-                (result).stream().map(User::getName).toList());
+        assertThat(result).hasSize(1).extracting(User::getName).containsExactly("Bob");
     }
 
     @Test
@@ -318,7 +249,7 @@ class SpecificationBuilderTest {
                 .like(User_.name, "Bob", false)
                 .build();
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
+        assertThat(result).hasSize(3);
     }
 
     @Test
@@ -326,22 +257,20 @@ class SpecificationBuilderTest {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .like(User_.name, "Ali", true)
                 .build();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                1, userRepository.findAll(spec).size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Alice"),
-                (userRepository.findAll(spec)).stream().map(User::getName).toList());
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Alice");
     }
 
     @Test
     void builder_condition_gtConditionTrue() {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().gt(User_.age, 35, true).build();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                1, userRepository.findAll(spec).size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Charlie"),
-                (userRepository.findAll(spec)).stream().map(User::getName).toList());
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Charlie");
     }
 
     @Test
@@ -350,11 +279,10 @@ class SpecificationBuilderTest {
                 .between(User_.age, 1, 2, false) // skipped
                 .eq(User_.status, "INACTIVE", true) // applied
                 .build();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                1, userRepository.findAll(spec).size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Bob"),
-                (userRepository.findAll(spec)).stream().map(User::getName).toList());
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Bob");
     }
 
     @Test
@@ -362,27 +290,20 @@ class SpecificationBuilderTest {
         Specification<User> spec = SpecificationBuilder.<User>builder()
                 .in(User_.name, Arrays.asList("Alice", "Bob"), true)
                 .build();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, userRepository.findAll(spec).size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Bob")),
-                new java.util.HashSet<>((userRepository.findAll(spec))
-                        .stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2,
-                (userRepository.findAll(spec))
-                        .stream().map(User::getName).toList().size());
+        assertThat(userRepository.findAll(spec))
+                .hasSize(2)
+                .extracting(User::getName)
+                .containsExactlyInAnyOrder("Alice", "Bob");
     }
 
     @Test
     void builder_condition_isNullConditionTrue() {
         Specification<User> spec =
                 SpecificationBuilder.<User>builder().isNull(User_.email, true).build();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                1, userRepository.findAll(spec).size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("Charlie"),
-                (userRepository.findAll(spec)).stream().map(User::getName).toList());
+        assertThat(userRepository.findAll(spec))
+                .hasSize(1)
+                .extracting(User::getName)
+                .containsExactly("Charlie");
     }
 
     @Test
@@ -391,16 +312,10 @@ class SpecificationBuilderTest {
                 .isNull(User_.email, false) // skipped
                 .eq(User_.status, "ACTIVE", true) // applied
                 .build();
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, userRepository.findAll(spec).size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("Alice", "Charlie")),
-                new java.util.HashSet<>((userRepository.findAll(spec))
-                        .stream().map(User::getName).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2,
-                (userRepository.findAll(spec))
-                        .stream().map(User::getName).toList().size());
+        assertThat(userRepository.findAll(spec))
+                .hasSize(2)
+                .extracting(User::getName)
+                .containsExactlyInAnyOrder("Alice", "Charlie");
     }
 
     @Test
@@ -413,7 +328,7 @@ class SpecificationBuilderTest {
                 .build();
         // Should not throw — just returns whatever JPA produces for "status = NULL"
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
+        assertThat(result).isNotNull();
     }
 
     @Test
@@ -426,6 +341,6 @@ class SpecificationBuilderTest {
                 .build();
         // build() should not throw — the first predicate (with null value) counts as added
         List<User> result = userRepository.findAll(spec);
-        org.junit.jupiter.api.Assertions.assertNotNull(result);
+        assertThat(result).isNotNull();
     }
 }

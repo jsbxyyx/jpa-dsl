@@ -13,6 +13,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class JdbcEntityGeneratorTest {
 
     private static final String DB_URL = "jdbc:h2:mem:jdbcentitygen;DB_CLOSE_DELAY=-1;MODE=MySQL";
@@ -56,30 +58,30 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
 
         String content = readFile(entityFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("package com.example.entity;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.Data;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.NoArgsConstructor;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import lombok.experimental.Accessors;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Data"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@NoArgsConstructor"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Accessors(chain = true)"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Table;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Column;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.Id;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Table(name = \"stock_all\")"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Id"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Column(name = \"id\""));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Column(name = \"stock_code\""));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private Long id;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private String stockCode;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private String stockName;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public class StockAll {"));
+        assertThat(content).contains("package com.example.entity;");
+        assertThat(content).contains("import lombok.Data;");
+        assertThat(content).contains("import lombok.NoArgsConstructor;");
+        assertThat(content).contains("import lombok.experimental.Accessors;");
+        assertThat(content).contains("@Data");
+        assertThat(content).contains("@NoArgsConstructor");
+        assertThat(content).contains("@Accessors(chain = true)");
+        assertThat(content).contains("import jakarta.persistence.Table;");
+        assertThat(content).contains("import jakarta.persistence.Column;");
+        assertThat(content).contains("import jakarta.persistence.Id;");
+        assertThat(content).contains("@Table(name = \"stock_all\")");
+        assertThat(content).contains("@Id");
+        assertThat(content).contains("@Column(name = \"id\"");
+        assertThat(content).contains("@Column(name = \"stock_code\"");
+        assertThat(content).contains("private Long id;");
+        assertThat(content).contains("private String stockCode;");
+        assertThat(content).contains("private String stockName;");
+        assertThat(content).contains("public class StockAll {");
         // No getters/setters generated when using Lombok
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("public String getStockCode()"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("public void setStockCode("));
+        assertThat(content).doesNotContain("public String getStockCode()");
+        assertThat(content).doesNotContain("public void setStockCode(");
     }
 
     // -------------------------------------------------------------------------
@@ -96,23 +98,23 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
 
         String content = readFile(entityFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("package com.example.entity;"));
+        assertThat(content).contains("package com.example.entity;");
         // No Lombok annotations
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("import lombok.Data;"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@Data"));
+        assertThat(content).doesNotContain("import lombok.Data;");
+        assertThat(content).doesNotContain("@Data");
         // Standard bean structure
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public StockAll() {"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public String getStockCode()"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public StockAll setStockCode(String stockCode)"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("return this;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public Long getId()"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public StockAll setId(Long id)"));
+        assertThat(content).contains("public StockAll() {");
+        assertThat(content).contains("public String getStockCode()");
+        assertThat(content).contains("public StockAll setStockCode(String stockCode)");
+        assertThat(content).contains("return this;");
+        assertThat(content).contains("public Long getId()");
+        assertThat(content).contains("public StockAll setId(Long id)");
         // JPA annotations still present
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Table(name = \"stock_all\")"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Id"));
+        assertThat(content).contains("@Table(name = \"stock_all\")");
+        assertThat(content).contains("@Id");
     }
 
     // -------------------------------------------------------------------------
@@ -129,8 +131,8 @@ class JdbcEntityGeneratorTest {
 
         File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
         String content = readFile(entityFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import java.math.BigDecimal;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("private BigDecimal price;"));
+        assertThat(content).contains("import java.math.BigDecimal;");
+        assertThat(content).contains("private BigDecimal price;");
     }
 
     // -------------------------------------------------------------------------
@@ -153,10 +155,10 @@ class JdbcEntityGeneratorTest {
                 .generate("t_product");
 
         File entityFile = new File(outputDir, "com/example/entity/Product.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public class Product {"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Table(name = \"t_product\")"));
+        assertThat(content).contains("public class Product {");
+        assertThat(content).contains("@Table(name = \"t_product\")");
     }
 
     // -------------------------------------------------------------------------
@@ -173,30 +175,24 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
-        org.junit.jupiter.api.Assertions.assertTrue(repoFile.exists());
+        assertThat(repoFile).exists();
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("package com.example.repository;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import com.example.entity.StockAll;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslRepository;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.beans.factory.annotation.Autowired;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.stereotype.Repository;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Repository"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("public class StockAllRepository extends JdbcDslRepository<StockAll, Long> {"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("public StockAllRepository(JdbcDslExecutor jdbcDslExecutor)"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Autowired"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("super(StockAll.class, jdbcDslExecutor);"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("public void save(StockAll entity)"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("INSERT INTO"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("UPDATE stock_all"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("DELETE FROM"));
+        assertThat(content).contains("package com.example.repository;");
+        assertThat(content).contains("import com.example.entity.StockAll;");
+        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;");
+        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.JdbcDslRepository;");
+        assertThat(content).contains("import org.springframework.beans.factory.annotation.Autowired;");
+        assertThat(content).contains("import org.springframework.stereotype.Repository;");
+        assertThat(content).contains("@Repository");
+        assertThat(content).contains("public class StockAllRepository extends JdbcDslRepository<StockAll, Long> {");
+        assertThat(content).contains("public StockAllRepository(JdbcDslExecutor jdbcDslExecutor)");
+        assertThat(content).contains("@Autowired");
+        assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
+        assertThat(content).doesNotContain("public void save(StockAll entity)");
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("UPDATE stock_all");
+        assertThat(content).doesNotContain("DELETE FROM");
     }
 
     @Test
@@ -208,7 +204,7 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
-        org.junit.jupiter.api.Assertions.assertFalse(repoFile.exists());
+        assertThat(repoFile).doesNotExist();
     }
 
     @Test
@@ -226,7 +222,7 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertEquals("original content", content);
+        assertThat(content).isEqualTo("original content");
     }
 
     @Test
@@ -245,8 +241,8 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("public class StockAllRepository"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("original content"));
+        assertThat(content).contains("public class StockAllRepository");
+        assertThat(content).doesNotContain("original content");
     }
 
     @Test
@@ -266,12 +262,11 @@ class JdbcEntityGeneratorTest {
                 .generate("t_item");
 
         File repoFile = new File(outputDir, "com/example/repository/ItemRepository.java");
-        org.junit.jupiter.api.Assertions.assertTrue(repoFile.exists());
+        assertThat(repoFile).exists();
         String content = readFile(repoFile);
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import com.example.entity.Item;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("public class ItemRepository extends JdbcDslRepository<Item, Long> {"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("super(Item.class, jdbcDslExecutor);"));
+        assertThat(content).contains("import com.example.entity.Item;");
+        assertThat(content).contains("public class ItemRepository extends JdbcDslRepository<Item, Long> {");
+        assertThat(content).contains("super(Item.class, jdbcDslExecutor);");
     }
 
     // -------------------------------------------------------------------------
@@ -295,15 +290,15 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("extends JdbcDslRepository<StockAll, Long>"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("super(StockAll.class, jdbcDslExecutor);"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("getStockCode()"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("getStockName()"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("addValue(\"stockCode\""));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("addValue(\"stockName\""));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("INSERT INTO"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("UPDATE stock_all"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("DELETE FROM"));
+        assertThat(content).contains("extends JdbcDslRepository<StockAll, Long>");
+        assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
+        assertThat(content).doesNotContain("getStockCode()");
+        assertThat(content).doesNotContain("getStockName()");
+        assertThat(content).doesNotContain("addValue(\"stockCode\"");
+        assertThat(content).doesNotContain("addValue(\"stockName\"");
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("UPDATE stock_all");
+        assertThat(content).doesNotContain("DELETE FROM");
     }
 
     /**
@@ -334,14 +329,14 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/TUserRepository.java");
         String content = readFile(repoFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("extends JdbcDslRepository<TUser, Long>"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("super(TUser.class, jdbcDslExecutor);"));
+        assertThat(content).contains("extends JdbcDslRepository<TUser, Long>");
+        assertThat(content).contains("super(TUser.class, jdbcDslExecutor);");
         // No hard-coded SQL strings
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("INSERT INTO"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("UPDATE t_user"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("DELETE FROM"));
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("UPDATE t_user");
+        assertThat(content).doesNotContain("DELETE FROM");
         // No KeyHolder — executor handles identity pk only
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("GeneratedKeyHolder"));
+        assertThat(content).doesNotContain("GeneratedKeyHolder");
     }
 
     /**
@@ -362,12 +357,12 @@ class JdbcEntityGeneratorTest {
         File repoFile = new File(outputDir, "com/example/repository/StockAllRepository.java");
         String content = readFile(repoFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("extends JdbcDslRepository<StockAll, Long>"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("super(StockAll.class, jdbcDslExecutor);"));
+        assertThat(content).contains("extends JdbcDslRepository<StockAll, Long>");
+        assertThat(content).contains("super(StockAll.class, jdbcDslExecutor);");
         // No hardcoded INSERT, no KeyHolder in generated source
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("INSERT INTO"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("GeneratedKeyHolder"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("jdbcTemplate.update(sql, params, keyHolder)"));
+        assertThat(content).doesNotContain("INSERT INTO");
+        assertThat(content).doesNotContain("GeneratedKeyHolder");
+        assertThat(content).doesNotContain("jdbcTemplate.update(sql, params, keyHolder)");
     }
 
     /**
@@ -385,10 +380,9 @@ class JdbcEntityGeneratorTest {
         File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
         String content = readFile(entityFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.GeneratedValue;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("import jakarta.persistence.GenerationType;"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("@GeneratedValue(strategy = GenerationType.IDENTITY)"));
+        assertThat(content).contains("import jakarta.persistence.GeneratedValue;");
+        assertThat(content).contains("import jakarta.persistence.GenerationType;");
+        assertThat(content).contains("@GeneratedValue(strategy = GenerationType.IDENTITY)");
     }
 
     /**
@@ -411,8 +405,8 @@ class JdbcEntityGeneratorTest {
         File entityFile = new File(outputDir, "com/example/entity/TBiz.java");
         String content = readFile(entityFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@Id"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@GeneratedValue"));
+        assertThat(content).contains("@Id");
+        assertThat(content).doesNotContain("@GeneratedValue");
     }
 
     // -------------------------------------------------------------------------
@@ -438,13 +432,13 @@ class JdbcEntityGeneratorTest {
                 .generate("t_comment_test");
 
         File entityFile = new File(outputDir, "com/example/entity/TCommentTest.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
 
         String content = readFile(entityFile);
         // Comments on columns with REMARKS should appear as Javadoc
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("/**"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("* primary key"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("* user name"));
+        assertThat(content).contains("/**");
+        assertThat(content).contains("* primary key");
+        assertThat(content).contains("* user name");
     }
 
     @Test
@@ -470,9 +464,9 @@ class JdbcEntityGeneratorTest {
 
         // The score column has no comment — no Javadoc block should appear immediately before it
         int scorePos = content.indexOf("private Integer score;");
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) scorePos).compareTo(-1) > 0);
+        assertThat(scorePos).isGreaterThan(-1);
         String beforeScore = content.substring(Math.max(0, scorePos - 30), scorePos);
-        org.junit.jupiter.api.Assertions.assertFalse(beforeScore.contains("*/"));
+        assertThat(beforeScore).doesNotContain("*/");
     }
 
     @Test
@@ -503,10 +497,10 @@ class JdbcEntityGeneratorTest {
         int secondPos = content.indexOf("private String secondCol;");
         int thirdPos = content.indexOf("private Integer thirdCol;");
 
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) idPos).compareTo(-1) > 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) firstPos).compareTo(idPos) > 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) secondPos).compareTo(firstPos) > 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) thirdPos).compareTo(secondPos) > 0);
+        assertThat(idPos).isGreaterThan(-1);
+        assertThat(firstPos).isGreaterThan(idPos);
+        assertThat(secondPos).isGreaterThan(firstPos);
+        assertThat(thirdPos).isGreaterThan(secondPos);
     }
 
     // -------------------------------------------------------------------------
@@ -534,19 +528,18 @@ class JdbcEntityGeneratorTest {
         // they must NOT be separated by a blank line.
         int columnPos = content.indexOf("import jakarta.persistence.Column;");
         int tablePos = content.indexOf("import jakarta.persistence.Table;");
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) columnPos).compareTo(-1) > 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) tablePos).compareTo(-1) > 0);
+        assertThat(columnPos).isGreaterThan(-1);
+        assertThat(tablePos).isGreaterThan(-1);
         // Extract the text between those two import lines and verify no blank line
         int afterColumn = columnPos + "import jakarta.persistence.Column;".length();
         String between = content.substring(afterColumn, tablePos);
-        org.junit.jupiter.api.Assertions.assertFalse(between.contains("\n\n"));
+        assertThat(between).doesNotContain("\n\n");
 
         // java.math.BigDecimal must appear after a blank line that follows the jakarta/lombok block
         int bigDecimalPos = content.indexOf("import java.math.BigDecimal;");
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) bigDecimalPos).compareTo(-1) > 0);
+        assertThat(bigDecimalPos).isGreaterThan(-1);
         // There must be an empty line immediately before the java.math.BigDecimal import
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.substring(0, bigDecimalPos).endsWith("\n\n"));
+        assertThat(content.substring(0, bigDecimalPos)).endsWith("\n\n");
     }
 
     /**
@@ -568,13 +561,12 @@ class JdbcEntityGeneratorTest {
         // Module imports must appear before org.springframework imports
         int modulePos = content.indexOf("import io.github.jsbxyyx.");
         int springPos = content.indexOf("import org.springframework.");
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) modulePos).compareTo(-1) > 0);
-        org.junit.jupiter.api.Assertions.assertTrue(((java.lang.Comparable) springPos).compareTo(modulePos) > 0);
+        assertThat(modulePos).isGreaterThan(-1);
+        assertThat(springPos).isGreaterThan(modulePos);
         // There must be a blank line between the last module import and the first org.springframework import
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.substring(modulePos, springPos).contains("\n\n"));
+        assertThat(content.substring(modulePos, springPos)).contains("\n\n");
 
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("import java.util.List;"));
+        assertThat(content).doesNotContain("import java.util.List;");
     }
 
     // -------------------------------------------------------------------------
@@ -601,18 +593,15 @@ class JdbcEntityGeneratorTest {
                 .generate("t_soft");
 
         File entityFile = new File(outputDir, "com/example/entity/TSoft.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@LogicalDelete"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.data.annotation.CreatedDate;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@CreatedDate"));
-        org.junit.jupiter.api.Assertions.assertTrue(
-                content.contains("import org.springframework.data.annotation.LastModifiedDate;"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@LastModifiedDate"));
+        assertThat(content).contains("import io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete;");
+        assertThat(content).contains("@LogicalDelete");
+        assertThat(content).contains("import org.springframework.data.annotation.CreatedDate;");
+        assertThat(content).contains("@CreatedDate");
+        assertThat(content).contains("import org.springframework.data.annotation.LastModifiedDate;");
+        assertThat(content).contains("@LastModifiedDate");
     }
 
     @Test
@@ -632,10 +621,10 @@ class JdbcEntityGeneratorTest {
                 .generate("t_del");
 
         File entityFile = new File(outputDir, "com/example/entity/TDel.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@LogicalDelete"));
+        assertThat(content).contains("@LogicalDelete");
     }
 
     @Test
@@ -656,11 +645,11 @@ class JdbcEntityGeneratorTest {
                 .generate("t_time");
 
         File entityFile = new File(outputDir, "com/example/entity/TTime.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@CreatedDate"));
-        org.junit.jupiter.api.Assertions.assertTrue(content.contains("@LastModifiedDate"));
+        assertThat(content).contains("@CreatedDate");
+        assertThat(content).contains("@LastModifiedDate");
     }
 
     @Test
@@ -674,12 +663,12 @@ class JdbcEntityGeneratorTest {
                 .generate("stock_all");
 
         File entityFile = new File(outputDir, "com/example/entity/StockAll.java");
-        org.junit.jupiter.api.Assertions.assertTrue(entityFile.exists());
+        assertThat(entityFile).exists();
         String content = readFile(entityFile);
 
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@LogicalDelete"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@CreatedDate"));
-        org.junit.jupiter.api.Assertions.assertFalse(content.contains("@LastModifiedDate"));
+        assertThat(content).doesNotContain("@LogicalDelete");
+        assertThat(content).doesNotContain("@CreatedDate");
+        assertThat(content).doesNotContain("@LastModifiedDate");
     }
 
     // -------------------------------------------------------------------------

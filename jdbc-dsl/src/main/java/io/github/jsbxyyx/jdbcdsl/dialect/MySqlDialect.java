@@ -1,6 +1,5 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
-import io.github.jsbxyyx.jdbcast.stmt.UpsertStatement;
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
@@ -26,24 +25,6 @@ public final class MySqlDialect implements Dialect {
         params.put("_limit", limit);
         params.put("_offset", offset);
         return sql + " LIMIT :_limit OFFSET :_offset";
-    }
-
-    @Override
-    public RenderedSql renderUpsert(UpsertStatement statement) {
-        StringJoiner cols = new StringJoiner(", ");
-        StringJoiner vals = new StringJoiner(", ");
-        statement.columns().forEach(col -> {
-            cols.add(col);
-            vals.add(":" + col);
-        });
-        String prefix = statement.doNothing() ? "INSERT IGNORE INTO " : "INSERT INTO ";
-        String sql = prefix + statement.tableName() + " (" + cols + ") VALUES (" + vals + ")";
-        if (!statement.doNothing()) {
-            StringJoiner updates = new StringJoiner(", ");
-            statement.updateColumns().forEach(col -> updates.add(col + " = VALUES(" + col + ")"));
-            sql += " ON DUPLICATE KEY UPDATE " + updates;
-        }
-        return new RenderedSql(sql, new LinkedHashMap<>(statement.values()));
     }
 
     @Override

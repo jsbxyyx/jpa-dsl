@@ -7,6 +7,7 @@ import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for window-function and scalar-subquery rendering in {@link SqlRenderer}.
@@ -25,8 +26,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("ROW_NUMBER() OVER ()"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("AS rn"));
+        assertThat(rendered.getSql()).contains("ROW_NUMBER() OVER ()").contains("AS rn");
     }
 
     @Test
@@ -40,9 +40,9 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("ROW_NUMBER() OVER (ORDER BY t.age ASC)"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("AS rn"));
+        assertThat(rendered.getSql())
+                .contains("ROW_NUMBER() OVER (ORDER BY t.age ASC)")
+                .contains("AS rn");
     }
 
     @Test
@@ -56,9 +56,9 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("ROW_NUMBER() OVER (PARTITION BY t.status ORDER BY t.age ASC)"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("AS rn"));
+        assertThat(rendered.getSql())
+                .contains("ROW_NUMBER() OVER (PARTITION BY t.status ORDER BY t.age ASC)")
+                .contains("AS rn");
     }
 
     // ------------------------------------------------------------------ //
@@ -74,7 +74,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("RANK() OVER (ORDER BY t.age ASC)"));
+        assertThat(rendered.getSql()).contains("RANK() OVER (ORDER BY t.age ASC)");
     }
 
     @Test
@@ -88,8 +88,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("DENSE_RANK() OVER (PARTITION BY t.status ORDER BY t.age DESC)"));
+        assertThat(rendered.getSql()).contains("DENSE_RANK() OVER (PARTITION BY t.status ORDER BY t.age DESC)");
     }
 
     // ------------------------------------------------------------------ //
@@ -105,7 +104,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("NTILE(4) OVER (ORDER BY t.age ASC)"));
+        assertThat(rendered.getSql()).contains("NTILE(4) OVER (ORDER BY t.age ASC)");
     }
 
     // ------------------------------------------------------------------ //
@@ -123,8 +122,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("LAG(t.age, 1) OVER (ORDER BY t.id ASC)"));
+        assertThat(rendered.getSql()).contains("LAG(t.age, 1) OVER (ORDER BY t.id ASC)");
     }
 
     @Test
@@ -138,8 +136,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("LEAD(t.age, 1) OVER (ORDER BY t.id ASC)"));
+        assertThat(rendered.getSql()).contains("LEAD(t.age, 1) OVER (ORDER BY t.id ASC)");
     }
 
     // ------------------------------------------------------------------ //
@@ -157,9 +154,9 @@ class WindowFunctionRendererTest {
                 .mapToEntity();
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("SUM(o.amount) OVER (PARTITION BY o.user_id ORDER BY o.id ASC)"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("AS runningTotal"));
+        assertThat(rendered.getSql())
+                .contains("SUM(o.amount) OVER (PARTITION BY o.user_id ORDER BY o.id ASC)")
+                .contains("AS runningTotal");
     }
 
     @Test
@@ -169,8 +166,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("COUNT(t.id) OVER ()"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("AS rn"));
+        assertThat(rendered.getSql()).contains("COUNT(t.id) OVER ()").contains("AS rn");
     }
 
     // ------------------------------------------------------------------ //
@@ -188,8 +184,7 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("FIRST_VALUE(t.age) OVER (ORDER BY t.id ASC)"));
+        assertThat(rendered.getSql()).contains("FIRST_VALUE(t.age) OVER (ORDER BY t.id ASC)");
     }
 
     // ------------------------------------------------------------------ //
@@ -211,9 +206,7 @@ class WindowFunctionRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         String sql = rendered.getSql();
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("(SELECT COUNT(*)"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("FROM t_order o"));
-        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("AS orderCount"));
+        assertThat(sql).contains("(SELECT COUNT(*)").contains("FROM t_order o").contains("AS orderCount");
     }
 
     @Test
@@ -234,14 +227,8 @@ class WindowFunctionRendererTest {
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
         // SELECT clause is rendered before WHERE, so the scalar subquery's param is :p1
         // and the outer WHERE param is :p2.
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p1"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "PAID", rendered.getParams().get("p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getParams().containsKey("p2"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "ACTIVE", rendered.getParams().get("p2"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("o.status = :p1"));
-        org.junit.jupiter.api.Assertions.assertTrue(rendered.getSql().contains("t.status = :p2"));
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID").containsEntry("p2", "ACTIVE");
+        assertThat(rendered.getSql()).contains("o.status = :p1").contains("t.status = :p2");
     }
 
     // ------------------------------------------------------------------ //
@@ -259,7 +246,6 @@ class WindowFunctionRendererTest {
                 .mapTo(UserRnDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                rendered.getSql().contains("ROW_NUMBER() OVER (ORDER BY t.age ASC NULLS FIRST)"));
+        assertThat(rendered.getSql()).contains("ROW_NUMBER() OVER (ORDER BY t.age ASC NULLS FIRST)");
     }
 }

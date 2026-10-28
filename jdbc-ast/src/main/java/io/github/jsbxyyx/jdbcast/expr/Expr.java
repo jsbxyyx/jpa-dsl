@@ -46,8 +46,7 @@ public sealed interface Expr<V>
                 SubqueryExpr,
                 AliasedExpr,
                 StarExpr,
-                RawExpr,
-                ArithmeticExpr {
+                RawExpr {
 
     // ------------------------------------------------------------------ //
     //  Alias

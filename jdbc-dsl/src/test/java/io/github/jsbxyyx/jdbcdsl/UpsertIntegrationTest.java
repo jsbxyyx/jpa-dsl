@@ -14,6 +14,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * Integration tests for {@link JdbcDslExecutor#upsert} using H2.
  *
@@ -57,10 +59,9 @@ class UpsertIntegrationTest {
 
         List<Map<String, Object>> rows =
                 jdbcTemplate.queryForList("SELECT username, email, age, status FROM t_user", Collections.emptyMap());
-        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals("alice", rows.get(0).get("USERNAME"));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "alice@example.com", rows.get(0).get("EMAIL"));
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("USERNAME")).isEqualTo("alice");
+        assertThat(rows.get(0).get("EMAIL")).isEqualTo("alice@example.com");
     }
 
     // ------------------------------------------------------------------ //
@@ -84,10 +85,9 @@ class UpsertIntegrationTest {
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "SELECT username, email, status FROM t_user WHERE username = 'alice'", Collections.emptyMap());
-        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size()); // still exactly one row
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "new@example.com", rows.get(0).get("EMAIL"));
-        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", rows.get(0).get("STATUS"));
+        assertThat(rows).hasSize(1); // still exactly one row
+        assertThat(rows.get(0).get("EMAIL")).isEqualTo("new@example.com");
+        assertThat(rows.get(0).get("STATUS")).isEqualTo("ACTIVE");
     }
 
     // ------------------------------------------------------------------ //
@@ -114,9 +114,9 @@ class UpsertIntegrationTest {
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT email, age, status FROM t_user WHERE username = 'bob'", Collections.emptyMap());
-        org.junit.jupiter.api.Assertions.assertEquals("bob@new.com", row.get("EMAIL")); // updated
-        org.junit.jupiter.api.Assertions.assertEquals(25, row.get("AGE")); // unchanged
-        org.junit.jupiter.api.Assertions.assertEquals("ACTIVE", row.get("STATUS")); // unchanged
+        assertThat(row.get("EMAIL")).isEqualTo("bob@new.com"); // updated
+        assertThat(row.get("AGE")).isEqualTo(25); // unchanged
+        assertThat(row.get("STATUS")).isEqualTo("ACTIVE"); // unchanged
     }
 
     // ------------------------------------------------------------------ //
@@ -136,9 +136,8 @@ class UpsertIntegrationTest {
 
         List<Map<String, Object>> rows =
                 jdbcTemplate.queryForList("SELECT username, email, age FROM t_user", Collections.emptyMap());
-        org.junit.jupiter.api.Assertions.assertEquals(1, rows.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                "second@example.com", rows.get(0).get("EMAIL"));
-        org.junit.jupiter.api.Assertions.assertEquals(41, rows.get(0).get("AGE"));
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("EMAIL")).isEqualTo("second@example.com");
+        assertThat(rows.get(0).get("AGE")).isEqualTo(41);
     }
 }

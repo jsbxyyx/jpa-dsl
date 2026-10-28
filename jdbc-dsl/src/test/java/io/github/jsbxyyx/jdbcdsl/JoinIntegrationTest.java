@@ -17,6 +17,7 @@ import java.util.List;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countStar;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for JOIN enhancements using H2 in-memory database.
@@ -71,10 +72,7 @@ class JoinIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
     }
 
     @Test
@@ -88,7 +86,7 @@ class JoinIntegrationTest {
         long count = executor.count(spec);
 
         // alice + bob have orders; charlie has none → 2 distinct users
-        org.junit.jupiter.api.Assertions.assertEquals(2, count);
+        assertThat(count).isEqualTo(2);
     }
 
     // ------------------------------------------------------------------ //
@@ -110,13 +108,9 @@ class JoinIntegrationTest {
         List<UserOrderDto> result = executor.select(spec);
 
         // alice has 2 orders, bob has 1 → 3 rows total
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("ORD-001", "ORD-002", "ORD-003"),
-                (result).stream().map(UserOrderDto::getOrderNo).toList());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "alice", "bob"),
-                (result).stream().map(UserOrderDto::getUsername).toList());
+        assertThat(result).hasSize(3);
+        assertThat(result).extracting(UserOrderDto::getOrderNo).containsExactly("ORD-001", "ORD-002", "ORD-003");
+        assertThat(result).extracting(UserOrderDto::getUsername).containsExactly("alice", "alice", "bob");
     }
 
     @Test
@@ -130,14 +124,14 @@ class JoinIntegrationTest {
         List<UserOrderDto> result = executor.select(spec);
 
         // alice 2 orders + bob 1 order + charlie 0 orders (1 row with nulls) = 4 rows
-        org.junit.jupiter.api.Assertions.assertEquals(4, result.size());
+        assertThat(result).hasSize(4);
 
         UserOrderDto charlieRow = result.stream()
                 .filter(r -> "charlie".equals(r.getUsername()))
                 .findFirst()
                 .orElseThrow();
-        org.junit.jupiter.api.Assertions.assertNull(charlieRow.getOrderNo());
-        org.junit.jupiter.api.Assertions.assertNull(charlieRow.getAmount());
+        assertThat(charlieRow.getOrderNo()).isNull();
+        assertThat(charlieRow.getAmount()).isNull();
     }
 
     @Test
@@ -151,13 +145,10 @@ class JoinIntegrationTest {
         List<UserOrderDto> result = executor.select(spec);
 
         // ORD-001 (alice, PAID) + ORD-003 (bob, PAID) → 2 rows
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("ORD-001", "ORD-003")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserOrderDto::getOrderNo).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserOrderDto::getOrderNo).toList().size());
+        assertThat(result)
+                .hasSize(2)
+                .extracting(UserOrderDto::getOrderNo)
+                .containsExactlyInAnyOrder("ORD-001", "ORD-003");
     }
 
     @Test
@@ -177,13 +168,11 @@ class JoinIntegrationTest {
         List<UserOrderDto> result = executor.select(spec);
 
         // alice: 100 + 250 = 350, bob: 50
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("alice", result.get(0).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                0, ((java.lang.Comparable) result.get(0).getAmount()).compareTo(new BigDecimal("350.00")));
-        org.junit.jupiter.api.Assertions.assertEquals("bob", result.get(1).getUsername());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                0, ((java.lang.Comparable) result.get(1).getAmount()).compareTo(new BigDecimal("50.00")));
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getUsername()).isEqualTo("alice");
+        assertThat(result.get(0).getAmount()).isEqualByComparingTo(new BigDecimal("350.00"));
+        assertThat(result.get(1).getUsername()).isEqualTo("bob");
+        assertThat(result.get(1).getAmount()).isEqualByComparingTo(new BigDecimal("50.00"));
     }
 
     // ------------------------------------------------------------------ //
@@ -204,13 +193,7 @@ class JoinIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
 
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals(
-                new java.util.HashSet<>(java.util.Arrays.asList("alice", "charlie")),
-                new java.util.HashSet<>(
-                        (result).stream().map(UserDto::getUsername).toList()));
-        org.junit.jupiter.api.Assertions.assertEquals(
-                2, (result).stream().map(UserDto::getUsername).toList().size());
+        assertThat(result).hasSize(2).extracting(UserDto::getUsername).containsExactlyInAnyOrder("alice", "charlie");
     }
 
     @Test
@@ -224,7 +207,7 @@ class JoinIntegrationTest {
         long count = executor.count(spec);
 
         // alice + charlie share ACTIVE status with alice → 2 distinct users
-        org.junit.jupiter.api.Assertions.assertEquals(2, count);
+        assertThat(count).isEqualTo(2);
     }
 
     // ------------------------------------------------------------------ //
@@ -249,10 +232,8 @@ class JoinIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
         // all 3 users: LEFT JOIN keeps charlie even though he has no orders
-        org.junit.jupiter.api.Assertions.assertEquals(3, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "bob", "charlie"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(3);
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("alice", "bob", "charlie");
     }
 
     @Test
@@ -272,10 +253,8 @@ class JoinIntegrationTest {
                 .mapTo(UserDto.class);
 
         List<UserDto> result = executor.select(spec);
-        org.junit.jupiter.api.Assertions.assertEquals(2, result.size());
-        org.junit.jupiter.api.Assertions.assertIterableEquals(
-                java.util.Arrays.asList("alice", "bob"),
-                (result).stream().map(UserDto::getUsername).toList());
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(UserDto::getUsername).containsExactly("alice", "bob");
     }
 
     @Test
@@ -299,7 +278,7 @@ class JoinIntegrationTest {
 
         List<UserDto> result = executor.select(spec);
         // alice has exactly 1 PAID order → 1 row
-        org.junit.jupiter.api.Assertions.assertEquals(1, result.size());
-        org.junit.jupiter.api.Assertions.assertEquals("alice", result.get(0).getUsername());
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("alice");
     }
 }
