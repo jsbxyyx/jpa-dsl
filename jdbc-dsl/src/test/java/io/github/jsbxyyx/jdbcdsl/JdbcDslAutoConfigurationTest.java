@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests for {@link JdbcDslAutoConfiguration}: enabled/disabled switches and Dialect auto-detection.
+ * Tests for {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration}: enabled/disabled switches and Dialect auto-detection.
  */
 class JdbcDslAutoConfigurationTest {
 
@@ -24,7 +24,7 @@ class JdbcDslAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(
                     DataSourceAutoConfiguration.class,
                     JdbcTemplateAutoConfiguration.class,
-                    JdbcDslAutoConfiguration.class))
+                    io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration.class))
             .withPropertyValues(
                     "spring.datasource.url=jdbc:h2:mem:jdbcdsl_autoconfig_test;DB_CLOSE_DELAY=-1",
                     "spring.datasource.driver-class-name=org.h2.Driver");

@@ -1,5 +1,14 @@
-package io.github.jsbxyyx.jdbcdsl;
+package io.github.jsbxyyx.jdbcdsl.spring;
 
+import io.github.jsbxyyx.jdbcdsl.DefaultNamingStrategy;
+import io.github.jsbxyyx.jdbcdsl.DeleteBuilder;
+import io.github.jsbxyyx.jdbcdsl.EntityMetaReader;
+import io.github.jsbxyyx.jdbcdsl.JdbcDslConfig;
+import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;
+import io.github.jsbxyyx.jdbcdsl.NamingStrategy;
+import io.github.jsbxyyx.jdbcdsl.PropertyRefResolver;
+import io.github.jsbxyyx.jdbcdsl.SnakeCaseNamingStrategy;
+import io.github.jsbxyyx.jdbcdsl.UpdateBuilder;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
@@ -67,9 +76,7 @@ public class JdbcDslAutoConfiguration {
         return new JdbcDslConfigInitializer();
     }
 
-    /**
-     * Marker class to ensure JdbcDslConfig is initialized.
-     */
+    /** Marker class to ensure JdbcDslConfig is initialized. */
     public static class JdbcDslConfigInitializer {}
 
     private static NamingStrategy buildNamingStrategy(String value) {

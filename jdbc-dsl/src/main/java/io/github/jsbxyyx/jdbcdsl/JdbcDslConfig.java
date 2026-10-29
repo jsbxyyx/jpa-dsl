@@ -6,7 +6,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Runtime configuration holder for jdbc-dsl.
  *
- * <p>Populated by {@link JdbcDslAutoConfiguration} on startup from {@link JdbcDslProperties}.
+ * <p>Populated by {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration} on startup from
+ * {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties}.
  * Builders ({@link UpdateBuilder}, {@link DeleteBuilder}) and {@link EntityMetaReader} read from
  * this class so that they do not need a Spring dependency injection context.
  */
@@ -28,10 +29,10 @@ public final class JdbcDslConfig {
     }
 
     /**
-     * Called by {@link JdbcDslAutoConfiguration} to apply the value read from
-     * {@link JdbcDslProperties}. Not intended for direct application use.
+     * Called by {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration} to apply the value read from
+     * {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties}. Not intended for direct application use.
      */
-    static void setAllowEmptyWhere(boolean value) {
+    public static void setAllowEmptyWhere(boolean value) {
         allowEmptyWhere.set(value);
     }
 
@@ -45,10 +46,10 @@ public final class JdbcDslConfig {
     }
 
     /**
-     * Called by {@link JdbcDslAutoConfiguration} to apply the value read from
-     * {@link JdbcDslProperties}. Not intended for direct application use.
+     * Called by {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration} to apply the value read from
+     * {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties}. Not intended for direct application use.
      */
-    static void setLogicalDeleteAutoFilter(boolean value) {
+    public static void setLogicalDeleteAutoFilter(boolean value) {
         logicalDeleteAutoFilter.set(value);
     }
 
@@ -63,7 +64,7 @@ public final class JdbcDslConfig {
 
     /**
      * Sets the active {@link NamingStrategy}.
-     * Called by {@link JdbcDslAutoConfiguration}; may also be called directly when
+     * Called by {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration}; may also be called directly when
      * running without Spring (e.g. {@code JdbcDslConfig.setNamingStrategy(SnakeCaseNamingStrategy.INSTANCE)}).
      */
     public static void setNamingStrategy(NamingStrategy strategy) {

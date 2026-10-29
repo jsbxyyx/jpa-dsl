@@ -1,4 +1,4 @@
-package io.github.jsbxyyx.jdbcdsl;
+package io.github.jsbxyyx.jdbcdsl.spring;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
