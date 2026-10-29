@@ -909,21 +909,21 @@ public final class SqlRenderer {
      * resolved directly from the entity metadata without a table alias.
      */
     private static String renderPredicateStandalone(PredicateNode node, EntityMeta meta, RenderContext ctx) {
-        if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf) {
+        if (node instanceof LeafPredicate leaf) {
             return renderLeafStandalone(leaf, meta, ctx);
-        } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.AndPredicate and) {
+        } else if (node instanceof AndPredicate and) {
             StringJoiner joiner = new StringJoiner(" AND ", "(", ")");
             for (PredicateNode child : and.getChildren()) {
                 joiner.add(renderPredicateStandalone(child, meta, ctx));
             }
             return joiner.toString();
-        } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.OrPredicate or) {
+        } else if (node instanceof OrPredicate or) {
             StringJoiner joiner = new StringJoiner(" OR ", "(", ")");
             for (PredicateNode child : or.getChildren()) {
                 joiner.add(renderPredicateStandalone(child, meta, ctx));
             }
             return joiner.toString();
-        } else if (node instanceof io.github.jsbxyyx.jdbcdsl.predicate.NotPredicate not) {
+        } else if (node instanceof NotPredicate not) {
             return "NOT (" + renderPredicateStandalone(not.getChild(), meta, ctx) + ")";
         } else if (node instanceof RawPredicate raw) {
             return renderRawPredicate(raw, ctx);
@@ -932,12 +932,11 @@ public final class SqlRenderer {
         }
     }
 
-    private static String renderLeafStandalone(
-            io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate leaf, EntityMeta meta, RenderContext ctx) {
+    private static String renderLeafStandalone(LeafPredicate leaf, EntityMeta meta, RenderContext ctx) {
         // Resolve LHS: if the expression is a ColumnExpression, resolve its column name from meta
         String lhs;
-        io.github.jsbxyyx.jdbcdsl.expr.SqlExpression<?> expr = leaf.getExpression();
-        if (expr instanceof io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression<?> col) {
+        SqlExpression<?> expr = leaf.getExpression();
+        if (expr instanceof ColumnExpression<?> col) {
             String propName = col.getPropertyRef().propertyName();
             String colName = meta.getColumnName(propName);
             if (colName == null) {
