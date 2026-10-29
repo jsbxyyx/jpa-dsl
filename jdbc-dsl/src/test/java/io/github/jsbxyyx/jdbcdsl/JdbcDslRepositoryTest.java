@@ -3,6 +3,9 @@ package io.github.jsbxyyx.jdbcdsl;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -10,32 +13,29 @@ import static org.mockito.Mockito.verify;
 class JdbcDslRepositoryTest {
 
     @Test
-    void builderFactoriesPreserveBoundEntityType() {
+    void buildersCanBeCreatedDirectlyWithoutRepositoryFactories() {
         JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
         TestUserRepository repository = new TestUserRepository(executor);
 
         assertThat(repository.getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository
-                        .selectBuilder()
-                        .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
-                        .mapToEntity()
-                        .getEntityClass())
+        assertThat(SelectBuilder.from(TUser.class).mapToEntity().getEntityClass())
                 .isEqualTo(TUser.class);
-        assertThat(repository.insertBuilder().build().getEntityClass()).isEqualTo(TUser.class);
-        assertThat(repository
-                        .updateBuilder()
+        assertThat(InsertBuilder.into(TUser.class).build().getEntityClass()).isEqualTo(TUser.class);
+        assertThat(UpdateBuilder.from(TUser.class)
                         .set(TUser::getStatus, "ACTIVE")
                         .where(w -> w.eq(TUser::getId, 1L))
                         .build()
                         .getEntityClass())
                 .isEqualTo(TUser.class);
-        assertThat(repository
-                        .deleteBuilder()
+        assertThat(DeleteBuilder.from(TUser.class)
                         .where(w -> w.eq(TUser::getId, 1L))
                         .build()
                         .getEntityClass())
                 .isEqualTo(TUser.class);
-        assertThat(repository.upsertBuilder().onConflict(TUser::getId).build().getEntityClass())
+        assertThat(UpsertBuilder.into(TUser.class)
+                        .onConflict(TUser::getId)
+                        .build()
+                        .getEntityClass())
                 .isEqualTo(TUser.class);
     }
 
@@ -46,7 +46,7 @@ class JdbcDslRepositoryTest {
         TUser user = new TUser();
 
         UpsertSpec<TUser> upsertSpec =
-                repository.upsertBuilder().onConflict(TUser::getId).build();
+                UpsertBuilder.into(TUser.class).onConflict(TUser::getId).build();
 
         repository.save(user);
         repository.upsert(upsertSpec, user);
@@ -60,11 +60,28 @@ class JdbcDslRepositoryTest {
     }
 
     @Test
+    void saveAllAcceptsSetAndDelegatesToBatchInsert() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        TUser first = new TUser();
+        TUser second = new TUser();
+        LinkedHashSet<TUser> users = new LinkedHashSet<>(List.of(first, second));
+
+        repository.saveAll(users);
+
+        org.mockito.ArgumentCaptor<BatchInsertSpec<TUser>> captor =
+                org.mockito.ArgumentCaptor.forClass(BatchInsertSpec.class);
+        verify(executor).executeBatchInsert(captor.capture());
+        assertThat(captor.getValue().getEntityClass()).isEqualTo(TUser.class);
+        assertThat(captor.getValue().getRows()).containsExactly(first, second);
+        assertThat(captor.getValue().getColumnNames()).isEmpty();
+    }
+
+    @Test
     void countWithSpecDelegatesToSharedExecutor() {
         JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
         TestUserRepository repository = new TestUserRepository(executor);
-        SelectSpec<TUser, TUser> spec = repository
-                .selectBuilder()
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
                 .mapToEntity();
 
@@ -87,7 +104,7 @@ class JdbcDslRepositoryTest {
     void listWithUnpagedSortDelegatesToSharedExecutor() {
         JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
         TestUserRepository repository = new TestUserRepository(executor);
-        SelectSpec<TUser, TUser> spec = repository.selectBuilder().mapToEntity();
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
         JPageable<TUser> pageable = JPageable.unpaged(JSort.byDesc(TUser::getId));
 
         repository.list(spec, pageable);

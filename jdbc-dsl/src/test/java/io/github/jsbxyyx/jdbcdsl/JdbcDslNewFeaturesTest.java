@@ -11,6 +11,7 @@ import org.springframework.test.context.jdbc.Sql;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,6 +55,17 @@ class JdbcDslNewFeaturesTest {
                 BatchInsertBuilder.of(TAuditUser.class, List.of()).build();
         int[] result = executor.executeBatchInsert(spec);
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void executeBatchInsert_acceptsSet() {
+        LinkedHashSet<TAuditUser> users =
+                new LinkedHashSet<>(List.of(new TAuditUser("set1", "ACTIVE"), new TAuditUser("set2", "ACTIVE")));
+
+        int[] affected = executor.executeBatchInsert(
+                BatchInsertBuilder.of(TAuditUser.class, users).build());
+
+        assertThat(affected).hasSize(2).containsOnly(1);
     }
 
     @Test

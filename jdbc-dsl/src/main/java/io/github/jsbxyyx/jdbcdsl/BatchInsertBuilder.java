@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 批量 INSERT 的流式构建器，用于创建 {@link BatchInsertSpec}。
@@ -41,8 +42,13 @@ public final class BatchInsertBuilder<T> {
      * @param <T>         实体类型
      * @return 新的 {@link BatchInsertBuilder}
      */
-    public static <T> BatchInsertBuilder<T> of(Class<T> entityClass, List<T> rows) {
-        return new BatchInsertBuilder<>(entityClass, rows);
+    public static <T> BatchInsertBuilder<T> of(Class<T> entityClass, Iterable<T> rows) {
+        Objects.requireNonNull(entityClass, "entityClass");
+        Objects.requireNonNull(rows, "rows");
+
+        List<T> rowList = new ArrayList<>();
+        rows.forEach(rowList::add);
+        return new BatchInsertBuilder<>(entityClass, rowList);
     }
 
     /**

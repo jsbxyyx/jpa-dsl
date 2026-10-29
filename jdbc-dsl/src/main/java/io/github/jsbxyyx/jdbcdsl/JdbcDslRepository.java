@@ -47,34 +47,28 @@ public abstract class JdbcDslRepository<T, ID> {
         return jdbcDslExecutor;
     }
 
-    /** Creates a type-safe SELECT builder for the bound entity. */
-    public SelectBuilder<T> selectBuilder() {
-        return SelectBuilder.from(entityClass);
-    }
-
-    /** Creates a type-safe INSERT builder for the bound entity. */
-    public InsertBuilder<T> insertBuilder() {
-        return InsertBuilder.into(entityClass);
-    }
-
-    /** Creates a type-safe UPDATE builder for the bound entity. */
-    public UpdateBuilder<T> updateBuilder() {
-        return UpdateBuilder.from(entityClass);
-    }
-
-    /** Creates a type-safe DELETE builder for the bound entity. */
-    public DeleteBuilder<T> deleteBuilder() {
-        return DeleteBuilder.from(entityClass);
-    }
-
-    /** Creates a type-safe UPSERT builder for the bound entity. */
-    public UpsertBuilder<T> upsertBuilder() {
-        return UpsertBuilder.into(entityClass);
-    }
-
     /** Inserts an entity using all mapped columns except an IDENTITY primary key. */
     public void save(T entity) {
         jdbcDslExecutor.save(entity);
+    }
+
+    /**
+     * Inserts multiple entities using JDBC batch execution.
+     *
+     * <p>All mapped columns are inserted, except an IDENTITY-generated primary key.
+     * Creation and modification timestamps are auto-filled in the same way as {@link #save(Object)}.
+     * An empty iterable returns an empty array.
+     *
+     * <p>Unlike repeated calls to {@link #save(Object)}, this method does not populate generated
+     * IDENTITY keys back into the entities.
+     *
+     * @param entities entities to insert
+     * @return affected-row counts in input order, as reported by the JDBC driver
+     */
+    public int[] saveAll(Iterable<T> entities) {
+        Objects.requireNonNull(entities, "entities");
+        BatchInsertSpec<T> spec = BatchInsertBuilder.of(entityClass, entities).build();
+        return jdbcDslExecutor.executeBatchInsert(spec);
     }
 
     /** Inserts an entity using the columns selected by the supplied specification. */
