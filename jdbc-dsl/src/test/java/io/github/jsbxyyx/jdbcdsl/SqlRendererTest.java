@@ -162,6 +162,25 @@ class SqlRendererTest {
     }
 
     @Test
+    void renderCount_distinctCountsRowsFromDistinctProjection() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getStatus)
+                .distinct()
+                .where(w -> w.eq(TUser::getAge, 18))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderCount(spec);
+        assertThat(rendered.getSql())
+                .startsWith("SELECT COUNT(*) FROM (SELECT DISTINCT ")
+                .contains("t.status AS status")
+                .contains("FROM t_user t")
+                .contains("WHERE t.age = :p1")
+                .contains(") _count_t")
+                .doesNotContain("ORDER BY");
+        assertThat(rendered.getParams()).containsEntry("p1", 18);
+    }
+
+    @Test
     void renderCount_withJoin_countsJoinedRows() {
         // JOIN count follows SQL row semantics: each matching joined row is counted.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")

@@ -280,6 +280,15 @@ public final class SqlRenderer {
     public static <T, R> RenderedSql renderCount(SelectSpec<T, R> spec) {
         RenderContext ctx = new RenderContext();
 
+        // COUNT must match the number of rows returned by a DISTINCT query. Counting
+        // the underlying table/JOIN rows would over-count when the selected values repeat.
+        // Render the complete SELECT (without ORDER BY) as a derived table so DISTINCT
+        // applies to the actual projection, including multi-column and expression selects.
+        if (spec.isDistinct()) {
+            String innerSql = buildSelectSqlUnchecked(spec, ctx, false);
+            return new RenderedSql("SELECT COUNT(*) FROM (" + innerSql + ") _count_t", ctx.getParams());
+        }
+
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
         // Honour subqueryFrom > tableNameOverride > entity table name.
