@@ -1,5 +1,7 @@
 # jdbc-dsl
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.jsbxyyx/jdbc-dsl?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.jsbxyyx/jdbc-dsl)
+
 Java 17+ 类型安全 JDBC 查询 DSL，基于 Spring JDBC，使用 Maven 多模块构建。
 
 ## 模块
