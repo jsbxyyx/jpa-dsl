@@ -178,6 +178,15 @@ class RawSqlIntegrationTest {
     }
 
     @Test
+    void queryOne_rawSql_withMultipleRows_returnsOnlyFirstRow() {
+        UserDto result =
+                executor.queryOne("SELECT id, username FROM t_user ORDER BY username", Map.of(), UserDto.class);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getUsername()).isEqualTo("alice");
+    }
+
+    @Test
     void queryOne_rawSql_noMatch_returnsNull() {
         UserDto result = executor.queryOne(
                 "SELECT id, username FROM t_user WHERE username = :name", Map.of("name", "nobody"), UserDto.class);

@@ -383,6 +383,7 @@ public final class UpdateBuilder<T> {
      *         is configured globally
      */
     public UpdateSpec<T> build() {
+        validateAssignments();
         PredicateNode where = whereNode();
         if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
             throw new IllegalStateException(
@@ -397,7 +398,15 @@ public final class UpdateBuilder<T> {
      * <strong>Use with caution</strong>: this allows UPDATE without a WHERE clause (updates all rows).
      */
     public UpdateSpec<T> buildUnsafe() {
+        validateAssignments();
         return new UpdateSpec<>(entityClass, assignments, whereNode());
+    }
+
+    private void validateAssignments() {
+        if (assignments.isEmpty()) {
+            throw new IllegalStateException("UpdateBuilder requires at least one set(...) assignment. "
+                    + "Check conditional set(..., condition) calls and ensure at least one condition is true.");
+        }
     }
 
     // ------------------------------------------------------------------ //

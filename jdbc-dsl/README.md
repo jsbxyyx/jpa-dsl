@@ -262,6 +262,133 @@ JPageable allSorted = JPageable.unpaged(
 
 分页查询 API（例如 selectPage）需要 paged 的 JPageable；普通列表查询可以使用 JPageable.unpaged()。请以当前版本的 JPageable、JdbcDslExecutor 和 Repository API 为准。
 
+## INSERT、UPDATE 与 DELETE
+
+### 1. INSERT：插入指定列
+
+通过 `InsertBuilder.into(...).columns(...)` 指定要写入的列，再使用 `executor.save(spec, entity)` 执行。推荐使用实体 getter 方法引用，避免手写属性名：
+
+~~~java
+InsertSpec<User> insertSpec = InsertBuilder.into(User.class)
+    .columns(User::getName, User::getStatus)
+    .build();
+
+User user = new User();
+user.setName("Alice");
+user.setStatus("ACTIVE");
+
+executor.save(insertSpec, user);
+~~~
+
+未列入 `columns(...)` 的字段不会作为本次 INSERT 的指定列写入。也可以传入数据库列名字符串，例如 `.columns("user_name", "status")`；使用字符串时需填写实际数据库列名。
+
+### 2. UPDATE：按条件更新
+
+~~~java
+UpdateSpec<User> updateSpec = UpdateBuilder.from(User.class)
+    .set(User::getStatus, "DISABLED")
+    .where(w -> w.eq(User::getName, "Alice"))
+    .build();
+
+int affectedRows = executor.executeUpdate(updateSpec);
+~~~
+
+可以连续调用多个 `set(...)` 更新多列。为避免意外全表更新，默认要求 UPDATE 提供 WHERE 条件；请在执行前确认更新条件符合预期。
+
+### 3. DELETE：按条件删除
+
+~~~java
+DeleteSpec<User> deleteSpec = DeleteBuilder.from(User.class)
+    .where(w -> w.eq(User::getName, "Alice"))
+    .build();
+
+int affectedRows = executor.executeDelete(deleteSpec);
+~~~
+
+`executeUpdate` 和 `executeDelete` 返回受影响的行数。DELETE 同样默认要求提供 WHERE 条件；不要在未确认影响范围时使用允许无条件删除的配置或不安全构建方式。
+
+## SQL 函数
+
+函数表达式通过 `SqlFunctions` 提供，可用于 SELECT 投影、WHERE 条件和聚合查询。以下示例使用静态导入：
+
+~~~java
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.countDistinct;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
+~~~
+
+### 1. 字符串函数：UPPER
+
+例如，查询邮箱不区分大小写匹配的用户：
+
+~~~java
+SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
+    .select(User::getId, User::getName)
+    .where(w -> w.eq(upper(User::getEmail), "ALICE@EXAMPLE.COM"))
+    .mapTo(UserDto.class);
+
+List<UserDto> users = executor.select(spec);
+~~~
+
+函数也可以用于 SELECT 投影，例如 `.select(upper(User::getName).as("nameUpper"))`。具体可用函数请参考 `SqlFunctions`。
+
+### 2. COUNT(DISTINCT)：统计不重复值
+
+当 JOIN 结果中同一个用户可能出现多次，但业务需要统计不同用户数时，使用 `countDistinct(...)`：
+
+~~~java
+SelectSpec<User, Long> spec = SelectBuilder.from(User.class)
+    .select(countDistinct(User::getId))
+    .join(Order.class, "o", JoinType.INNER,
+        on -> on.eq(User::getId, "t", Order::getUserId, "o"))
+    .mapTo(Long.class);
+
+Long distinctUserCount = executor.select(spec).stream()
+    .findFirst()
+    .orElse(0L);
+~~~
+
+`COUNT(DISTINCT u.id)` 统计不重复的用户 ID；与执行器的 `executor.count(spec)` 不同，它是 SELECT 中显式指定的聚合表达式。普通 JOIN 计数不会自动对根实体去重。
+
+## 代码生成：从数据库表生成 Entity 和 Repository
+
+`JdbcEntityGenerator` 可以读取已配置数据源的数据库元数据，生成带有 Jakarta Persistence 映射注解的实体类；配置 `repositoryPackage(...)` 后，还可以生成继承 `JdbcDslRepository` 的 Spring `@Repository` 类。
+
+下面以 Spring 的 `DriverManagerDataSource` 为例。请根据实际数据库替换驱动类、JDBC URL、用户名和密码，并确保应用已添加对应的 JDBC 驱动依赖。
+
+~~~java
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import javax.sql.DataSource;
+import io.github.jsbxyyx.jdbcdsl.codegen.JdbcEntityGenerator;
+
+DataSource dataSource = new DriverManagerDataSource(
+    "jdbc:postgresql://localhost:5432/app",
+    "app_user",
+    "your_password"
+);
+
+JdbcEntityGenerator.builder()
+    .dataSource(dataSource)
+    .entityPackage("com.example.entity")
+    .repositoryPackage("com.example.repository")
+    .outputDir("src/main/java")
+    .useLombok(true)
+    .trimPrefix("t_", "tb_")
+    .generate("t_user", "t_order");
+~~~
+
+参数说明：
+
+- `dataSource(...)`：连接目标数据库的数据源。
+- `entityPackage(...)`：生成实体类的 Java 包名。
+- `repositoryPackage(...)`：生成 Repository 的 Java 包名；不配置时跳过 Repository 生成。
+- `outputDir(...)`：生成源码的根目录，默认是 `src/main/java`。
+- `useLombok(true)`：生成 Lombok 注解（默认开启）；设为 `false` 则生成普通 getter 和链式 setter。
+- `trimPrefix("t_", "tb_")`：生成类名时移除匹配的表名前缀。
+- `generate("t_user", "t_order")`：只生成指定表；调用无参数的 `generate()` 会尝试处理数据库中的所有表。
+
+例如，`t_user` 可以生成到 `com.example.entity` 下，Repository 则生成到 `com.example.repository` 下。生成的 Repository 绑定实体类型和主键类型，常用 CRUD 与 DSL builder 操作继承自 `JdbcDslRepository`。生成前请确认目标包和输出目录正确，并检查生成结果后再纳入版本控制。
+
 ## 属性与表列映射
 
 通常使用 Jakarta Persistence 注解描述实体映射：

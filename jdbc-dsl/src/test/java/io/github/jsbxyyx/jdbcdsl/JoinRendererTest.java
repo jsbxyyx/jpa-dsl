@@ -49,7 +49,7 @@ class JoinRendererTest {
     }
 
     @Test
-    void renderCount_multiJoinChain_usesCountDistinct() {
+    void renderCount_multiJoinChain_countsJoinedRows() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(TUser::getId, TUser::getUsername)
                 .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
@@ -59,9 +59,10 @@ class JoinRendererTest {
         RenderedSql rendered = SqlRenderer.renderCount(spec);
         String sql = rendered.getSql();
 
-        // With JOINs, must use COUNT(DISTINCT pk) to avoid duplicate rows
+        // JOIN count must preserve every row produced by the joined tables.
         assertThat(sql)
-                .contains("COUNT(DISTINCT u.id)")
+                .contains("SELECT COUNT(*)")
+                .doesNotContain("COUNT(DISTINCT")
                 .contains("INNER JOIN t_order o")
                 .contains("LEFT JOIN t_audit_user au");
     }
@@ -93,6 +94,46 @@ class JoinRendererTest {
                 .contains("o.status AS orderStatus")
                 .contains("FROM t_user u")
                 .contains("INNER JOIN t_order o ON u.id = o.user_id");
+    }
+
+    @Test
+    void renderSelect_sameNamedColumnsRequireDistinctOutputAliases() {
+        SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(col(TUser::getId, "u"), col(TOrder::getId, "o"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .mapTo(UserOrderDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Duplicate SELECT output alias 'id'")
+                .hasMessageContaining(".as(...)");
+    }
+
+    @Test
+    void renderSelect_sameNamedColumnsCanBeProjectedWithDistinctAliases() {
+        SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(
+                        col(TUser::getId, "u").as("userId"),
+                        col(TOrder::getId, "o").as("orderId"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .mapTo(UserOrderDto.class);
+
+        assertThat(SqlRenderer.renderSelect(spec).getSql())
+                .contains("u.id AS userId")
+                .contains("o.id AS orderId");
+    }
+
+    @Test
+    void renderSelect_leftJoinOnCondition_supportsBoundParameters() {
+        SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(col(TUser::getId, "u"), col(TOrder::getId, "o").as("orderId"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o")
+                        .raw("o.status = :orderStatus", java.util.Map.of("orderStatus", "PAID")))
+                .mapTo(UserOrderDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("LEFT JOIN t_order o ON u.id = o.user_id AND o.status = :orderStatus");
+        assertThat(rendered.getParams()).containsEntry("orderStatus", "PAID");
     }
 
     @Test
@@ -162,6 +203,70 @@ class JoinRendererTest {
                 .mapTo(UserDto.class);
 
         assertThat(SqlRenderer.renderSelect(spec).getSql()).contains("u2.id AS id");
+    }
+
+    @Test
+    void renderSelect_explicitJoinAliasCanBeUsedBeforeJoinDeclaration() {
+        SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(TOrder.class, "o")
+                .where(TOrder.class, "o", w -> w.eq(TOrder::getStatus, "PAID"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .mapTo(UserOrderDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql())
+                .contains("SELECT o.id AS id")
+                .contains("LEFT JOIN t_order o ON u.id = o.user_id")
+                .contains("WHERE o.status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
+    }
+
+    @Test
+    void renderSelect_duplicateJoinAlias_failsFast() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
+                .join(TOrder.class, "x", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "x"))
+                .join(TAuditUser.class, "x", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TAuditUser::getId, "x"))
+                .select(TUser::getId)
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Duplicate SQL table alias 'x'");
+    }
+
+    @Test
+    void renderSelect_invalidTableAlias_failsBeforeRenderingSql() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u; DROP_TABLE")
+                .select(TUser::getId)
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid SQL table alias");
+    }
+
+    @Test
+    void renderSelect_joinOnUnknownAlias_failsClearly() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "missing", TOrder::getUserId, "o"))
+                .select(TUser::getId)
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Alias 'missing' does not identify entity");
+    }
+
+    @Test
+    void renderSelect_explicitAliasForWrongEntity_failsClearly() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(col(TOrder::getOrderNo, "u"))
+                .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .mapTo(UserDto.class);
+
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(spec))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Alias 'u' does not identify entity");
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
 import io.github.jsbxyyx.jdbcdsl.bean.ConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.bean.MapperCache;
+import io.github.jsbxyyx.jdbcdsl.bean.PropertyAccessor;
 import io.github.jsbxyyx.jdbcdsl.bean.ResultSetMapper;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
@@ -16,6 +17,7 @@ import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -55,6 +57,7 @@ public final class JdbcDslExecutor {
     private final JdbcDslCacheManager cacheManager;
     private final BeanMappingMetaFactory beanMappingMetaFactory;
     private final MapperCache mapperCache;
+    private final ConverterRegistry converterRegistry;
     private TimeProvider timeProvider = LocalDateTime::now;
 
     /**
@@ -93,8 +96,7 @@ public final class JdbcDslExecutor {
         this.dialect = dialect;
         this.cacheManager = cacheManager;
         this.beanMappingMetaFactory = beanMappingMetaFactory;
-        ConverterRegistry converterRegistry =
-                new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+        this.converterRegistry = new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
         this.mapperCache = new MapperCache(cacheManager, converterRegistry);
     }
 
@@ -147,8 +149,12 @@ public final class JdbcDslExecutor {
      */
     public <R> R queryOne(String sql, Map<String, Object> params, Class<R> resultClass) {
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
-        List<R> results = jdbc.query(sql, params, mapper);
-        return results.isEmpty() ? null : results.get(0);
+        return jdbc.query(sql, params, (ResultSetExtractor<R>) rs -> {
+            if (!rs.next()) {
+                return null;
+            }
+            return mapper.mapRow(rs, 0);
+        });
     }
 
     /**
@@ -211,11 +217,12 @@ public final class JdbcDslExecutor {
     }
 
     /**
-     * Executes a COUNT query for the given spec and returns the total number of matching rows.
+     * Executes a COUNT query for the given spec.
      *
-     * <p>When the spec contains JOINs (no GROUP BY), uses {@code COUNT(DISTINCT pk)} to avoid
-     * counting duplicate rows produced by one-to-many joins.
-     * When the spec contains GROUP BY, wraps the query as a derived table and counts groups.
+     * <p>For queries with JOINs and no GROUP BY, the count includes every row produced by the
+     * JOIN, matching SQL row semantics; a root entity matching multiple joined rows contributes
+     * multiple rows. For queries with GROUP BY, the count is the number of groups after HAVING
+     * is applied.
      */
     public <T, R> long count(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
@@ -320,8 +327,8 @@ public final class JdbcDslExecutor {
     /**
      * Executes a paginated SELECT and returns a Spring {@link Page}.
      *
-     * <p>Note: when the spec contains JOINs, the COUNT query uses {@code COUNT(*)} which may
-     * count duplicate rows. See the README for details.
+     * <p>The total count follows {@link #count(SelectSpec)} semantics: JOIN queries without
+     * GROUP BY count every matching joined row, while grouped queries count the resulting groups.
      */
     public <T, R> Page<R> selectPage(SelectSpec<T, R> spec, JPageable<T> pageable) {
         if (pageable.isUnpaged()) {
@@ -659,7 +666,12 @@ public final class JdbcDslExecutor {
                 BeanMappingMeta beanMeta = cacheManager
                         .getBeanMappingCache()
                         .get(entityClass, cls -> beanMappingMetaFactory.create(entityClass));
-                beanMeta.setProperty(entity, meta.getIdPropertyName(), key);
+                PropertyAccessor idAccessor = beanMeta.getPropertyAccessor(meta.getIdPropertyName());
+                Class<?> idType = idAccessor == null ? null : idAccessor.getType();
+                Object convertedKey = idType == null
+                        ? key
+                        : converterRegistry.getConverter(key.getClass(), idType).convert(key);
+                beanMeta.setProperty(entity, meta.getIdPropertyName(), convertedKey);
             }
         } else {
             jdbc.update(rendered.getSql(), rendered.getParams());

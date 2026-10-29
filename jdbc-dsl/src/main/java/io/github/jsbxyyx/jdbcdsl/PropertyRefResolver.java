@@ -55,15 +55,18 @@ public final class PropertyRefResolver {
      * @throws IllegalArgumentException if {@code fn} is not a method reference
      */
     public static <T, R> PropertyRef resolve(SFunction<T, R> fn) {
+        // Keep both cache lookups on the same manager if configuration changes concurrently.
+        JdbcDslCacheManager manager = getCacheManager();
+
         // Try to get cached SerializedLambda by class name
         SerializedLambda lambda =
-                getCacheManager().getSerializedLambdaCache().get(buildLambdaCacheKey(fn), k -> resolveLambda(fn));
+                manager.getSerializedLambdaCache().get(buildLambdaCacheKey(fn), k -> resolveLambda(fn));
 
         // Build PropertyRef cache key from SerializedLambda
         String propertyRefKey = buildPropertyRefCacheKey(fn, lambda);
 
         // Get or compute PropertyRef
-        return getCacheManager().getPropertyRefCache().get(propertyRefKey, k -> doResolve(lambda));
+        return manager.getPropertyRefCache().get(propertyRefKey, k -> doResolve(lambda));
     }
 
     private static PropertyRef doResolve(SerializedLambda sl) {

@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>jpa-dsl-parent</name>
-    <description>Parent aggregator for jdbc-dsl and jpa-dsl modules</description>
+    <description>Parent aggregator for jdbc-dsl and JDBC integration tests</description>
     <url>https://github.com/jsbxyyx/jpa-dsl</url>
 
     <licenses>
@@ -36,9 +36,8 @@
     </scm>
 
     <modules>
-<!--        <module>jpa-dsl</module>-->
         <module>jdbc-dsl</module>
-        <module>jdbc-ast</module>
+        <module>jdbc-integration-tests</module>
     </modules>
 
     <properties>
@@ -49,7 +48,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <checkstyle.skip>false</checkstyle.skip>
         <spring-boot.version>3.4.0</spring-boot.version>
-        <hibernate-jpamodelgen.version>6.6.3.Final</hibernate-jpamodelgen.version>
     </properties>
 
     <dependencyManagement>

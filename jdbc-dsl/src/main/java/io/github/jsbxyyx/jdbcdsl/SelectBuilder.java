@@ -206,8 +206,8 @@ public final class SelectBuilder<T> {
      * The alias must belong to the supplied entity class in this query.
      */
     public <J> SelectBuilder<T> select(Class<J> selectedEntityClass, String tableAlias) {
-        String selectedAlias = resolveEntityAlias(selectedEntityClass, tableAlias);
-        return selectEntityColumns(selectedEntityClass, selectedAlias);
+        // Keep alias resolution deferred until rendering so SELECT may precede JOIN declarations.
+        return selectEntityColumns(selectedEntityClass, tableAlias);
     }
 
     private <J> SelectBuilder<T> selectEntityColumns(Class<J> selectedEntityClass, String selectedAlias) {
@@ -244,8 +244,8 @@ public final class SelectBuilder<T> {
     /** Adds a WHERE predicate for the root or joined entity identified by {@code tableAlias}. */
     public <J> SelectBuilder<T> where(
             Class<J> filteredEntityClass, String tableAlias, Consumer<WhereBuilder<J>> consumer) {
-        String filteredAlias = resolveEntityAlias(filteredEntityClass, tableAlias);
-        WhereBuilder<J> wb = new WhereBuilder<>(filteredEntityClass, filteredAlias);
+        // Keep alias resolution deferred until rendering so WHERE may precede JOIN declarations.
+        WhereBuilder<J> wb = new WhereBuilder<>(filteredEntityClass, tableAlias);
         consumer.accept(wb);
         appendWhere(wb.buildNode());
         return this;

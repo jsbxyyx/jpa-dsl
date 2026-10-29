@@ -549,12 +549,10 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
-    void updateBuilder_noAssignments_withWhere_doesNotThrow() {
-        // set-empty check has been removed; the database will report an error for empty SET
-        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+    void updateBuilder_noAssignments_withWhere_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
-                .build();
-        assertThat(spec).isNotNull();
+                .build());
     }
 
     @Test
@@ -603,13 +601,11 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
-    void updateBuilder_allConditionsFalse_withWhere_doesNotThrow() {
-        // set-empty check has been removed; empty assignments are passed through to the database
-        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+    void updateBuilder_allConditionsFalse_withWhere_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
                 .set(TUser::getStatus, "SKIPPED", false)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
-                .build();
-        assertThat(spec).isNotNull();
+                .build());
     }
 
     @Test

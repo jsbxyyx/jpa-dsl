@@ -70,7 +70,7 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
         // Numeric conversion follows the Java property type. JDBC drivers may
         // return Integer for SMALLINT/TINYINT, so source JDBC type is not enough.
         ValueConverter numericConverter = ValueConverters.numeric(targetType);
-        if (numericConverter != null) {
+        if (numericConverter != null && (sourceType == null || Number.class.isAssignableFrom(sourceType))) {
             return numericConverter;
         }
 

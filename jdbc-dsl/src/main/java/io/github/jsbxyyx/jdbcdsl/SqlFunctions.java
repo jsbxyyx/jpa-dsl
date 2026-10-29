@@ -6,6 +6,7 @@ import io.github.jsbxyyx.jdbcdsl.expr.CastExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ColumnExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.FunctionExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.LiteralExpression;
+import io.github.jsbxyyx.jdbcdsl.expr.ParameterExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.ScalarSubqueryExpression;
 import io.github.jsbxyyx.jdbcdsl.expr.SqlExpression;
 
@@ -36,8 +37,17 @@ public final class SqlFunctions {
     private SqlFunctions() {}
 
     // ------------------------------------------------------------------ //
-    //  Literal / CASE
+    //  Parameters / literals / CASE
     // ------------------------------------------------------------------ //
+
+    /**
+     * Creates a bound SQL parameter expression. The value may be {@code null}; it will be
+     * bound as SQL {@code NULL}. Use {@code IS NULL}/{@code IS NOT NULL} for null predicates,
+     * because SQL comparisons such as {@code column = NULL} do not evaluate to true.
+     */
+    public static <V> ParameterExpression<V> param(V value) {
+        return ParameterExpression.of(value);
+    }
 
     /**
      * Embeds a raw SQL fragment verbatim (NOT bound as a JDBC parameter).

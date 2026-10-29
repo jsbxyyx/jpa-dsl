@@ -46,7 +46,21 @@ public final class OnBuilder {
      * <p><strong>Warning:</strong> never embed user input directly in {@code sql}.
      */
     public OnBuilder raw(String sql) {
-        conditions.add(new RawPredicate(sql, Map.of()));
+        return raw(sql, Map.of());
+    }
+
+    /**
+     * Adds a raw SQL ON condition with named bind parameters.
+     *
+     * <p>Parameter names must not collide with auto-generated DSL parameter names
+     * ({@code p1}, {@code p2}, ...). Never interpolate user input into {@code sql};
+     * provide values through {@code params}.
+     *
+     * @param sql SQL fragment embedded verbatim into the ON clause
+     * @param params named parameter values referenced by {@code sql}
+     */
+    public OnBuilder raw(String sql, Map<String, Object> params) {
+        conditions.add(new RawPredicate(sql, params));
         return this;
     }
 

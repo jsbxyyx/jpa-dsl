@@ -43,19 +43,18 @@ public class JdbcDslCacheManager {
             long beanMappingMaxSize,
             long mapperCacheMaxSize) {
         this.propertyRefCache = Caffeine.newBuilder()
-                .maximumSize(Math.max(500, propertyRefMaxSize))
+                .maximumSize(Math.max(1, propertyRefMaxSize))
                 .build();
-        this.rowMapperCache = Caffeine.newBuilder()
-                .maximumSize(Math.max(100, rowMapperMaxSize))
-                .build();
+        this.rowMapperCache =
+                Caffeine.newBuilder().maximumSize(Math.max(1, rowMapperMaxSize)).build();
         this.serializedLambdaCache = Caffeine.newBuilder()
-                .maximumSize(Math.max(100, serializedLambdaMaxSize))
+                .maximumSize(Math.max(1, serializedLambdaMaxSize))
                 .build();
         this.beanMappingCache = Caffeine.newBuilder()
-                .maximumSize(Math.max(100, beanMappingMaxSize))
+                .maximumSize(Math.max(1, beanMappingMaxSize))
                 .build();
         this.mapperCache = Caffeine.newBuilder()
-                .maximumSize(Math.max(100, mapperCacheMaxSize))
+                .maximumSize(Math.max(1, mapperCacheMaxSize))
                 .build();
     }
 

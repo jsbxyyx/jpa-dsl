@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.param;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.subquery;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -91,6 +92,54 @@ class SqlRendererTest {
     }
 
     @Test
+    void renderSelect_nullParameterExpression_isBoundAsNull() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(SqlFunctions.coalesce(SqlFunctions.col(TUser::getEmail), param((String) null))
+                        .as("email"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("COALESCE(t.email, :p1) AS email");
+        assertThat(rendered.getParams()).containsKey("p1");
+        assertThat(rendered.getParams().get("p1")).isNull();
+    }
+
+    @Test
+    void renderSelect_nullParameterInsideCaseExpression_isBoundAsNull() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(SqlFunctions.case_()
+                        .when(
+                                io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate.ofExpr(
+                                        SqlFunctions.col(TUser::getAge),
+                                        io.github.jsbxyyx.jdbcdsl.predicate.LeafPredicate.Op.GT,
+                                        18),
+                                param((String) null))
+                        .otherwise(param("adult"))
+                        .as("ageLabel"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("CASE WHEN t.age > :p1 THEN :p2 ELSE :p3 END AS ageLabel");
+        assertThat(rendered.getParams())
+                .containsEntry("p1", 18)
+                .containsKey("p2")
+                .containsEntry("p3", "adult");
+        assertThat(rendered.getParams().get("p2")).isNull();
+    }
+
+    @Test
+    void renderSelect_nullParameterInsideCastExpression_isBoundAsNull() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(SqlFunctions.cast(param((String) null), "VARCHAR(20)").as("nullableValue"))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+        assertThat(rendered.getSql()).contains("CAST(:p1 AS VARCHAR(20)) AS nullableValue");
+        assertThat(rendered.getParams()).containsKey("p1");
+        assertThat(rendered.getParams().get("p1")).isNull();
+    }
+
+    @Test
     void renderSelect_orPredicate() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
@@ -113,9 +162,8 @@ class SqlRendererTest {
     }
 
     @Test
-    void renderCount_withJoin_useCountDistinctPk() {
-        // When JOINs are present (e.g. user → orders one-to-many), COUNT(*) would
-        // count duplicate rows. The fix uses COUNT(DISTINCT alias.pk) instead.
+    void renderCount_withJoin_countsJoinedRows() {
+        // JOIN count follows SQL row semantics: each matching joined row is counted.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(TUser::getId, TUser::getUsername)
                 .join(TOrder.class, "o", JoinType.LEFT, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
@@ -124,7 +172,8 @@ class SqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderCount(spec);
         assertThat(rendered.getSql())
-                .startsWith("SELECT COUNT(DISTINCT u.id)")
+                .startsWith("SELECT COUNT(*)")
+                .doesNotContain("COUNT(DISTINCT")
                 .contains("LEFT JOIN t_order o")
                 .contains("WHERE")
                 .doesNotContain("ORDER BY");
@@ -358,18 +407,14 @@ class SqlRendererTest {
     }
 
     @Test
-    void updateBuilder_conditionalArithmetic_skipsWhenConditionIsFalse() {
-        RenderedSql rendered = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
+    void updateBuilder_conditionalArithmetic_allSkipped_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
                 .add(TUser::getAge, 10, false)
                 .subtract(TUser::getAge, TUser::getId, false)
                 .multiply(TUser::getAge, 2, false)
                 .divide(TUser::getAge, TUser::getId, false)
                 .where(w -> w.eq(TUser::getId, 1L))
                 .build());
-
-        assertThat(rendered.getSql()).doesNotContain("SET age =");
-        assertThat(rendered.getParams()).containsOnlyKeys("p1");
-        assertThat(rendered.getParams()).containsEntry("p1", 1L);
     }
 
     @Test
@@ -391,12 +436,24 @@ class SqlRendererTest {
     }
 
     @Test
-    void updateBuilder_noAssignments_build_withWhere_doesNotThrow() {
-        // set-empty check has been removed; the database will report an error for empty SET
-        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+    void updateBuilder_noAssignments_build_withWhere_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
                 .where(w -> w.eq(TUser::getUsername, "alice"))
-                .build();
-        assertThat(spec).isNotNull();
+                .build());
+    }
+
+    @Test
+    void updateBuilder_allConditionalAssignmentsSkipped_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE", false)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build());
+    }
+
+    @Test
+    void updateBuilder_buildUnsafeWithoutAssignments_throwsIllegalState() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> UpdateBuilder.from(TUser.class)
+                .buildUnsafe());
     }
 
     @Test

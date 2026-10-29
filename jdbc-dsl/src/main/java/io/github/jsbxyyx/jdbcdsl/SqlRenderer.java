@@ -149,6 +149,7 @@ public final class SqlRenderer {
      *                       inside a subquery in SQL-92)
      */
     static <T, R> String buildSelectSql(SelectSpec<T, R> spec, RenderContext ctx, boolean includeOrderBy) {
+        validateTableAliases(spec);
         EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
         String alias = spec.getAlias();
 
@@ -169,6 +170,7 @@ public final class SqlRenderer {
         // SELECT clause
         sb.append(spec.isDistinct() ? "SELECT DISTINCT " : "SELECT ");
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
+        validateSelectOutputAliases(exprs);
         if (exprs.isEmpty()) {
             EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
             StringJoiner cols = new StringJoiner(", ");
@@ -269,8 +271,8 @@ public final class SqlRenderer {
      *
      * <ul>
      *   <li>No JOINs, no GROUP BY → {@code SELECT COUNT(*) FROM table WHERE ...}</li>
-     *   <li>JOINs present (no GROUP BY) → {@code SELECT COUNT(DISTINCT alias.pk) FROM ... JOIN ... WHERE ...}
-     *       to avoid counting duplicate rows produced by one-to-many joins.</li>
+     *   <li>JOINs present (no GROUP BY) → {@code SELECT COUNT(*) FROM ... JOIN ... WHERE ...}
+     *       to count the rows produced by the JOIN, matching SQL row semantics.</li>
      *   <li>GROUP BY present → {@code SELECT COUNT(*) FROM (SELECT 1 FROM ... GROUP BY ... HAVING ...) _count_t}
      *       to count the number of groups rather than raw rows.</li>
      * </ul>
@@ -312,32 +314,16 @@ public final class SqlRenderer {
         }
 
         if (hasJoins) {
-            // JOINs can multiply rows for one-to-many relationships.
-            // COUNT(DISTINCT pk) de-duplicates without a subquery.
-            String pkCol = rootMeta.getIdColumnName();
-            if (pkCol != null) {
-                StringBuilder sb = new StringBuilder("SELECT COUNT(DISTINCT ")
-                        .append(alias)
-                        .append(".")
-                        .append(pkCol)
-                        .append(")")
-                        .append(" FROM ")
-                        .append(fromTarget)
-                        .append(" ")
-                        .append(alias);
-                appendJoinClauses(sb, spec, ctx);
-                appendWhereClause(sb, spec, ctx);
-                return new RenderedSql(ctePrefix + sb, ctx.getParams());
-            }
-            // No PK available: fall back to subquery.
-            StringBuilder inner = new StringBuilder("SELECT 1")
+            // Count every row produced by the JOIN. Do not implicitly de-duplicate root entities:
+            // one root entity matching multiple joined rows contributes multiple result rows.
+            StringBuilder sb = new StringBuilder("SELECT COUNT(*)")
                     .append(" FROM ")
                     .append(fromTarget)
                     .append(" ")
                     .append(alias);
-            appendJoinClauses(inner, spec, ctx);
-            appendWhereClause(inner, spec, ctx);
-            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", ctx.getParams());
+            appendJoinClauses(sb, spec, ctx);
+            appendWhereClause(sb, spec, ctx);
+            return new RenderedSql(ctePrefix + sb, ctx.getParams());
         }
 
         // Simple case: no JOINs, no GROUP BY.
@@ -367,6 +353,31 @@ public final class SqlRenderer {
     // ------------------------------------------------------------------ //
     //  Expression rendering
     // ------------------------------------------------------------------ //
+
+    /**
+     * Rejects duplicate output labels that are known before SQL execution.
+     *
+     * <p>JDBC bean mapping is label-based and case-insensitive in this DSL. Selecting
+     * same-named properties from multiple tables without explicit aliases would otherwise
+     * write multiple result columns into the same target property, with the last column
+     * silently winning.
+     */
+    private static void validateSelectOutputAliases(List<SqlExpression<?>> expressions) {
+        Set<String> aliases = new HashSet<>();
+        for (SqlExpression<?> expression : expressions) {
+            String outputAlias = null;
+            if (expression instanceof AliasedExpression<?> aliased) {
+                outputAlias = aliased.getAlias();
+            } else if (expression instanceof ColumnExpression<?> column) {
+                outputAlias = column.getPropertyRef().propertyName();
+            }
+
+            if (outputAlias != null && !aliases.add(outputAlias.toLowerCase(java.util.Locale.ROOT))) {
+                throw new IllegalArgumentException("Duplicate SELECT output alias '" + outputAlias
+                        + "'. Use explicit, unique aliases with .as(...) for each selected column");
+            }
+        }
+    }
 
     /**
      * Renders a single SELECT clause item, adding an appropriate column alias:
@@ -443,7 +454,9 @@ public final class SqlRenderer {
         if (colName == null) {
             colName = pr.propertyName();
         }
-        String tableAlias = col.getTableAlias() != null ? col.getTableAlias() : resolveAliasForRef(spec, pr);
+        String tableAlias = col.getTableAlias() != null
+                ? resolveAliasForRef(spec, pr, col.getTableAlias())
+                : resolveAliasForRef(spec, pr);
         return tableAlias + "." + colName;
     }
 
@@ -676,6 +689,8 @@ public final class SqlRenderer {
     private static <T, R> String renderOnCondition(
             PredicateNode cond, SelectSpec<T, R> spec, RenderContext ctx, Set<String> subqueryAliases) {
         if (cond instanceof OnEqPredicate onEq) {
+            resolveAliasForRef(spec, onEq.getLeftRef(), onEq.getLeftAlias());
+            resolveAliasForRef(spec, onEq.getRightRef(), onEq.getRightAlias());
             return renderOnEq(onEq, subqueryAliases);
         }
         return renderPredicate(cond, spec, ctx);
@@ -1061,15 +1076,7 @@ public final class SqlRenderer {
     }
 
     private static <T, R> String resolveAliasForRef(SelectSpec<T, R> spec, PropertyRef pr) {
-        List<String> matchingAliases = new ArrayList<>();
-        if (pr.ownerClass().equals(spec.getEntityClass())) {
-            matchingAliases.add(spec.getAlias());
-        }
-        for (JoinSpec join : spec.getJoins()) {
-            if (pr.ownerClass().equals(join.getJoinEntityClass())) {
-                matchingAliases.add(join.getAlias());
-            }
-        }
+        List<String> matchingAliases = aliasesForEntity(spec, pr.ownerClass());
         if (matchingAliases.isEmpty()) {
             throw new IllegalArgumentException("Entity " + pr.ownerClass().getName()
                     + " referenced by property '" + pr.propertyName()
@@ -1085,6 +1092,48 @@ public final class SqlRenderer {
                             + ", \"<alias>\") to specify the table alias explicitly.");
         }
         return matchingAliases.get(0);
+    }
+
+    private static <T, R> String resolveAliasForRef(SelectSpec<T, R> spec, PropertyRef pr, String requestedAlias) {
+        List<String> matchingAliases = aliasesForEntity(spec, pr.ownerClass());
+        if (!matchingAliases.contains(requestedAlias)) {
+            throw new IllegalArgumentException("Alias '" + requestedAlias + "' does not identify entity "
+                    + pr.ownerClass().getName() + " in this query; available aliases for this entity: "
+                    + matchingAliases);
+        }
+        return requestedAlias;
+    }
+
+    private static <T, R> List<String> aliasesForEntity(SelectSpec<T, R> spec, Class<?> entityClass) {
+        List<String> matchingAliases = new ArrayList<>();
+        if (entityClass.equals(spec.getEntityClass())) {
+            matchingAliases.add(spec.getAlias());
+        }
+        for (JoinSpec join : spec.getJoins()) {
+            if (entityClass.equals(join.getJoinEntityClass())) {
+                matchingAliases.add(join.getAlias());
+            }
+        }
+        return matchingAliases;
+    }
+
+    private static <T, R> void validateTableAliases(SelectSpec<T, R> spec) {
+        Set<String> aliases = new HashSet<>();
+        validateTableAlias(spec.getAlias(), aliases);
+        for (JoinSpec join : spec.getJoins()) {
+            validateTableAlias(join.getAlias(), aliases);
+        }
+    }
+
+    private static void validateTableAlias(String alias, Set<String> aliases) {
+        if (alias == null || !alias.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            throw new IllegalArgumentException(
+                    "Invalid SQL table alias '" + alias + "'. Aliases must match [A-Za-z_][A-Za-z0-9_]*");
+        }
+        if (!aliases.add(alias)) {
+            throw new IllegalArgumentException(
+                    "Duplicate SQL table alias '" + alias + "'. Each table in a query must have a unique alias");
+        }
     }
 
     private static String joinTypeStr(JoinType type) {

@@ -24,6 +24,7 @@ class JdbcDslRepositoryTest {
         assertThat(repository.insertBuilder().build().getEntityClass()).isEqualTo(TUser.class);
         assertThat(repository
                         .updateBuilder()
+                        .set(TUser::getStatus, "ACTIVE")
                         .where(w -> w.eq(TUser::getId, 1L))
                         .build()
                         .getEntityClass())

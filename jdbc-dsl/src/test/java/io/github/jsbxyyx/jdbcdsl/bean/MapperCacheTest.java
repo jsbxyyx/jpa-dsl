@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
+import io.github.jsbxyyx.jdbcdsl.PropertyRef;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,19 @@ class MapperCacheTest {
     void setUp() {
         converterRegistry = new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
         metaFactory = new BeanMappingMetaFactory();
+    }
+
+    @Test
+    void configuredCacheSizesAreRespectedBelowLegacyMinimums() {
+        JdbcDslCacheManager cacheManager = new JdbcDslCacheManager(1, 1, 1, 1, 1);
+
+        cacheManager.getPropertyRefCache().put("first", new PropertyRef(TestEntity.class, "id"));
+        cacheManager.getPropertyRefCache().put("second", new PropertyRef(TestEntity.class, "name"));
+        cacheManager.getPropertyRefCache().cleanUp();
+
+        assertTrue(
+                cacheManager.getPropertyRefCache().estimatedSize() <= 1,
+                "Property-ref cache should honor a configured maximum size of one");
     }
 
     @Test

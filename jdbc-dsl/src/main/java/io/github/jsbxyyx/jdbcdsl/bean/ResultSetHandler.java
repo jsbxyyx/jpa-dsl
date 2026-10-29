@@ -6,6 +6,8 @@ import org.springframework.jdbc.support.JdbcUtils;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -62,10 +64,12 @@ public final class ResultSetHandler implements ResultSetMapper {
     private static final class ColumnMapping {
         final PropertyAccessor accessor;
         final ValueConverter converter;
+        final int jdbcType;
 
-        ColumnMapping(PropertyAccessor accessor, ValueConverter converter) {
+        ColumnMapping(PropertyAccessor accessor, ValueConverter converter, int jdbcType) {
             this.accessor = accessor;
             this.converter = converter;
+            this.jdbcType = jdbcType;
         }
 
         /**
@@ -134,9 +138,10 @@ public final class ResultSetHandler implements ResultSetMapper {
             // (for example SMALLINT may be returned as Integer), therefore the
             // entity property type is the source of truth for conversion.
             Class<?> propertyType = accessor.getType();
-            ValueConverter converter = converterRegistry.getConverter(rsMetaData.getColumnType(i), propertyType);
+            int jdbcType = rsMetaData.getColumnType(i);
+            ValueConverter converter = converterRegistry.getConverter(jdbcType, propertyType);
 
-            columnMappings[i - 1] = new ColumnMapping(accessor, converter);
+            columnMappings[i - 1] = new ColumnMapping(accessor, converter, jdbcType);
         }
     }
 
@@ -166,7 +171,13 @@ public final class ResultSetHandler implements ResultSetMapper {
                 continue; // Column not mapped to any property
             }
 
-            Object value = JdbcUtils.getResultSetValue(rs, i + 1);
+            Object value;
+            if (mapping.accessor.getType() == LocalDateTime.class && mapping.jdbcType == Types.TIMESTAMP) {
+                // Preserve the SQL wall-clock value for MySQL DATETIME columns without applying timezone offsets.
+                value = rs.getObject(i + 1, LocalDateTime.class);
+            } else {
+                value = JdbcUtils.getResultSetValue(rs, i + 1);
+            }
 
             // Optimized conversion and property setting:
             // - Type conversion via pre-selected optimal converter

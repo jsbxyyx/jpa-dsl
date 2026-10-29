@@ -76,8 +76,8 @@ class JoinIntegrationTest {
     }
 
     @Test
-    void multiJoin_count_deduplicatesWithDistinct() {
-        // COUNT for a multi-join spec must use COUNT(DISTINCT pk) to avoid inflated counts
+    void multiJoin_count_countsJoinedRows() {
+        // COUNT follows SQL row semantics and counts every matching joined row.
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
                 .select(col(TUser::getId, "u"), col(TUser::getUsername, "u"))
                 .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
@@ -85,8 +85,8 @@ class JoinIntegrationTest {
 
         long count = executor.count(spec);
 
-        // alice + bob have orders; charlie has none → 2 distinct users
-        assertThat(count).isEqualTo(2);
+        // alice has 2 orders and bob has 1; charlie has none → 3 joined rows
+        assertThat(count).isEqualTo(3);
     }
 
     // ------------------------------------------------------------------ //
@@ -197,7 +197,7 @@ class JoinIntegrationTest {
     }
 
     @Test
-    void selfJoin_count_deduplicatesWithDistinct() {
+    void selfJoin_count_countsJoinedRows() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u1")
                 .select(col(TUser::getId, "u1"), col(TUser::getUsername, "u1"))
                 .join(TUser.class, "u2", JoinType.INNER, on -> on.eq(TUser::getStatus, "u1", TUser::getStatus, "u2"))
@@ -206,7 +206,7 @@ class JoinIntegrationTest {
 
         long count = executor.count(spec);
 
-        // alice + charlie share ACTIVE status with alice → 2 distinct users
+        // alice + charlie both match alice's ACTIVE status → 2 joined rows
         assertThat(count).isEqualTo(2);
     }
 

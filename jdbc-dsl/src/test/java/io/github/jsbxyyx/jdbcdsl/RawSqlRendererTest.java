@@ -105,12 +105,12 @@ class RawSqlRendererTest {
                 .select(
                         SqlFunctions.col(TUser::getUsername),
                         raw("CASE WHEN t.age >= 18 THEN 'ADULT' ELSE 'MINOR' END")
-                                .as("username"))
+                                .as("ageCategory"))
                 .mapTo(UserDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        assertThat(rendered.getSql()).contains("CASE WHEN t.age >= 18 THEN 'ADULT' ELSE 'MINOR' END AS username");
+        assertThat(rendered.getSql()).contains("CASE WHEN t.age >= 18 THEN 'ADULT' ELSE 'MINOR' END AS ageCategory");
     }
 
     @Test
