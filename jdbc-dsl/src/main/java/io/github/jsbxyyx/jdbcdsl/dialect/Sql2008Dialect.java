@@ -9,8 +9,11 @@ public final class Sql2008Dialect implements Dialect {
 
     @Override
     public String applyPagination(String sql, long offset, int limit, Map<String, Object> params) {
-        params.put("_offset", offset);
-        params.put("_limit", limit);
-        return sql + " OFFSET :_offset ROWS FETCH NEXT :_limit ROWS ONLY";
+        Dialect.validatePagination(offset, limit);
+        String offsetParam = Dialect.uniquePaginationParamName("_offset", sql, params);
+        String limitParam = Dialect.uniquePaginationParamName("_limit", sql, params);
+        params.put(offsetParam, offset);
+        params.put(limitParam, limit);
+        return sql + " OFFSET :" + offsetParam + " ROWS FETCH NEXT :" + limitParam + " ROWS ONLY";
     }
 }

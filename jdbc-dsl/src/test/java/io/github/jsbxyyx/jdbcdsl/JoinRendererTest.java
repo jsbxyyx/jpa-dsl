@@ -132,8 +132,9 @@ class JoinRendererTest {
                 .mapTo(UserOrderDto.class);
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
-        assertThat(rendered.getSql()).contains("LEFT JOIN t_order o ON u.id = o.user_id AND o.status = :orderStatus");
-        assertThat(rendered.getParams()).containsEntry("orderStatus", "PAID");
+        assertThat(rendered.getSql())
+                .contains("LEFT JOIN t_order o ON u.id = o.user_id AND o.status = :raw1_orderStatus");
+        assertThat(rendered.getParams()).containsEntry("raw1_orderStatus", "PAID");
     }
 
     @Test
@@ -407,6 +408,35 @@ class JoinRendererTest {
         assertThat(sql).contains("INNER JOIN (");
         // "o" is a subquery alias → property name; "t" is a plain entity → column name
         assertThat(sql).contains("o.userId = t.id");
+    }
+
+    @Test
+    void renderSelect_joinSubqueryRawParameters_keepBindingsIndependent() {
+        SelectSpec<TOrder, TOrder> subq = SelectBuilder.from(TOrder.class, "o")
+                .where(w -> w.raw("o.status = :value", java.util.Map.of("value", "PAID")))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "t")
+                .select(TUser::getId, TUser::getUsername)
+                .joinSubquery(
+                        subq,
+                        TOrder.class,
+                        "o",
+                        JoinType.LEFT,
+                        on -> on.raw("o.order_no = :value", java.util.Map.of("value", "ORD-1")))
+                .where(w -> w.raw("t.username = :value", java.util.Map.of("value", "alice")))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql())
+                .contains("o.status = :raw1_value")
+                .contains("o.order_no = :raw2_value")
+                .contains("t.username = :raw3_value");
+        assertThat(rendered.getParams())
+                .containsEntry("raw1_value", "PAID")
+                .containsEntry("raw2_value", "ORD-1")
+                .containsEntry("raw3_value", "alice");
     }
 
     @Test

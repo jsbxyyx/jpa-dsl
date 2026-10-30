@@ -620,9 +620,7 @@ public final class SqlRenderer {
     }
 
     private static String renderRawPredicate(RawPredicate node, RenderContext ctx) {
-        // Merge any user-supplied parameters into the shared parameter map.
-        ctx.getParams().putAll(node.getParams());
-        return node.getSql();
+        return ctx.mergeRawParams(node.getSql(), node.getParams());
     }
 
     private static <T, R> String renderLeaf(LeafPredicate leaf, SelectSpec<T, R> spec, RenderContext ctx) {
@@ -953,8 +951,9 @@ public final class SqlRenderer {
             }
             lhs = colName;
         } else {
-            // Fallback: render as-is without table alias (unusual for update/delete)
-            lhs = expr.toString();
+            // Render non-column expressions recursively; toString() is a debug representation,
+            // not a SQL serialization contract.
+            lhs = renderExpressionStandalone(expr, meta, ctx);
         }
 
         return switch (leaf.getOp()) {

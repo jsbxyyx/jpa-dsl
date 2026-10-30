@@ -77,8 +77,8 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        assertThat(rendered.getSql()).contains("WHERE YEAR(t.created_at) = :yr");
-        assertThat(rendered.getParams()).containsEntry("yr", 2024);
+        assertThat(rendered.getSql()).contains("WHERE YEAR(t.created_at) = :raw1_yr");
+        assertThat(rendered.getParams()).containsEntry("raw1_yr", 2024);
     }
 
     @Test
@@ -91,8 +91,133 @@ class RawSqlRendererTest {
 
         RenderedSql rendered = SqlRenderer.renderSelect(spec);
 
-        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("yr", 2024);
-        assertThat(rendered.getSql()).contains("t.status = :p1").contains("YEAR(t.created_at) = :yr");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("raw1_yr", 2024);
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("YEAR(t.created_at) = :raw1_yr");
+    }
+
+    @Test
+    void renderSelect_rawPredicateParameterNamedLikeDslParameter_doesNotOverwriteDslValue() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").raw("t.age > :p1", Map.of("p1", 18)))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("t.age > :raw1_p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("raw1_p1", 18);
+    }
+
+    @Test
+    void renderSelect_twoRawPredicatesWithSameParameterName_keepValuesIndependent() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.age > :value", Map.of("value", 18)).raw("t.score > :value", Map.of("value", 90)))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql()).contains("t.age > :raw1_value").contains("t.score > :raw2_value");
+        assertThat(rendered.getParams()).containsEntry("raw1_value", 18).containsEntry("raw2_value", 90);
+    }
+
+    @Test
+    void renderCount_rawPredicate_keepsRenamedParametersConsistent() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE").raw("t.age > :p1", Map.of("p1", 18)))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderCount(spec);
+
+        assertThat(rendered.getSql()).contains("t.status = :p1").contains("t.age > :raw1_p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ACTIVE").containsEntry("raw1_p1", 18);
+    }
+
+    @Test
+    void renderSelect_rawParameterRewrite_repeatedAndPrefixSimilarNamesStayDistinct() {
+        Map<String, Object> rawParams = new java.util.LinkedHashMap<>();
+        rawParams.put("id", 7);
+        rawParams.put("id2", 11);
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.id = :id OR t.parent_id = :id2 OR t.owner_id = :id", rawParams))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql())
+                .contains("t.id = :raw1_id")
+                .contains("t.parent_id = :raw2_id2")
+                .contains("t.owner_id = :raw1_id");
+        assertThat(rendered.getParams()).containsEntry("raw1_id", 7).containsEntry("raw2_id2", 11);
+    }
+
+    @Test
+    void renderSelect_rawParameterRewrite_skipsQuotedStringsAndComments() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.name = ':value' AND t.age > :value /* :value */", Map.of("value", 18)))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql())
+                .contains("t.name = ':value'")
+                .contains("t.age > :raw1_value")
+                .contains("/* :value */");
+        assertThat(rendered.getParams()).containsEntry("raw1_value", 18);
+    }
+
+    @Test
+    void renderSelect_rawParameterRewrite_handlesCarriageReturnLineComment() {
+        Map<String, Object> rawParams = new java.util.LinkedHashMap<>();
+        rawParams.put("name", "alice");
+        rawParams.put("value", 18);
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.name = :name -- :value\rAND t.age > :value", rawParams))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql()).contains("t.name = :raw1_name").contains("-- :value\rAND t.age > :raw2_value");
+        assertThat(rendered.getParams()).containsEntry("raw1_name", "alice").containsEntry("raw2_value", 18);
+    }
+
+    @Test
+    void renderSelect_rawParameterRewrite_skipsDialectSpecificQuotedRegionsAndCastSyntax() {
+        String rawSql = "payload = $tag$:value$tag$ AND [field:value] = 1 AND created_at::date = :day";
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw(rawSql, Map.of("day", "2026-10-30")))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql())
+                .contains("payload = $tag$:value$tag$")
+                .contains("[field:value] = 1")
+                .contains("created_at::date = :raw1_day");
+        assertThat(rendered.getParams()).containsEntry("raw1_day", "2026-10-30");
+    }
+
+    @Test
+    void renderUnion_rawParametersAcrossBranches_keepValuesIndependent() {
+        SelectSpec<TUser, UserDto> active = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.status = :value", Map.of("value", "ACTIVE")))
+                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> inactive = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.status = :value", Map.of("value", "INACTIVE")))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered =
+                SqlRenderer.renderUnion(UnionSpec.of(active).unionAll(inactive).build());
+
+        assertThat(rendered.getSql()).contains("t.status = :raw1_value").contains("t.status = :raw2_value");
+        assertThat(rendered.getParams()).containsEntry("raw1_value", "ACTIVE").containsEntry("raw2_value", "INACTIVE");
     }
 
     // ------------------------------------------------------------------ //

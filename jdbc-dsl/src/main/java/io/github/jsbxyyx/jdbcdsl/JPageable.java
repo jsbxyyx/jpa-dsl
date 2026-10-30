@@ -144,6 +144,9 @@ public final class JPageable<T> {
     /** Returns a new pageable for the next page (mirrors {@code PageRequest.next()}). */
     public JPageable<T> next() {
         assertPaged();
+        if (page == Integer.MAX_VALUE) {
+            throw new IllegalStateException("Cannot advance beyond the maximum page index");
+        }
         return new JPageable<>(page + 1, size, sort);
     }
 

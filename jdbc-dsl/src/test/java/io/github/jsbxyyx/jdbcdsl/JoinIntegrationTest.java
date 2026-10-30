@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
+import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -73,6 +74,25 @@ class JoinIntegrationTest {
         List<UserDto> result = executor.select(spec);
 
         assertThat(result).hasSize(1).extracting(UserDto::getUsername).containsExactly("alice");
+    }
+
+    @Test
+    void distinctJoin_pageCountsDistinctProjectedRows() {
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class, "u")
+                .distinct()
+                .select(col(TUser::getUsername, "u"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "u"))))
+                .mapTo(UserDto.class);
+
+        Page<UserDto> firstPage = executor.selectPage(spec, JPageable.of(0, 1));
+        Page<UserDto> secondPage = executor.selectPage(spec, JPageable.of(1, 1));
+
+        assertThat(firstPage.getTotalElements()).isEqualTo(2);
+        assertThat(firstPage.getContent()).extracting(UserDto::getUsername).containsExactly("alice");
+        assertThat(secondPage.getTotalElements()).isEqualTo(2);
+        assertThat(secondPage.getContent()).extracting(UserDto::getUsername).containsExactly("bob");
+        assertThat(executor.count(spec)).isEqualTo(2);
     }
 
     @Test
@@ -173,6 +193,51 @@ class JoinIntegrationTest {
         assertThat(result.get(0).getAmount()).isEqualByComparingTo(new BigDecimal("350.00"));
         assertThat(result.get(1).getUsername()).isEqualTo("bob");
         assertThat(result.get(1).getAmount()).isEqualByComparingTo(new BigDecimal("50.00"));
+    }
+
+    @Test
+    void groupedHaving_sumThreshold_filtersGroupsAndCountReturnsGroupCount() {
+        // alice total = 350, bob total = 50; HAVING keeps only groups with SUM(amount) >= 100.
+        SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(
+                        col(TUser::getUsername, "u"),
+                        SqlFunctions.sum(TOrder::getAmount).as("amount"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .groupBy(col(TUser::getUsername, "u"))
+                .having(h -> h.gte(SqlFunctions.sum(TOrder::getAmount), new BigDecimal("100.00")))
+                .mapTo(UserOrderDto.class);
+
+        List<UserOrderDto> result = executor.select(spec);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getUsername()).isEqualTo("alice");
+        assertThat(result.get(0).getAmount()).isEqualByComparingTo(new BigDecimal("350.00"));
+        assertThat(executor.count(spec)).isEqualTo(1);
+    }
+
+    @Test
+    void groupedHaving_pageUsesFilteredGroupCountAndReturnsCorrectSlices() {
+        SelectSpec<TUser, UserOrderDto> spec = SelectBuilder.from(TUser.class, "u")
+                .select(
+                        col(TUser::getUsername, "u"),
+                        SqlFunctions.sum(TOrder::getAmount).as("amount"))
+                .join(TOrder.class, "o", JoinType.INNER, on -> on.eq(TUser::getId, "u", TOrder::getUserId, "o"))
+                .groupBy(col(TUser::getUsername, "u"))
+                .having(h -> h.gte(SqlFunctions.sum(TOrder::getAmount), new BigDecimal("50.00")))
+                .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "u"))))
+                .mapTo(UserOrderDto.class);
+
+        Page<UserOrderDto> firstPage = executor.selectPage(spec, JPageable.of(0, 1));
+        Page<UserOrderDto> secondPage = executor.selectPage(spec, JPageable.of(1, 1));
+
+        assertThat(firstPage.getTotalElements()).isEqualTo(2);
+        assertThat(firstPage.getTotalPages()).isEqualTo(2);
+        assertThat(firstPage.getContent()).hasSize(1);
+        assertThat(firstPage.getContent().get(0).getUsername()).isEqualTo("alice");
+
+        assertThat(secondPage.getTotalElements()).isEqualTo(2);
+        assertThat(secondPage.getContent()).hasSize(1);
+        assertThat(secondPage.getContent().get(0).getUsername()).isEqualTo("bob");
     }
 
     // ------------------------------------------------------------------ //

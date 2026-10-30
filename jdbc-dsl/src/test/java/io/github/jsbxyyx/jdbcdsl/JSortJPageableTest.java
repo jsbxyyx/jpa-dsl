@@ -408,6 +408,12 @@ class JSortJPageableTest {
         assertThat(p.offset()).isEqualTo(p.getOffset()).isEqualTo(30L);
     }
 
+    @Test
+    void jPageable_offset_doesNotOverflowAtMaximumPageAndSize() {
+        JPageable<TUser> p = JPageable.of(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        assertThat(p.offset()).isEqualTo(4_611_686_014_132_420_609L);
+    }
+
     // ====================================================================
     //  JPageable — navigation
     // ====================================================================
@@ -418,6 +424,14 @@ class JSortJPageableTest {
         JPageable<TUser> next = p.next();
         assertThat(next.getPageNumber()).isEqualTo(2);
         assertThat(next.getPageSize()).isEqualTo(10);
+    }
+
+    @Test
+    void jPageable_nextAtMaximumPage_throwsInsteadOfOverflowing() {
+        JPageable<TUser> p = JPageable.of(Integer.MAX_VALUE, 10);
+        assertThatThrownBy(p::next)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("maximum page index");
     }
 
     @Test

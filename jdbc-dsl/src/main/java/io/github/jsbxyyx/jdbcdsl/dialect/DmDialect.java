@@ -13,8 +13,11 @@ public final class DmDialect implements Dialect {
 
     @Override
     public String applyPagination(String sql, long offset, int limit, Map<String, Object> params) {
-        params.put("_limit", limit);
-        params.put("_offset", offset);
-        return sql + " LIMIT :_limit OFFSET :_offset";
+        Dialect.validatePagination(offset, limit);
+        String limitParam = Dialect.uniquePaginationParamName("_limit", sql, params);
+        String offsetParam = Dialect.uniquePaginationParamName("_offset", sql, params);
+        params.put(limitParam, limit);
+        params.put(offsetParam, offset);
+        return sql + " LIMIT :" + limitParam + " OFFSET :" + offsetParam;
     }
 }

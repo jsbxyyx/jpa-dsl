@@ -32,6 +32,97 @@ public interface Dialect {
     String applyPagination(String sql, long offset, int limit, Map<String, Object> params);
 
     /**
+     * Allocates a pagination parameter name without colliding with parameters already used by
+     * the query. Existing names are retained when available for backwards-compatible SQL output.
+     */
+    static String uniquePaginationParamName(String baseName, String sql, Map<String, Object> params) {
+        String candidate = baseName;
+        int suffix = 1;
+        while (params.containsKey(candidate) || containsNamedParameter(sql, candidate)) {
+            candidate = baseName + "_" + suffix++;
+        }
+        return candidate;
+    }
+
+    /** Checks for a named parameter token, ignoring occurrences inside common SQL quoted text/comments. */
+    static boolean containsNamedParameter(String sql, String name) {
+        String token = ":" + name;
+        int from = 0;
+        while (from < sql.length()) {
+            char c = sql.charAt(from);
+            if (c == '$') {
+                int delimiterEnd = sql.indexOf('$', from + 1);
+                if (delimiterEnd >= 0 && isDollarQuoteTag(sql, from, delimiterEnd)) {
+                    String delimiter = sql.substring(from, delimiterEnd + 1);
+                    int closing = sql.indexOf(delimiter, delimiterEnd + 1);
+                    from = closing < 0 ? sql.length() : closing + delimiter.length();
+                    continue;
+                }
+            }
+            if (c == '\'' || c == '"' || c == '`' || c == '[') {
+                char close = c == '[' ? ']' : c;
+                from++;
+                while (from < sql.length()) {
+                    if (sql.charAt(from) == close) {
+                        if (from + 1 < sql.length() && sql.charAt(from + 1) == close) {
+                            from += 2;
+                            continue;
+                        }
+                        from++;
+                        break;
+                    }
+                    from++;
+                }
+                continue;
+            }
+            if (c == '-' && from + 1 < sql.length() && sql.charAt(from + 1) == '-') {
+                from += 2;
+                while (from < sql.length() && sql.charAt(from) != '\n' && sql.charAt(from) != '\r') {
+                    from++;
+                }
+                continue;
+            }
+            if (c == '/' && from + 1 < sql.length() && sql.charAt(from + 1) == '*') {
+                int end = sql.indexOf("*/", from + 2);
+                from = end < 0 ? sql.length() : end + 2;
+                continue;
+            }
+            if (c == ':' && (from == 0 || sql.charAt(from - 1) != ':') && sql.startsWith(token, from)) {
+                int end = from + token.length();
+                if (end == sql.length() || !isNamedParameterPart(sql.charAt(end))) {
+                    return true;
+                }
+            }
+            from++;
+        }
+        return false;
+    }
+
+    private static boolean isDollarQuoteTag(String sql, int start, int end) {
+        for (int i = start + 1; i < end; i++) {
+            char c = sql.charAt(i);
+            if (!(Character.isLetterOrDigit(c) || c == '_')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isNamedParameterPart(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$';
+    }
+
+    /** Validates the common pagination contract shared by all dialects. */
+    static void validatePagination(long offset, int limit) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("Pagination offset must not be negative");
+        }
+        if (limit < 1) {
+            throw new IllegalArgumentException("Pagination limit must be positive");
+        }
+    }
+
+    /**
      * Renders a dialect-specific UPSERT / MERGE statement.
      *
      * <p>The default implementation throws {@link UnsupportedOperationException}.

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
+import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -43,6 +44,27 @@ class SubqueryIntegrationTest {
     @BeforeEach
     void setUp() {
         executor = new JdbcDslExecutor(jdbcTemplate);
+    }
+
+    @Test
+    void derivedTable_pageCountsOuterFilteredRows() {
+        SelectSpec<TUser, TUser> inner = SelectBuilder.from(TUser.class)
+                .where(w -> w.ne(TUser::getStatus, "DELETED"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> outer = SelectBuilder.fromSubquery(inner, "sub", TUser.class)
+                .select(col(TUser::getId, "sub"), col(TUser::getUsername, "sub"))
+                .orderBy(JSort.by(JOrder.asc(col(TUser::getUsername, "sub"))))
+                .mapTo(UserDto.class);
+
+        Page<UserDto> firstPage = executor.selectPage(outer, JPageable.of(0, 1));
+        Page<UserDto> secondPage = executor.selectPage(outer, JPageable.of(1, 1));
+
+        assertThat(firstPage.getTotalElements()).isEqualTo(3);
+        assertThat(firstPage.getContent()).extracting(UserDto::getUsername).containsExactly("alice");
+        assertThat(secondPage.getTotalElements()).isEqualTo(3);
+        assertThat(secondPage.getContent()).extracting(UserDto::getUsername).containsExactly("bob");
+        assertThat(executor.count(outer)).isEqualTo(3);
     }
 
     // ------------------------------------------------------------------ //

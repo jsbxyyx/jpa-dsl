@@ -52,11 +52,10 @@ public final class OnBuilder {
     /**
      * Adds a raw SQL ON condition with named bind parameters.
      *
-     * <p>Parameter names must not collide with auto-generated DSL parameter names
-     * ({@code p1}, {@code p2}, ...). Never interpolate user input into {@code sql};
-     * provide values through {@code params}.
+     * <p>Raw parameter names are isolated from DSL-generated and other raw parameters during
+     * rendering. Never interpolate user input into {@code sql}; provide values through {@code params}.
      *
-     * @param sql SQL fragment embedded verbatim into the ON clause
+     * @param sql SQL fragment embedded into the ON clause; named parameter markers may be renamed
      * @param params named parameter values referenced by {@code sql}
      */
     public OnBuilder raw(String sql, Map<String, Object> params) {

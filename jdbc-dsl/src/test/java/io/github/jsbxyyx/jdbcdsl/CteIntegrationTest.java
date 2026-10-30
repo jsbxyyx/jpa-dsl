@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
+import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -125,6 +126,28 @@ class CteIntegrationTest {
         assertThat(rows.get(0).getUsername()).isEqualTo("charlie"); // age=40
         assertThat(rows.get(1).getUsername()).isEqualTo("alice"); // age=30
         assertThat(rows.get(2).getUsername()).isEqualTo("bob"); // age=25
+    }
+
+    @Test
+    void cte_pageCountsFilteredRowsAndReturnsCorrectSlices() {
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("active_users", TUser.class)
+                .withCte("active_users", cteBody)
+                .select(TUser::getId, TUser::getUsername)
+                .orderBy(JSort.by(JOrder.asc(TUser::getUsername)))
+                .mapTo(UserDto.class);
+
+        Page<UserDto> firstPage = executor.selectPage(spec, JPageable.of(0, 1));
+        Page<UserDto> secondPage = executor.selectPage(spec, JPageable.of(1, 1));
+
+        assertThat(firstPage.getTotalElements()).isEqualTo(2);
+        assertThat(firstPage.getContent()).extracting(UserDto::getUsername).containsExactly("alice");
+        assertThat(secondPage.getTotalElements()).isEqualTo(2);
+        assertThat(secondPage.getContent()).extracting(UserDto::getUsername).containsExactly("charlie");
+        assertThat(executor.count(spec)).isEqualTo(2);
     }
 
     // ------------------------------------------------------------------ //

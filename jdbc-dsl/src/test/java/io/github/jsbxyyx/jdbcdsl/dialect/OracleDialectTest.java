@@ -99,6 +99,15 @@ class OracleDialectTest {
     }
 
     @Test
+    void oracle11g_avoidsProjectedRowNumberAliasCollision() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        String paginated =
+                oracle11g.applyPagination("SELECT t.id AS _rn_, t.name AS _rn_1 FROM t_user t", 0, 10, params);
+
+        assertThat(paginated).contains("SELECT _q_.*, ROWNUM _rn_2 FROM (").endsWith(") WHERE _rn_2 > :_offset");
+    }
+
+    @Test
     void oracle11g_secondPage_correctEndAndOffset() {
         Map<String, Object> params = new LinkedHashMap<>();
         oracle11g.applyPagination("SELECT t.id FROM t_user t", 10, 5, params);

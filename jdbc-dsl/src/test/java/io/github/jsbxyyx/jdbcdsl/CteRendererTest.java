@@ -41,6 +41,24 @@ class CteRendererTest {
     }
 
     @Test
+    void withCte_rawParametersInCteAndOuterQuery_keepValuesIndependent() {
+        SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class)
+                .where(w -> w.raw("t.status = :value", java.util.Map.of("value", "ACTIVE")))
+                .mapToEntity();
+
+        SelectSpec<TUser, UserDto> spec = SelectBuilder.fromCte("active_users", TUser.class)
+                .withCte("active_users", cteBody)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.username = :value", java.util.Map.of("value", "alice")))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(spec);
+
+        assertThat(rendered.getSql()).contains("t.status = :raw1_value").contains("t.username = :raw2_value");
+        assertThat(rendered.getParams()).containsEntry("raw1_value", "ACTIVE").containsEntry("raw2_value", "alice");
+    }
+
+    @Test
     void withCte_fromCteUsesCteName_notEntityTable() {
         SelectSpec<TUser, TUser> cteBody = SelectBuilder.from(TUser.class).mapToEntity();
 

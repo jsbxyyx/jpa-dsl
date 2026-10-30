@@ -153,6 +153,25 @@ class SubqueryRendererTest {
         assertThat(rendered.getSql()).contains("t.status = :p1").contains("o.status = :p2");
     }
 
+    @Test
+    void renderSelect_rawParamsInOuterAndSubquery_keepSameNamesIndependent() {
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
+                .select(col(TOrder::getUserId, "o"))
+                .where(w -> w.raw("o.status = :value", java.util.Map.of("value", "PAID")))
+                .mapTo(Long.class);
+
+        SelectSpec<TUser, UserDto> outer = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.raw("t.status = :value", java.util.Map.of("value", "ACTIVE"))
+                        .inSubquery(col(TUser::getId), inner))
+                .mapTo(UserDto.class);
+
+        RenderedSql rendered = SqlRenderer.renderSelect(outer);
+
+        assertThat(rendered.getSql()).contains("t.status = :raw1_value").contains("o.status = :raw2_value");
+        assertThat(rendered.getParams()).containsEntry("raw1_value", "ACTIVE").containsEntry("raw2_value", "PAID");
+    }
+
     // ------------------------------------------------------------------ //
     //  ORDER BY omitted inside subquery
     // ------------------------------------------------------------------ //

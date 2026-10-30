@@ -36,13 +36,58 @@ public final class Oracle11gDialect implements Dialect {
 
     @Override
     public String applyPagination(String sql, long offset, int limit, Map<String, Object> params) {
-        long end = offset + limit;
-        params.put("_offset", offset);
-        params.put("_end", end);
+        Dialect.validatePagination(offset, limit);
+        long end;
+        try {
+            end = Math.addExact(offset, limit);
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException("Pagination offset plus limit exceeds the supported range", ex);
+        }
+        String offsetParam = Dialect.uniquePaginationParamName("_offset", sql, params);
+        String endParam = Dialect.uniquePaginationParamName("_end", sql, params);
+        params.put(offsetParam, offset);
+        params.put(endParam, end);
+        String rowNumberAlias = uniqueRowNumberAlias(sql);
         return "SELECT * FROM ("
-                + "SELECT _q_.*, ROWNUM _rn_ FROM (" + sql + ") _q_"
-                + " WHERE ROWNUM <= :_end"
-                + ") WHERE _rn_ > :_offset";
+                + "SELECT _q_.*, ROWNUM " + rowNumberAlias + " FROM (" + sql + ") _q_"
+                + " WHERE ROWNUM <= :" + endParam
+                + ") WHERE " + rowNumberAlias + " > :" + offsetParam;
+    }
+
+    /**
+     * Chooses a row-number alias that does not collide with identifiers in the wrapped query.
+     * The check is deliberately conservative: occurrences in literals/comments may cause a
+     * harmless suffix, but can never create a duplicate projected column name.
+     */
+    private static String uniqueRowNumberAlias(String sql) {
+        String alias = "_rn_";
+        int suffix = 1;
+        while (containsIdentifier(sql, alias)) {
+            alias = "_rn_" + suffix++;
+        }
+        return alias;
+    }
+
+    private static boolean containsIdentifier(String sql, String identifier) {
+        int from = 0;
+        while (from < sql.length()) {
+            int index = sql.toLowerCase(java.util.Locale.ROOT).indexOf(identifier, from);
+            if (index < 0) {
+                return false;
+            }
+            int end = index + identifier.length();
+            boolean leftBoundary = index == 0 || !isIdentifierPart(sql.charAt(index - 1));
+            boolean rightBoundary = end == sql.length() || !isIdentifierPart(sql.charAt(end));
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+            from = index + 1;
+        }
+        return false;
+    }
+
+    private static boolean isIdentifierPart(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
     }
 
     @Override

@@ -9,6 +9,7 @@ import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.param;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.subquery;
+import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -352,6 +353,19 @@ class SqlRendererTest {
     }
 
     @Test
+    void renderUpdate_functionExpressionPredicate_rendersAsSql() {
+        UpdateSpec<TUser> spec = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .where(w -> w.eq(upper(TUser::getUsername), "ALICE"))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderUpdate(spec);
+
+        assertThat(rendered.getSql()).contains("WHERE UPPER(username) = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE").containsEntry("p2", "ALICE");
+    }
+
+    @Test
     void updateBuilder_arithmeticColumnOperands_renderColumnReferences() {
         RenderedSql added = SqlRenderer.renderUpdate(UpdateBuilder.from(TUser.class)
                 .add(TUser::getAge, TUser::getId)
@@ -518,6 +532,18 @@ class SqlRendererTest {
         assertThat(rendered.getSql()).contains("status = :p1");
         assertThat(rendered.getSql()).contains("age < :p2");
         assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE").containsEntry("p2", 18);
+    }
+
+    @Test
+    void renderDelete_functionExpressionPredicate_rendersAsSql() {
+        DeleteSpec<TUser> spec = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(upper(TUser::getUsername), "ALICE"))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+
+        assertThat(rendered.getSql()).isEqualTo("DELETE FROM t_user WHERE UPPER(username) = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "ALICE");
     }
 
     @Test

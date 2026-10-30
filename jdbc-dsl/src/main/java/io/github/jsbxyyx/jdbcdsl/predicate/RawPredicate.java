@@ -11,9 +11,9 @@ import java.util.Map;
  * type-safe DSL API — for example, database-specific functions, complex CASE expressions,
  * or cross-column comparisons.
  *
- * <p>Named parameters in {@code sql} (e.g. {@code :year}) are merged directly into the
- * query's parameter map. Parameter names must not match the auto-generated DSL names
- * ({@code p1}, {@code p2}, …) to avoid collisions.
+ * <p>Named parameters in {@code sql} (e.g. {@code :year}) are isolated from DSL-generated
+ * parameters and parameters from other raw fragments during rendering. Their markers may be
+ * renamed in the rendered SQL to ensure unique bindings.
  *
  * <p><strong>Warning:</strong> never pass user-controlled data in {@code sql}.
  * Bind user input through {@code params} as named parameters.
@@ -37,7 +37,7 @@ public final class RawPredicate implements PredicateNode {
         this.params = Collections.unmodifiableMap(new LinkedHashMap<>(params));
     }
 
-    /** Returns the raw SQL fragment to embed verbatim in the WHERE clause. */
+    /** Returns the original raw SQL fragment. Parameter markers may be renamed during rendering. */
     public String getSql() {
         return sql;
     }

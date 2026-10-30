@@ -472,8 +472,8 @@ public final class WhereBuilder<T> {
     /**
      * Embeds a raw SQL condition with named parameters in the WHERE clause.
      *
-     * <p>Parameter names must not start with {@code p} followed by digits (e.g. {@code p1})
-     * as those are reserved for auto-generated DSL parameters.
+     * <p>Raw parameter names are isolated from DSL-generated and other raw parameters during
+     * rendering, so the same name can safely be reused in different raw fragments.
      *
      * <p>Example: {@code .where(w -> w.raw("YEAR(t.created_at) = :yr", Map.of("yr", 2024)))}
      */
