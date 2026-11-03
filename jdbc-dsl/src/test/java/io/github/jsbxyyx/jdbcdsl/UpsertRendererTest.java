@@ -313,7 +313,8 @@ class UpsertRendererTest {
                 .onConflict(TAuditUser::getUsername)
                 .doUpdateAll()
                 .build();
-        java.util.List<String> cols = java.util.List.of("id", "username", "status", "deleted", "created_at", "updated_at");
+        java.util.List<String> cols =
+                java.util.List.of("id", "username", "status", "deleted", "created_at", "updated_at");
 
         java.util.List<String> updateCols =
                 io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, cols, auditMeta);
@@ -330,8 +331,7 @@ class UpsertRendererTest {
         LinkedHashMap<String, Object> values = new LinkedHashMap<>();
         values.put("username", "alice");
 
-        assertThatThrownBy(() ->
-                        SqlRenderer.renderUpsert(spec, meta, values, new PostgresDialect()))
+        assertThatThrownBy(() -> SqlRenderer.renderUpsert(spec, meta, values, new PostgresDialect()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no columns to update");
     }

@@ -110,12 +110,10 @@ class NewFeaturesRendererTest {
 
     @Test
     void union_orderByUsesProjectedPropertyAlias() {
-        SelectSpec<TOrder, UserDto> first = SelectBuilder.from(TOrder.class)
-                .select(TOrder::getOrderNo)
-                .mapTo(UserDto.class);
-        SelectSpec<TOrder, UserDto> second = SelectBuilder.from(TOrder.class)
-                .select(TOrder::getOrderNo)
-                .mapTo(UserDto.class);
+        SelectSpec<TOrder, UserDto> first =
+                SelectBuilder.from(TOrder.class).select(TOrder::getOrderNo).mapTo(UserDto.class);
+        SelectSpec<TOrder, UserDto> second =
+                SelectBuilder.from(TOrder.class).select(TOrder::getOrderNo).mapTo(UserDto.class);
         UnionSpec<UserDto> spec = UnionSpec.of(first)
                 .unionAll(second)
                 .orderBy(JSort.byAsc(TOrder::getOrderNo))

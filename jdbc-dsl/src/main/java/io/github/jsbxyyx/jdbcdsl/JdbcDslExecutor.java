@@ -1016,8 +1016,8 @@ public final class JdbcDslExecutor {
                     .toArray(MapSqlParameterSource[]::new);
             int[] batchResults = jdbc.batchUpdate(entry.getKey(), batchParams);
             if (batchResults.length != items.size()) {
-                throw new IllegalStateException("Batch update returned " + batchResults.length
-                        + " counts for " + items.size() + " statements");
+                throw new IllegalStateException(
+                        "Batch update returned " + batchResults.length + " counts for " + items.size() + " statements");
             }
             for (int i = 0; i < items.size(); i++) {
                 results[items.get(i).index()] = batchResults[i];

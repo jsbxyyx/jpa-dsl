@@ -165,8 +165,7 @@ public interface Dialect {
      * semantics.
      */
     static List<String> resolveUpdateColumns(UpsertSpec<?> spec, List<String> allCols, EntityMeta meta) {
-        String identityIdColumn =
-                meta != null && meta.isIdGeneratedByIdentity() ? meta.getIdColumnName() : null;
+        String identityIdColumn = meta != null && meta.isIdGeneratedByIdentity() ? meta.getIdColumnName() : null;
         if (!spec.getUpdateColumns().isEmpty()) {
             return spec.getUpdateColumns().stream()
                     .filter(column -> identityIdColumn == null || !identityIdColumn.equals(column))

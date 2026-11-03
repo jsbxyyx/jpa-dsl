@@ -210,10 +210,12 @@ class JdbcDslNewFeaturesTest {
                 .where(w -> w.eq(TAuditUser::getStatus, "INACTIVE"))
                 .mapToEntity();
 
-        List<TAuditUser> result =
-                executor.union(UnionSpec.of(activeBranch).unionAll(inactiveBranch).build());
+        List<TAuditUser> result = executor.union(
+                UnionSpec.of(activeBranch).unionAll(inactiveBranch).build());
 
-        assertThat(result).extracting(TAuditUser::getUsername).containsExactlyInAnyOrder("unionActive", "unionInactive");
+        assertThat(result)
+                .extracting(TAuditUser::getUsername)
+                .containsExactlyInAnyOrder("unionActive", "unionInactive");
     }
 
     @Test

@@ -746,7 +746,8 @@ public final class SqlRenderer {
     public static <T> RenderedSql renderUpsert(
             UpsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, Dialect dialect) {
         if (!spec.isDoNothing()
-                && Dialect.resolveUpdateColumns(spec, new ArrayList<>(colValues.keySet()), meta).isEmpty()) {
+                && Dialect.resolveUpdateColumns(spec, new ArrayList<>(colValues.keySet()), meta)
+                        .isEmpty()) {
             throw new IllegalArgumentException(
                     "UPSERT has no columns to update; use doNothing() or include a non-conflict update column");
         }
@@ -944,14 +945,15 @@ public final class SqlRenderer {
             return prefix + renderSubquerySql(exists.getSubquery(), ctx) + ")";
         } else if (node instanceof ScalarSubqueryPredicate scalar) {
             String lhs = renderExpressionStandalone(scalar.getLhs(), meta, ctx);
-            String op = switch (scalar.getOp()) {
-                case EQ -> " = ";
-                case NE -> " <> ";
-                case GT -> " > ";
-                case GTE -> " >= ";
-                case LT -> " < ";
-                case LTE -> " <= ";
-            };
+            String op =
+                    switch (scalar.getOp()) {
+                        case EQ -> " = ";
+                        case NE -> " <> ";
+                        case GT -> " > ";
+                        case GTE -> " >= ";
+                        case LT -> " < ";
+                        case LTE -> " <= ";
+                    };
             return lhs + op + "(" + renderSubquerySql(scalar.getSubquery(), ctx) + ")";
         } else if (node instanceof RawPredicate raw) {
             return renderRawPredicate(raw, ctx);

@@ -180,8 +180,7 @@ class SubqueryRendererTest {
                 .select(max(TUser::getAge).as("maxAge"))
                 .mapTo(Integer.class);
         DeleteSpec<TUser> delete = DeleteBuilder.from(TUser.class)
-                .where(w -> w.exists(existsSubquery)
-                        .gtScalar(col(TUser::getAge), scalar(scalarSubquery)))
+                .where(w -> w.exists(existsSubquery).gtScalar(col(TUser::getAge), scalar(scalarSubquery)))
                 .build();
 
         RenderedSql rendered = SqlRenderer.renderDelete(delete);
