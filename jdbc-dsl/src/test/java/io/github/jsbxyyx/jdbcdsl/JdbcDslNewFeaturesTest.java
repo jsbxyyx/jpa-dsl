@@ -191,6 +191,56 @@ class JdbcDslNewFeaturesTest {
         }
     }
 
+    @Test
+    void union_appliesLogicalDeleteFilterToEveryBranch() {
+        TAuditUser active = new TAuditUser("unionActive", "ACTIVE");
+        TAuditUser deleted = new TAuditUser("unionDeleted", "ACTIVE");
+        TAuditUser inactive = new TAuditUser("unionInactive", "INACTIVE");
+        executor.save(active);
+        executor.save(deleted);
+        executor.save(inactive);
+        executor.executeLogicalDelete(DeleteBuilder.from(TAuditUser.class)
+                .eq(TAuditUser::getId, deleted.getId())
+                .build());
+
+        SelectSpec<TAuditUser, TAuditUser> activeBranch = SelectBuilder.from(TAuditUser.class)
+                .where(w -> w.eq(TAuditUser::getStatus, "ACTIVE"))
+                .mapToEntity();
+        SelectSpec<TAuditUser, TAuditUser> inactiveBranch = SelectBuilder.from(TAuditUser.class)
+                .where(w -> w.eq(TAuditUser::getStatus, "INACTIVE"))
+                .mapToEntity();
+
+        List<TAuditUser> result =
+                executor.union(UnionSpec.of(activeBranch).unionAll(inactiveBranch).build());
+
+        assertThat(result).extracting(TAuditUser::getUsername).containsExactlyInAnyOrder("unionActive", "unionInactive");
+    }
+
+    @Test
+    void upsert_identityConflictIncludesIdAndPreservesCreatedDate() {
+        TAuditUser user = new TAuditUser("beforeUpsert", "ACTIVE");
+        executor.save(user);
+        LocalDateTime originalCreatedAt = user.getCreatedAt();
+        LocalDateTime later = FIXED_TIME.plusHours(1);
+        executor.setTimeProvider(() -> later);
+        user.setUsername("afterUpsert");
+        user.setStatus("INACTIVE");
+
+        UpsertSpec<TAuditUser> spec = UpsertBuilder.into(TAuditUser.class)
+                .onConflict(TAuditUser::getId)
+                .doUpdateAll()
+                .build();
+        executor.upsert(spec, user);
+
+        TAuditUser saved = executor.findOne(SelectBuilder.from(TAuditUser.class)
+                .where(w -> w.eq(TAuditUser::getId, user.getId()))
+                .mapToEntity());
+        assertThat(saved.getUsername()).isEqualTo("afterUpsert");
+        assertThat(saved.getStatus()).isEqualTo("INACTIVE");
+        assertThat(saved.getCreatedAt()).isEqualTo(originalCreatedAt);
+        assertThat(saved.getUpdatedAt()).isEqualTo(later);
+    }
+
     // ------------------------------------------------------------------ //
     //  Feature 4 – Auto-fill (INSERT auto-fills @CreatedDate + @LastModifiedDate)
     // ------------------------------------------------------------------ //

@@ -53,7 +53,7 @@ public final class OracleDialect implements Dialect {
             UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
         List<String> conflictCols = spec.getConflictColumns();
-        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
+        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols, meta);
         Map<String, Object> params = new LinkedHashMap<>();
 
         // USING (SELECT :u_col1 col1, :u_col2 col2, … FROM DUAL) s

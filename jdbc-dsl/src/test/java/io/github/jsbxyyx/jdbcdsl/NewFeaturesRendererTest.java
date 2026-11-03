@@ -109,6 +109,24 @@ class NewFeaturesRendererTest {
     }
 
     @Test
+    void union_orderByUsesProjectedPropertyAlias() {
+        SelectSpec<TOrder, UserDto> first = SelectBuilder.from(TOrder.class)
+                .select(TOrder::getOrderNo)
+                .mapTo(UserDto.class);
+        SelectSpec<TOrder, UserDto> second = SelectBuilder.from(TOrder.class)
+                .select(TOrder::getOrderNo)
+                .mapTo(UserDto.class);
+        UnionSpec<UserDto> spec = UnionSpec.of(first)
+                .unionAll(second)
+                .orderBy(JSort.byAsc(TOrder::getOrderNo))
+                .build();
+
+        String sql = SqlRenderer.renderUnion(spec).getSql();
+
+        assertThat(sql).contains("ORDER BY orderNo ASC").doesNotContain("ORDER BY order_no");
+    }
+
+    @Test
     void chainedSetOps_unionThenIntersectThenExcept() {
         SelectSpec<TUser, UserDto> a = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)

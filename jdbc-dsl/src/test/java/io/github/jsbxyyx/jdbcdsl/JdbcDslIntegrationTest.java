@@ -1154,6 +1154,24 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
+    void executeBatchUpdate_resultsStayInInputOrderWhenSqlIsGrouped() {
+        UpdateSpec<TUser> first = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "CHECKED")
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        UpdateSpec<TUser> middle = UpdateBuilder.from(TUser.class)
+                .set(TUser::getAge, 99)
+                .where(w -> w.eq(TUser::getUsername, "missing"))
+                .build();
+        UpdateSpec<TUser> last = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "CHECKED")
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        assertThat(executor.executeBatchUpdate(List.of(first, middle, last))).containsExactly(1, 0, 1);
+    }
+
+    @Test
     void executeBatchUpdate_emptyList_returnsEmptyArray() {
         int[] results = executor.executeBatchUpdate(List.of());
         assertThat(results).isEmpty();
@@ -1177,6 +1195,21 @@ class JdbcDslIntegrationTest {
         SelectSpec<TUser, TUser> all = SelectBuilder.from(TUser.class).mapToEntity();
         List<TUser> remaining = executor.select(all);
         assertThat(remaining).hasSize(1).extracting(TUser::getUsername).containsExactly("charlie");
+    }
+
+    @Test
+    void executeBatchDelete_resultsStayInInputOrderWhenSqlIsGrouped() {
+        DeleteSpec<TUser> first = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        DeleteSpec<TUser> middle = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "MISSING"))
+                .build();
+        DeleteSpec<TUser> last = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "bob"))
+                .build();
+
+        assertThat(executor.executeBatchDelete(List.of(first, middle, last))).containsExactly(1, 0, 1);
     }
 
     @Test

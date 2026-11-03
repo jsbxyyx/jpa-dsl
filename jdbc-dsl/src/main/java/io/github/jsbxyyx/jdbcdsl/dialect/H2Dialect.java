@@ -45,7 +45,7 @@ public final class H2Dialect implements Dialect {
     public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         List<String> allCols = new ArrayList<>(colValues.keySet());
         List<String> conflictCols = spec.getConflictColumns();
-        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
+        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols, meta);
         Map<String, Object> params = new LinkedHashMap<>();
 
         // USING (VALUES(:u_col1, :u_col2, …)) AS s(col1, col2, …)

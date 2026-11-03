@@ -308,7 +308,7 @@ public final class JdbcDslExecutor {
      * }</pre>
      */
     public <R> List<R> union(UnionSpec<R> spec) {
-        RenderedSql rendered = SqlRenderer.renderUnion(spec);
+        RenderedSql rendered = SqlRenderer.renderUnion(applyLogicalDeleteFilter(spec));
         RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -317,7 +317,7 @@ public final class JdbcDslExecutor {
      * Executes a paginated {@link UnionSpec} and returns a page of results.
      */
     public <R> List<R> union(UnionSpec<R> spec, long offset, int size) {
-        RenderedSql rendered = SqlRenderer.renderUnion(spec);
+        RenderedSql rendered = SqlRenderer.renderUnion(applyLogicalDeleteFilter(spec));
         Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
         String paginatedSql = dialect.applyPagination(rendered.getSql(), offset, size, paginatedParams);
         RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
@@ -399,28 +399,15 @@ public final class JdbcDslExecutor {
         if (specs == null || specs.isEmpty()) {
             return new int[0];
         }
-        // Group by rendered SQL, preserving insertion order
-        LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
-        for (UpdateSpec<T> spec : specs) {
+        LinkedHashMap<String, List<BatchItem>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < specs.size(); i++) {
+            UpdateSpec<T> spec = specs.get(i);
             UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
             RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
-            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>()).add(rendered.getParams());
+            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
+                    .add(new BatchItem(i, rendered.getParams()));
         }
-        List<int[]> results = new ArrayList<>();
-        for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
-            String sql = entry.getKey();
-            MapSqlParameterSource[] batchParams =
-                    entry.getValue().stream().map(MapSqlParameterSource::new).toArray(MapSqlParameterSource[]::new);
-            results.add(jdbc.batchUpdate(sql, batchParams));
-        }
-        int totalLen = results.stream().mapToInt(a -> a.length).sum();
-        int[] merged = new int[totalLen];
-        int offset = 0;
-        for (int[] arr : results) {
-            System.arraycopy(arr, 0, merged, offset, arr.length);
-            offset += arr.length;
-        }
-        return merged;
+        return executeBatchGroups(groups, specs.size());
     }
 
     /**
@@ -438,26 +425,14 @@ public final class JdbcDslExecutor {
         if (specs == null || specs.isEmpty()) {
             return new int[0];
         }
-        LinkedHashMap<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
-        for (DeleteSpec<T> spec : specs) {
+        LinkedHashMap<String, List<BatchItem>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < specs.size(); i++) {
+            DeleteSpec<T> spec = specs.get(i);
             RenderedSql rendered = SqlRenderer.renderDelete(spec);
-            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>()).add(rendered.getParams());
+            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
+                    .add(new BatchItem(i, rendered.getParams()));
         }
-        List<int[]> results = new ArrayList<>();
-        for (Map.Entry<String, List<Map<String, Object>>> entry : groups.entrySet()) {
-            String sql = entry.getKey();
-            MapSqlParameterSource[] batchParams =
-                    entry.getValue().stream().map(MapSqlParameterSource::new).toArray(MapSqlParameterSource[]::new);
-            results.add(jdbc.batchUpdate(sql, batchParams));
-        }
-        int totalLen = results.stream().mapToInt(a -> a.length).sum();
-        int[] merged = new int[totalLen];
-        int offset = 0;
-        for (int[] arr : results) {
-            System.arraycopy(arr, 0, merged, offset, arr.length);
-            offset += arr.length;
-        }
-        return merged;
+        return executeBatchGroups(groups, specs.size());
     }
 
     /**
@@ -514,11 +489,9 @@ public final class JdbcDslExecutor {
      * or an explicit {@link UpsertBuilder#doUpdate(SFunction[])} that omits it is used.
      *
      * <p><b>Note on primary keys:</b> identity-generated primary keys (annotated with
-     * {@code @GeneratedValue(strategy = IDENTITY)}) are excluded from the INSERT and UPDATE
-     * clauses. The database assigns the PK on INSERT; the PK is never included in the UPDATE SET
-     * (updating a primary key is almost always wrong). When the conflict key is the PK itself,
-     * set the id field on the entity — the conflict is detected via the unique index; the value
-     * is still supplied through the conflict column's parameter.
+     * {@code @GeneratedValue(strategy = IDENTITY)}) are excluded from INSERT and UPDATE by
+     * default. When the conflict key is the identity PK itself, its entity value is included in
+     * the insert source for conflict detection, but it is never included in the UPDATE SET.
      *
      * @param spec   the upsert specification (conflict columns, optional update-column subset)
      * @param entity the entity whose field values are used for both INSERT and conditional UPDATE
@@ -527,9 +500,11 @@ public final class JdbcDslExecutor {
     public <T> void upsert(UpsertSpec<T> spec, T entity) {
         EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
         injectInsertTimestamps(entity, meta);
-        // Skip the identity PK — the database assigns it on INSERT, and PKs must not appear
-        // in the UPDATE SET clause (databases forbid updating a primary key via ON CONFLICT).
-        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
+        // Include an identity PK only when it is needed as the conflict key. The dialect
+        // resolver still excludes it from the UPDATE SET clause.
+        boolean identityPkIsConflictColumn =
+                meta.isIdGeneratedByIdentity() && spec.getConflictColumns().contains(meta.getIdColumnName());
+        LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, !identityPkIsConflictColumn);
         RenderedSql rendered = SqlRenderer.renderUpsert(spec, meta, colValues, dialect);
         jdbc.update(rendered.getSql(), rendered.getParams());
     }
@@ -1007,6 +982,50 @@ public final class JdbcDslExecutor {
                 spec.getLockMode());
     }
 
+    /**
+     * Applies the same root-entity logical-delete filter used by SELECT to every UNION branch.
+     */
+    private static <R> UnionSpec<R> applyLogicalDeleteFilter(UnionSpec<R> spec) {
+        if (!JdbcDslConfig.isLogicalDeleteAutoFilter()) {
+            return spec;
+        }
+        List<UnionSpec.Branch<R>> branches = spec.getBranches();
+        UnionSpec.Builder<R> builder =
+                UnionSpec.of(applyLogicalDeleteFilter(branches.get(0).spec()));
+        for (int i = 1; i < branches.size(); i++) {
+            UnionSpec.Branch<R> branch = branches.get(i);
+            SelectSpec<?, R> filtered = applyLogicalDeleteFilter(branch.spec());
+            switch (branch.unionType()) {
+                case UNION -> builder.union(filtered);
+                case UNION_ALL -> builder.unionAll(filtered);
+                case INTERSECT -> builder.intersect(filtered);
+                case INTERSECT_ALL -> builder.intersectAll(filtered);
+                case EXCEPT -> builder.except(filtered);
+                case EXCEPT_ALL -> builder.exceptAll(filtered);
+            }
+        }
+        return builder.orderBy(spec.getSort()).build();
+    }
+
+    private int[] executeBatchGroups(LinkedHashMap<String, List<BatchItem>> groups, int resultSize) {
+        int[] results = new int[resultSize];
+        for (Map.Entry<String, List<BatchItem>> entry : groups.entrySet()) {
+            List<BatchItem> items = entry.getValue();
+            MapSqlParameterSource[] batchParams = items.stream()
+                    .map(item -> new MapSqlParameterSource(item.params()))
+                    .toArray(MapSqlParameterSource[]::new);
+            int[] batchResults = jdbc.batchUpdate(entry.getKey(), batchParams);
+            if (batchResults.length != items.size()) {
+                throw new IllegalStateException("Batch update returned " + batchResults.length
+                        + " counts for " + items.size() + " statements");
+            }
+            for (int i = 0; i < items.size(); i++) {
+                results[items.get(i).index()] = batchResults[i];
+            }
+        }
+        return results;
+    }
+
     // ------------------------------------------------------------------ //
     //  Auto-fill helpers (@CreatedDate / @LastModifiedDate)
     // ------------------------------------------------------------------ //
@@ -1090,4 +1109,6 @@ public final class JdbcDslExecutor {
         }
         return stringValue;
     }
+
+    private record BatchItem(int index, Map<String, Object> params) {}
 }

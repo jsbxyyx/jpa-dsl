@@ -7,6 +7,7 @@ import io.github.jsbxyyx.jdbcdsl.dialect.OracleDialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.PostgresDialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.SqlServerDialect;
+import io.github.jsbxyyx.jdbcdsl.entity.TAuditUser;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
@@ -303,6 +304,36 @@ class UpsertRendererTest {
         java.util.List<String> resolved = io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, all);
 
         assertThat(resolved).containsExactly("email");
+    }
+
+    @Test
+    void upsert_defaultUpdateAll_excludesCreatedDateAndIdentityId() {
+        EntityMeta auditMeta = EntityMetaReader.read(TAuditUser.class);
+        UpsertSpec<TAuditUser> spec = UpsertBuilder.into(TAuditUser.class)
+                .onConflict(TAuditUser::getUsername)
+                .doUpdateAll()
+                .build();
+        java.util.List<String> cols = java.util.List.of("id", "username", "status", "deleted", "created_at", "updated_at");
+
+        java.util.List<String> updateCols =
+                io.github.jsbxyyx.jdbcdsl.dialect.Dialect.resolveUpdateColumns(spec, cols, auditMeta);
+
+        assertThat(updateCols).containsExactly("status", "deleted", "updated_at");
+    }
+
+    @Test
+    void upsert_onlyConflictColumn_throwsInsteadOfRenderingEmptyUpdate() {
+        UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class)
+                .onConflict(TUser::getUsername)
+                .doUpdateAll()
+                .build();
+        LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+        values.put("username", "alice");
+
+        assertThatThrownBy(() ->
+                        SqlRenderer.renderUpsert(spec, meta, values, new PostgresDialect()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no columns to update");
     }
 
     // ------------------------------------------------------------------ //

@@ -49,7 +49,7 @@ public final class MySqlDialect implements Dialect {
             return new RenderedSql(sql, params);
         }
 
-        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
+        List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols, meta);
         StringJoiner updateJoiner = new StringJoiner(", ");
         for (String col : updateCols) {
             updateJoiner.add(col + " = VALUES(" + col + ")");
