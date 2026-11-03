@@ -58,6 +58,46 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
+    void select_reorderedAndPartialProjections_mapCorrectlyAcrossQueries() {
+        SelectSpec<TUser, UserDto> forward = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> reversed = SelectBuilder.from(TUser.class)
+                .select(TUser::getUsername, TUser::getId)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+        SelectSpec<TUser, UserDto> partial = SelectBuilder.from(TUser.class)
+                .select(TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserDto.class);
+        UserDto expected = executor.select(forward).get(0);
+        UserDto actual = executor.select(reversed).get(0);
+        assertThat(actual.getId()).isEqualTo(expected.getId());
+        assertThat(actual.getUsername()).isEqualTo("alice");
+        UserDto partialResult = executor.select(partial).get(0);
+        assertThat(partialResult.getUsername()).isEqualTo("alice");
+        assertThat(partialResult.getId()).isNull();
+    }
+
+    @Test
+    void select_recordProjectionSupportsReorderedColumns() {
+        SelectSpec<TUser, UserRecord> forward = SelectBuilder.from(TUser.class)
+                .select(TUser::getId, TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserRecord.class);
+        SelectSpec<TUser, UserRecord> reversed = SelectBuilder.from(TUser.class)
+                .select(TUser::getUsername, TUser::getId)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapTo(UserRecord.class);
+        UserRecord expected = executor.select(forward).get(0);
+        assertThat(expected.username()).isEqualTo("alice");
+        assertThat(executor.select(reversed)).containsExactly(expected);
+    }
+
+    private record UserRecord(Long id, String username) {}
+
+    @Test
     void select_byStatus_returnsFiltered() {
         SelectSpec<TUser, UserDto> spec = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)

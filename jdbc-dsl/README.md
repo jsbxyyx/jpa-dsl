@@ -52,7 +52,7 @@ SelectSpec<User, UserDto> spec = SelectBuilder
 
 ## 常用查询示例
 
-以下示例假设已经配置好 `JdbcDslExecutor executor`，并有映射实体 `User`。`User`、`Order`、`UserDto`、`StatusCountDto` 以及 `user1` 等均为示例占位类型或变量，需替换为应用中的实体、DTO 和数据。代码片段按主题展示，未重复列出所有公共 import；复制到独立类中时，请补齐对应包的 import。示例中的 DTO 需要提供无参构造器和与查询列对应的 setter；如果结果是单列标量，可以使用 `mapTo(Long.class)`、`mapTo(Integer.class)` 等类型。
+以下示例假设已经配置好 `JdbcDslExecutor executor`，并有映射实体 `User`。`User`、`Order`、`UserDto`、`StatusCountDto` 以及 `user1` 等均为示例占位类型或变量，需替换为应用中的实体、DTO 和数据。代码片段按主题展示，未重复列出所有公共 import；复制到独立类中时，请补齐对应包的 import。示例中的 JavaBean DTO 需要提供无参构造器和可写属性，也可使用匹配全部投影列的 `record`；如果结果是单列标量，可以使用 `mapTo(Long.class)`、`mapTo(Integer.class)` 等类型。
 
 ### 1. 普通 SELECT：指定列、WHERE、ORDER BY
 
@@ -534,7 +534,18 @@ int changed = executor.update(
 
 ## 结果映射约定
 
-执行器根据结果集列标签（column label）匹配目标 JavaBean 属性，匹配时不区分大小写。普通 DTO/实体应提供可访问的无参构造器；属性优先通过 setter 写入，没有 setter 时回退到可访问字段。当前 SELECT 结果映射不支持 Java `record` 或任意参数构造器。列标签应与目标属性对应。投影列建议显式使用 `.as("propertyName")`，特别是聚合表达式、同名列或 JOIN 多表投影，避免列名歧义。
+执行器根据结果集列标签（column label）匹配目标属性或 record 组件，匹配时不区分大小写。普通 JavaBean DTO/实体应提供可访问的无参构造器；属性优先通过 setter 写入，没有 setter 时回退到可访问字段。`record` 使用规范构造器创建，支持 DSL 和原生 SQL；普通类的任意参数构造器不支持。列标签应与目标属性对应。投影列建议显式使用 `.as("propertyName")`，特别是聚合表达式、同名列或 JOIN 多表投影，避免列名歧义。
+
+没有对应属性的结果列会被忽略；匹配到属性的列若转换或赋值失败，将抛出 `IllegalStateException` 并终止查询，而不会返回不完整的对象。顶层异常信息包含列位置、属性名、目标类型和值的类型；原始异常可能包含实际数据。部分基本数值类型属性会将 SQL NULL 转换为零；需要区分 NULL 时请使用包装类型。
+
+映射到 `record` 时，每个组件必须恰好匹配一个结果列，列顺序可以不同；缺少组件列或多个列匹配同一组件都会报错。基本类型组件不接受 SQL NULL，请使用包装类型表示可空值。规范构造器抛出的异常会终止查询。
+
+```java
+record UserView(Long id, String username) {}
+
+List<UserView> users = executor.query(
+        "SELECT username, id FROM t_user", Map.of(), UserView.class);
+```
 
 例如：
 
@@ -549,7 +560,7 @@ SelectSpec<User, UserDto> spec = SelectBuilder.from(User.class)
     .mapTo(UserDto.class);
 ```
 
-DTO 中需要存在与 `id`、`name`、`statusUpper` 对应的可写属性。普通 JavaBean 需要可访问的无参构造器；属性优先通过 setter 写入，没有 setter 时会回退到可访问字段。当前 SELECT 结果映射不支持 Java `record`（记录类型），也不会自动匹配任意参数构造器。
+JavaBean DTO 中需要存在与 `id`、`name`、`statusUpper` 对应的可写属性，或使用包含这些组件的 `record`。普通 JavaBean 需要可访问的无参构造器；属性优先通过 setter 写入，没有 setter 时会回退到可访问字段。普通类不会自动匹配任意参数构造器。
 
 ## 条件构建进阶
 

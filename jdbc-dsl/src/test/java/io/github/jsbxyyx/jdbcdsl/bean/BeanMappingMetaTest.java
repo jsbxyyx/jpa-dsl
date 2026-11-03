@@ -57,6 +57,10 @@ class BeanMappingMetaTest {
     // Test Record type (Java 14+)
     public record SimpleRecord(Long id, String name, Integer age) {}
 
+    private record PrivateRecord(String name) {}
+
+    private record AmbiguousRecord(String name, String NAME) {}
+
     @Test
     void testJavaBeanMapping() {
         BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
@@ -215,9 +219,12 @@ class BeanMappingMetaTest {
     }
 
     @Test
-    void testFactoryRejectsRecordUntilMappingIsSupported() {
+    void testFactorySupportsRecord() {
         BeanMappingMetaFactory factory = new BeanMappingMetaFactory();
-        assertThrows(UnsupportedOperationException.class, () -> factory.create(SimpleRecord.class));
+        assertInstanceOf(RecordMappingMeta.class, factory.create(SimpleRecord.class));
+        BeanMappingMeta privateMeta = factory.create(PrivateRecord.class);
+        assertEquals("Alice", privateMeta.getProperty(new PrivateRecord("Alice"), "NAME"));
+        assertThrows(IllegalArgumentException.class, () -> factory.create(AmbiguousRecord.class));
     }
 
     @Test

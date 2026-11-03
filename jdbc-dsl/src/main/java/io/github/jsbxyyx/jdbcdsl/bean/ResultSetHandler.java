@@ -9,8 +9,6 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.Locale;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Optimized ResultSet to Bean mapper that preprocesses column metadata.
@@ -43,8 +41,6 @@ import java.util.logging.Logger;
  * }</pre>
  */
 public final class ResultSetHandler implements ResultSetMapper {
-
-    private static final Logger LOGGER = Logger.getLogger(ResultSetHandler.class.getName());
 
     private static final ConverterRegistry DEFAULT_CONVERTER_REGISTRY =
             new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
@@ -160,6 +156,7 @@ public final class ResultSetHandler implements ResultSetMapper {
      * @param rs the ResultSet positioned at the row to map
      * @return a new bean instance populated with row data
      * @throws SQLException if ResultSet access fails
+     * @throws IllegalStateException if conversion or property assignment fails
      */
     public Object mapRow(ResultSet rs) throws SQLException {
         Object instance = meta.newInstance();
@@ -171,24 +168,15 @@ public final class ResultSetHandler implements ResultSetMapper {
                 continue; // Column not mapped to any property
             }
 
-            Object value;
-            if (mapping.accessor.getType() == LocalDateTime.class && mapping.jdbcType == Types.TIMESTAMP) {
-                // Preserve the SQL wall-clock value for MySQL DATETIME columns without applying timezone offsets.
-                value = rs.getObject(i + 1, LocalDateTime.class);
-            } else {
-                value = JdbcUtils.getResultSetValue(rs, i + 1);
-            }
+            Object value = readValue(rs, i + 1, mapping.accessor.getType(), mapping.jdbcType);
 
             // Optimized conversion and property setting:
             // - Type conversion via pre-selected optimal converter
             // - Direct property setting bypassing double conversion
             try {
                 mapping.set(instance, value);
-            } catch (Exception e) {
-                // First stage: keep backward compatibility and avoid breaking row mapping,
-                // but record mapping failures for diagnosis.
-                LOGGER.log(
-                        Level.WARNING,
+            } catch (RuntimeException e) {
+                throw new IllegalStateException(
                         "Failed to map ResultSet column " + (i + 1)
                                 + " to property " + mapping.accessor.getName()
                                 + " of " + meta.getType().getName()
@@ -199,6 +187,13 @@ public final class ResultSetHandler implements ResultSetMapper {
         }
 
         return instance;
+    }
+
+    static Object readValue(ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType) throws SQLException {
+        if (targetType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
+            return rs.getObject(columnIndex, LocalDateTime.class);
+        }
+        return JdbcUtils.getResultSetValue(rs, columnIndex);
     }
 
     @Override
