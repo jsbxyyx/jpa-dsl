@@ -154,6 +154,46 @@ class SubqueryRendererTest {
     }
 
     @Test
+    void renderUpdate_inSubquery_rendersPredicateAndMergesParams() {
+        SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
+                .select(col(TOrder::getUserId, "o"))
+                .where(w -> w.eq(TOrder::getStatus, "PAID"))
+                .mapTo(Long.class);
+        UpdateSpec<TUser> update = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "INACTIVE")
+                .where(w -> w.inSubquery(col(TUser::getId), inner))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderUpdate(update);
+
+        assertThat(rendered.getSql()).contains("id IN (SELECT").contains("o.status = :p2");
+        assertThat(rendered.getParams()).containsEntry("p1", "INACTIVE").containsEntry("p2", "PAID");
+    }
+
+    @Test
+    void renderDelete_existsAndScalarSubqueries_areSupported() {
+        SelectSpec<TOrder, Long> existsSubquery = SelectBuilder.from(TOrder.class, "o")
+                .select(col(TOrder::getUserId, "o"))
+                .where(w -> w.eq(TOrder::getStatus, "PAID"))
+                .mapTo(Long.class);
+        SelectSpec<TUser, Integer> scalarSubquery = SelectBuilder.from(TUser.class)
+                .select(max(TUser::getAge).as("maxAge"))
+                .mapTo(Integer.class);
+        DeleteSpec<TUser> delete = DeleteBuilder.from(TUser.class)
+                .where(w -> w.exists(existsSubquery)
+                        .gtScalar(col(TUser::getAge), scalar(scalarSubquery)))
+                .build();
+
+        RenderedSql rendered = SqlRenderer.renderDelete(delete);
+
+        assertThat(rendered.getSql())
+                .contains("EXISTS (SELECT")
+                .contains("age > (SELECT")
+                .contains("o.status = :p1");
+        assertThat(rendered.getParams()).containsEntry("p1", "PAID");
+    }
+
+    @Test
     void renderSelect_rawParamsInOuterAndSubquery_keepSameNamesIndependent() {
         SelectSpec<TOrder, Long> inner = SelectBuilder.from(TOrder.class, "o")
                 .select(col(TOrder::getUserId, "o"))

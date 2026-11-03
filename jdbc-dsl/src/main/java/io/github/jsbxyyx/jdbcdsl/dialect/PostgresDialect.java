@@ -56,7 +56,7 @@ public final class PostgresDialect implements Dialect {
         if (spec.isDoNothing()) {
             conflictAction = " DO NOTHING";
         } else {
-            List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols);
+            List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols, meta);
             StringJoiner updateJoiner = new StringJoiner(", ");
             for (String col : updateCols) {
                 updateJoiner.add(col + " = EXCLUDED." + col);

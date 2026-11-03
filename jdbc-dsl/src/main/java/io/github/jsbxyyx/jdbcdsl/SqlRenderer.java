@@ -111,11 +111,9 @@ public final class SqlRenderer {
      */
     private static String renderOrderExpressionUnqualified(SqlExpression<?> expression, RenderContext ctx) {
         if (expression instanceof ColumnExpression<?> col) {
-            // Resolve to column name only (no table alias — ORDER BY column alias on UNION)
+            // UNION branches expose projected columns under their property-name aliases.
             PropertyRef pr = col.getPropertyRef();
-            EntityMeta meta = EntityMetaReader.read(pr.ownerClass());
-            String colName = meta.getColumnName(pr.propertyName());
-            return colName != null ? colName : pr.propertyName();
+            return pr.propertyName();
         } else if (expression instanceof LiteralExpression<?> lit) {
             return lit.getSql();
         } else if (expression instanceof FunctionExpression<?> fn) {
@@ -747,6 +745,11 @@ public final class SqlRenderer {
      */
     public static <T> RenderedSql renderUpsert(
             UpsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, Dialect dialect) {
+        if (!spec.isDoNothing()
+                && Dialect.resolveUpdateColumns(spec, new ArrayList<>(colValues.keySet()), meta).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "UPSERT has no columns to update; use doNothing() or include a non-conflict update column");
+        }
         return dialect.renderUpsert(spec, meta, colValues);
     }
 
@@ -932,6 +935,24 @@ public final class SqlRenderer {
             return joiner.toString();
         } else if (node instanceof NotPredicate not) {
             return "NOT (" + renderPredicateStandalone(not.getChild(), meta, ctx) + ")";
+        } else if (node instanceof InSubqueryPredicate inSub) {
+            String lhs = renderExpressionStandalone(inSub.getLhs(), meta, ctx);
+            String op = inSub.isNegated() ? " NOT IN (" : " IN (";
+            return lhs + op + renderSubquerySql(inSub.getSubquery(), ctx) + ")";
+        } else if (node instanceof ExistsPredicate exists) {
+            String prefix = exists.isNegated() ? "NOT EXISTS (" : "EXISTS (";
+            return prefix + renderSubquerySql(exists.getSubquery(), ctx) + ")";
+        } else if (node instanceof ScalarSubqueryPredicate scalar) {
+            String lhs = renderExpressionStandalone(scalar.getLhs(), meta, ctx);
+            String op = switch (scalar.getOp()) {
+                case EQ -> " = ";
+                case NE -> " <> ";
+                case GT -> " > ";
+                case GTE -> " >= ";
+                case LT -> " < ";
+                case LTE -> " <= ";
+            };
+            return lhs + op + "(" + renderSubquerySql(scalar.getSubquery(), ctx) + ")";
         } else if (node instanceof RawPredicate raw) {
             return renderRawPredicate(raw, ctx);
         } else {

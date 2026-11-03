@@ -148,19 +148,40 @@ public interface Dialect {
     /**
      * Resolves the effective list of columns to include in the UPDATE part of an UPSERT.
      *
-     * <p>When {@code spec.getUpdateColumns()} is non-empty, those are returned as-is.
-     * Otherwise all columns except the conflict-target columns are returned (the "update all"
-     * default).
+     * <p>Explicit update columns are honored except that an IDENTITY primary key is never
+     * updated. The default update-all set excludes conflict columns, {@code @CreatedDate}
+     * columns, and an IDENTITY primary key.
      *
      * @param spec    the upsert spec providing conflict and update column lists
      * @param allCols all column names that will be inserted
      * @return the columns to include in the UPDATE / SET clause
      */
     static List<String> resolveUpdateColumns(UpsertSpec<?> spec, List<String> allCols) {
+        return resolveUpdateColumns(spec, allCols, null);
+    }
+
+    /**
+     * Resolves the update columns using entity metadata to preserve generated-ID and audit-field
+     * semantics.
+     */
+    static List<String> resolveUpdateColumns(UpsertSpec<?> spec, List<String> allCols, EntityMeta meta) {
+        String identityIdColumn =
+                meta != null && meta.isIdGeneratedByIdentity() ? meta.getIdColumnName() : null;
         if (!spec.getUpdateColumns().isEmpty()) {
-            return spec.getUpdateColumns();
+            return spec.getUpdateColumns().stream()
+                    .filter(column -> identityIdColumn == null || !identityIdColumn.equals(column))
+                    .collect(Collectors.toList());
         }
-        Set<String> conflicts = new HashSet<>(spec.getConflictColumns());
-        return allCols.stream().filter(c -> !conflicts.contains(c)).collect(Collectors.toList());
+        Set<String> excludedColumns = new HashSet<>(spec.getConflictColumns());
+        if (identityIdColumn != null) {
+            excludedColumns.add(identityIdColumn);
+        }
+        if (meta != null) {
+            for (String propertyName : meta.getCreatedDatePropertyNames()) {
+                String columnName = meta.getColumnName(propertyName);
+                excludedColumns.add(columnName != null ? columnName : propertyName);
+            }
+        }
+        return allCols.stream().filter(c -> !excludedColumns.contains(c)).collect(Collectors.toList());
     }
 }
