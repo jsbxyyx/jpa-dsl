@@ -155,6 +155,8 @@ class BeanMappingMetaTest {
     @Test
     void testRecordInstantiation() {
         RecordMappingMeta meta = new RecordMappingMeta(SimpleRecord.class);
+        assertThrows(UnsupportedOperationException.class, meta::newInstance);
+        assertThrows(IllegalArgumentException.class, () -> meta.newInstance(Map.of("id", 1L)));
 
         Map<String, Object> values = new HashMap<>();
         values.put("id", 1L);

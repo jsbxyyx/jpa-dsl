@@ -14,6 +14,7 @@ public interface BeanMappingMeta {
      * Creates a new instance of the target type.
      *
      * @return a new object instance
+     * @throws UnsupportedOperationException if the target is a record, which requires component values
      * @throws RuntimeException if instantiation fails
      */
     Object newInstance();
