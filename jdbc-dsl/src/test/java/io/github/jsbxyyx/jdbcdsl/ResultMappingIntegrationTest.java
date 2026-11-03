@@ -118,6 +118,28 @@ class ResultMappingIntegrationTest {
     }
 
     @Test
+    void numericOverflowAndFractionalValuesAbortBeanAndRecordMapping() {
+        String overflow = "SELECT CAST(2147483648 AS BIGINT) AS count";
+        String fractional = "SELECT CAST(42.5 AS DECIMAL(4, 1)) AS count";
+        for (String sql : List.of(overflow, fractional)) {
+            assertThatThrownBy(() -> executor.queryOne(sql, Map.of(), IntegerDto.class))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("column 1")
+                    .hasMessageContaining("count")
+                    .hasCauseInstanceOf(ArithmeticException.class);
+            assertThatThrownBy(() -> executor.queryOne(sql, Map.of(), PrimitiveRecord.class))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("column 1")
+                    .hasMessageContaining("count")
+                    .hasCauseInstanceOf(ArithmeticException.class);
+        }
+        assertThat(executor.queryOne("SELECT CAST(42.0 AS DECIMAL(4, 1)) AS count", Map.of(), IntegerDto.class).count)
+                .isEqualTo(42);
+        assertThat(executor.queryOne("SELECT CAST(2147483647 AS BIGINT) AS count", Map.of(), PrimitiveRecord.class))
+                .isEqualTo(new PrimitiveRecord(Integer.MAX_VALUE));
+    }
+
+    @Test
     void sharedCacheManagerDoesNotShareQueryLayoutsBetweenExecutors() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource("jdbc:h2:mem:mapping", "sa", "");
         NamedParameterJdbcTemplate template = new NamedParameterJdbcTemplate(dataSource);
@@ -226,6 +248,10 @@ class ResultMappingIntegrationTest {
         private Short converted;
         private Integer nullable;
         private int primitiveValue;
+    }
+
+    static class IntegerDto {
+        private Integer count;
     }
 
     static class RejectingDto {
