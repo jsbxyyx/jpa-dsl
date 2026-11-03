@@ -29,6 +29,7 @@ class ResultMappingIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        JdbcDslConfig.setAllowNullToPrimitiveDefault(false);
         DriverManagerDataSource dataSource =
                 new DriverManagerDataSource("jdbc:h2:mem:mapping;DB_CLOSE_DELAY=-1", "sa", "");
         executor = new JdbcDslExecutor(new NamedParameterJdbcTemplate(dataSource));
@@ -78,15 +79,27 @@ class ResultMappingIntegrationTest {
     }
 
     @Test
-    void mappingConvertsValuesAndPreservesNullableWrappers() {
-        NumericDto dto = executor.queryOne(
-                "SELECT CAST(123 AS INTEGER) AS converted, CAST(NULL AS INTEGER) AS nullable, "
-                        + "CAST(NULL AS INTEGER) AS primitiveValue",
-                Map.of(),
-                NumericDto.class);
+    void primitiveNullMappingIsDisabledByDefaultAndCanBeEnabled() {
+        String sql = "SELECT CAST(123 AS INTEGER) AS converted, CAST(NULL AS INTEGER) AS nullable, "
+                + "CAST(NULL AS INTEGER) AS primitiveValue";
+        assertThat(JdbcDslConfig.isAllowNullToPrimitiveDefault()).isFalse();
+        assertThatThrownBy(() -> executor.queryOne(sql, Map.of(), NumericDto.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("primitiveValue")
+                .hasCauseInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> executor.queryOne("SELECT NULL AS count", Map.of(), PrimitiveRecord.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("count");
+
+        JdbcDslConfig.setAllowNullToPrimitiveDefault(true);
+        NumericDto dto = executor.queryOne(sql, Map.of(), NumericDto.class);
         assertThat(dto.converted).isEqualTo((short) 123);
         assertThat(dto.nullable).isNull();
         assertThat(dto.primitiveValue).isZero();
+        assertThat(executor.queryOne("SELECT NULL AS count", Map.of(), PrimitiveRecord.class))
+                .isEqualTo(new PrimitiveRecord(0));
+        assertThat(executor.queryOne("SELECT NULL AS enabled", Map.of(), BooleanRecord.class))
+                .isEqualTo(new BooleanRecord(false));
     }
 
     @Test
@@ -226,6 +239,8 @@ class ResultMappingIntegrationTest {
     private record NumericRecord(short converted, Integer nullable) {}
 
     private record PrimitiveRecord(int count) {}
+
+    private record BooleanRecord(boolean enabled) {}
 
     private record OtherPersonRecord(String firstName, String lastName) {}
 

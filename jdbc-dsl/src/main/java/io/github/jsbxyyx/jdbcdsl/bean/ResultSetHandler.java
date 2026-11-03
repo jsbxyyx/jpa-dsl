@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
+import io.github.jsbxyyx.jdbcdsl.JdbcDslConfig;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.support.JdbcUtils;
 
@@ -174,6 +175,16 @@ public final class ResultSetHandler implements ResultSetMapper {
             // - Type conversion via pre-selected optimal converter
             // - Direct property setting bypassing double conversion
             try {
+                if (value == null && mapping.accessor.getType().isPrimitive()) {
+                    if (!JdbcDslConfig.isAllowNullToPrimitiveDefault()) {
+                        throw new IllegalStateException("SQL NULL cannot be mapped to primitive property "
+                                + mapping.accessor.getName() + " of "
+                                + meta.getType().getName()
+                                + "; enable jdbcdsl.allow-null-to-primitive-default to use the Java default value");
+                    }
+                    mapping.accessor.write(instance, PrimitiveDefaults.valueOf(mapping.accessor.getType()));
+                    continue;
+                }
                 mapping.set(instance, value);
             } catch (RuntimeException e) {
                 throw new IllegalStateException(

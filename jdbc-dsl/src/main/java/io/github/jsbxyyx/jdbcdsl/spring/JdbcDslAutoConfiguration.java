@@ -70,6 +70,7 @@ public class JdbcDslAutoConfiguration {
             JdbcDslProperties properties, ObjectProvider<NamingStrategy> namingStrategyProvider) {
         JdbcDslConfig.setAllowEmptyWhere(properties.isAllowEmptyWhere());
         JdbcDslConfig.setLogicalDeleteAutoFilter(properties.isLogicalDeleteAutoFilter());
+        JdbcDslConfig.setAllowNullToPrimitiveDefault(properties.isAllowNullToPrimitiveDefault());
         NamingStrategy strategy =
                 namingStrategyProvider.getIfAvailable(() -> buildNamingStrategy(properties.getNamingStrategy()));
         JdbcDslConfig.setNamingStrategy(strategy);

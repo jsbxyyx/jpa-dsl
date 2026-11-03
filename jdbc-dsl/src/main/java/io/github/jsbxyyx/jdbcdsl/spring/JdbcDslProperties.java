@@ -13,6 +13,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * # Automatically filter logically-deleted rows in SELECT (default: true)
  * jdbcdsl.logical-delete-auto-filter=false
  *
+ * # Map SQL NULL to Java primitive defaults (default: false)
+ * jdbcdsl.allow-null-to-primitive-default=true
+ *
  * # Column/table naming strategy when no explicit @Column/@Table annotation is present
  * # Values: default (identity, legacy behaviour) | snake_case (camelCase → snake_case)
  * jdbcdsl.naming-strategy=snake_case
@@ -35,6 +38,12 @@ public class JdbcDslProperties {
      * Defaults to {@code true}.
      */
     private boolean logicalDeleteAutoFilter = true;
+
+    /**
+     * Whether SQL NULL can be mapped to a primitive's Java default value.
+     * Defaults to {@code false}, which fails explicitly instead.
+     */
+    private boolean allowNullToPrimitiveDefault = false;
 
     /**
      * Naming strategy used to derive column and table names when no explicit JPA annotation
@@ -123,6 +132,14 @@ public class JdbcDslProperties {
 
     public void setLogicalDeleteAutoFilter(boolean logicalDeleteAutoFilter) {
         this.logicalDeleteAutoFilter = logicalDeleteAutoFilter;
+    }
+
+    public boolean isAllowNullToPrimitiveDefault() {
+        return allowNullToPrimitiveDefault;
+    }
+
+    public void setAllowNullToPrimitiveDefault(boolean allowNullToPrimitiveDefault) {
+        this.allowNullToPrimitiveDefault = allowNullToPrimitiveDefault;
     }
 
     public String getNamingStrategy() {

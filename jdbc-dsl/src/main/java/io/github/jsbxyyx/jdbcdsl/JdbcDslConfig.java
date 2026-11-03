@@ -15,6 +15,7 @@ public final class JdbcDslConfig {
 
     private static final AtomicBoolean allowEmptyWhere = new AtomicBoolean(false);
     private static final AtomicBoolean logicalDeleteAutoFilter = new AtomicBoolean(true);
+    private static final AtomicBoolean allowNullToPrimitiveDefault = new AtomicBoolean(false);
     private static final AtomicReference<NamingStrategy> namingStrategy =
             new AtomicReference<>(DefaultNamingStrategy.INSTANCE);
 
@@ -51,6 +52,21 @@ public final class JdbcDslConfig {
      */
     public static void setLogicalDeleteAutoFilter(boolean value) {
         logicalDeleteAutoFilter.set(value);
+    }
+
+    /**
+     * Returns whether SQL NULL may be mapped to a Java primitive's default value.
+     * Defaults to {@code false}.
+     */
+    public static boolean isAllowNullToPrimitiveDefault() {
+        return allowNullToPrimitiveDefault.get();
+    }
+
+    /**
+     * Sets whether SQL NULL may be mapped to a Java primitive's default value.
+     */
+    public static void setAllowNullToPrimitiveDefault(boolean value) {
+        allowNullToPrimitiveDefault.set(value);
     }
 
     /**

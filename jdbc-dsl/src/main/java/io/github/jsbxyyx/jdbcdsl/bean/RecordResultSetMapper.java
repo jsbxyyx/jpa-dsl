@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
+import io.github.jsbxyyx.jdbcdsl.JdbcDslConfig;
 import org.springframework.util.ClassUtils;
 
 import java.sql.ResultSet;
@@ -61,9 +62,14 @@ final class RecordResultSetMapper implements ResultSetMapper {
             ComponentMapping mapping = mappings[i];
             Object value = ResultSetHandler.readValue(rs, mapping.columnIndex(), mapping.type(), mapping.jdbcType());
             if (value == null && mapping.type().isPrimitive()) {
-                throw new IllegalStateException("SQL NULL for primitive record component " + mapping.name()
-                        + " at column " + mapping.columnIndex() + " of "
-                        + meta.getType().getName());
+                if (!JdbcDslConfig.isAllowNullToPrimitiveDefault()) {
+                    throw new IllegalStateException("SQL NULL cannot be mapped to primitive record component "
+                            + mapping.name() + " at column " + mapping.columnIndex() + " of "
+                            + meta.getType().getName()
+                            + "; enable jdbcdsl.allow-null-to-primitive-default to use the Java default value");
+                }
+                args[i] = PrimitiveDefaults.valueOf(mapping.type());
+                continue;
             }
             try {
                 args[i] = mapping.converter().convert(value);
