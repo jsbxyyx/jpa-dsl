@@ -26,9 +26,14 @@ import java.util.Objects;
  *
  * @param targetType the target bean class
  * @param columns the list of column signatures
+ * @param context the mapping configuration associated with this key
  * @since 2.1.0
  */
-public record MapperKey(Class<?> targetType, List<ColumnSignature> columns) {
+public record MapperKey(Class<?> targetType, List<ColumnSignature> columns, Object context) {
+
+    public MapperKey(Class<?> targetType, List<ColumnSignature> columns) {
+        this(targetType, columns, null);
+    }
 
     /**
      * Creates a new MapperKey with validation.

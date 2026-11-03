@@ -33,6 +33,26 @@ class JdbcDslAutoConfigurationTest {
     void resetJdbcDslConfig() {
         // Reset the static config after each test to avoid cross-test pollution
         JdbcDslConfig.setAllowEmptyWhere(false);
+        JdbcDslConfig.setAllowNullToPrimitiveDefault(false);
+    }
+
+    @Test
+    void primitiveNullDefaultMappingIsDisabledByDefaultAndPropertyConfigurable() {
+        contextRunner.run(context -> {
+            assertThat(context.getBean(io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties.class)
+                            .isAllowNullToPrimitiveDefault())
+                    .isFalse();
+            assertThat(JdbcDslConfig.isAllowNullToPrimitiveDefault()).isFalse();
+        });
+
+        contextRunner
+                .withPropertyValues("jdbcdsl.allow-null-to-primitive-default=true")
+                .run(context -> {
+                    assertThat(context.getBean(io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties.class)
+                                    .isAllowNullToPrimitiveDefault())
+                            .isTrue();
+                    assertThat(JdbcDslConfig.isAllowNullToPrimitiveDefault()).isTrue();
+                });
     }
 
     // ------------------------------------------------------------------ //

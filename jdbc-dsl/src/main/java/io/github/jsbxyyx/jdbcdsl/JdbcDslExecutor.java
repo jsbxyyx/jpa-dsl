@@ -25,6 +25,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 
 import java.lang.reflect.Field;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
@@ -33,7 +34,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -45,7 +45,8 @@ import java.util.stream.Collectors;
  * field with the same name (case-insensitive). This supports entities where the primary key field
  * has no setter (e.g. JPA {@code @Id}).
  *
- * <p>DTOs and entities must provide a public (or package-private) no-arg constructor.
+ * <p>JavaBean DTOs and entities must provide an accessible no-arg constructor.
+ * Record projections are constructed using their canonical constructor.
  *
  * <p>The default {@link Dialect} is {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect}.
  * Pass a custom dialect (e.g., {@link io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect}) as needed.
@@ -870,41 +871,28 @@ public final class JdbcDslExecutor {
 
     @SuppressWarnings("unchecked")
     private <R> RowMapper<R> buildBeanRowMapper(Class<R> beanClass) {
-        return (RowMapper<R>) cacheManager.getRowMapperCache().get(beanClass, cls -> createBeanRowMapper(beanClass));
+        if (isScalarType(beanClass)) {
+            return (RowMapper<R>)
+                    cacheManager.getRowMapperCache().get(beanClass, cls -> new SingleColumnRowMapper<>(beanClass));
+        }
+        return createBeanRowMapper(beanClass);
     }
 
     private <R> RowMapper<R> createBeanRowMapper(Class<R> beanClass) {
-        if (isScalarType(beanClass)) {
-            return new SingleColumnRowMapper<>(beanClass);
-        }
-
-        // Get or create BeanMappingMeta from cache
         BeanMappingMeta meta =
                 cacheManager.getBeanMappingCache().get(beanClass, cls -> beanMappingMetaFactory.create(beanClass));
 
-        // Cache ResultSetMapper for the lifetime of this RowMapper (thread-safe)
-        AtomicReference<ResultSetMapper> mapperRef = new AtomicReference<>();
+        return new RowMapper<>() {
+            private ResultSetMapper mapper;
 
-        return (rs, rowNum) -> {
-            // Atomic lazy initialization: create mapper on first row
-            ResultSetMapper mapper = mapperRef.updateAndGet(current -> {
-                if (current != null) {
-                    return current;
+            @Override
+            public R mapRow(ResultSet rs, int rowNum) throws SQLException {
+                if (mapper == null) {
+                    mapper = mapperCache.getMapper(rs, meta);
                 }
-                try {
-                    return mapperCache.getMapper(rs, meta);
-                } catch (SQLException e) {
-                    throw new RuntimeException("Failed to initialize ResultSetMapper for " + beanClass.getName(), e);
-                }
-            });
-
-            // Use cached mapper with preprocessed column mappings
-            try {
                 @SuppressWarnings("unchecked")
                 R instance = (R) mapper.mapRow(rs);
                 return instance;
-            } catch (SQLException e) {
-                throw new RuntimeException("Failed to map row to " + beanClass.getName(), e);
             }
         };
     }

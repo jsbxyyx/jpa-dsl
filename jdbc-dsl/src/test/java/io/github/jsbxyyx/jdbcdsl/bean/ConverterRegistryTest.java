@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.convert.support.DefaultConversionService;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -207,6 +208,49 @@ class ConverterRegistryTest {
 
         ValueConverter longConverter = registry.getConverter(Types.BIGINT, Long.class);
         assertEquals(Long.valueOf(123L), longConverter.convert(Integer.valueOf(123)));
+    }
+
+    @Test
+    void testIntegerConversionsCheckAllBoundaries() {
+        Class<?>[][] types = {
+            {byte.class, Byte.class}, {short.class, Short.class},
+            {int.class, Integer.class}, {long.class, Long.class}
+        };
+        long[] minima = {Byte.MIN_VALUE, Short.MIN_VALUE, Integer.MIN_VALUE, Long.MIN_VALUE};
+        long[] maxima = {Byte.MAX_VALUE, Short.MAX_VALUE, Integer.MAX_VALUE, Long.MAX_VALUE};
+        Object[] expectedMinima = {Byte.MIN_VALUE, Short.MIN_VALUE, Integer.MIN_VALUE, Long.MIN_VALUE};
+        Object[] expectedMaxima = {Byte.MAX_VALUE, Short.MAX_VALUE, Integer.MAX_VALUE, Long.MAX_VALUE};
+        for (int i = 0; i < types.length; i++) {
+            for (Class<?> type : types[i]) {
+                ValueConverter converter = registry.getConverter(Types.NUMERIC, type);
+                BigInteger min = BigInteger.valueOf(minima[i]);
+                BigInteger max = BigInteger.valueOf(maxima[i]);
+                assertEquals(expectedMinima[i], converter.convert(new BigDecimal(min)));
+                assertEquals(expectedMaxima[i], converter.convert(new BigDecimal(max)));
+                assertThrows(ArithmeticException.class, () -> converter.convert(min.subtract(BigInteger.ONE)));
+                assertThrows(ArithmeticException.class, () -> converter.convert(max.add(BigInteger.ONE)));
+                assertThrows(ArithmeticException.class, () -> converter.convert(new BigDecimal("1.01")));
+                assertThrows(ArithmeticException.class, () -> converter.convert(-1.5d));
+                assertEquals(expectedMinima[i], converter.convert(minima[i]));
+                assertEquals(expectedMaxima[i], converter.convert(maxima[i]));
+            }
+        }
+    }
+
+    @Test
+    void testIntegerConversionsHandleDecimalFloatingPointAndOtherNumbersExactly() {
+        ValueConverter converter = registry.getConverter(Types.NUMERIC, long.class);
+        assertEquals(123L, converter.convert(new BigDecimal("123.000")));
+        assertEquals(-123L, converter.convert(-123.0f));
+        assertEquals(42L, converter.convert(new AtomicInteger(42)));
+        assertEquals(9223372036854774784L, converter.convert(0x1.fffffffffffffp62));
+        assertEquals(Long.MIN_VALUE, converter.convert(-0x1.0p63));
+        assertThrows(ArithmeticException.class, () -> converter.convert(0x1.0p63));
+        assertThrows(ArithmeticException.class, () -> converter.convert(Math.nextDown(-0x1.0p63)));
+        assertThrows(ArithmeticException.class, () -> converter.convert(Double.NaN));
+        assertThrows(ArithmeticException.class, () -> converter.convert(Double.POSITIVE_INFINITY));
+        assertThrows(ArithmeticException.class, () -> converter.convert(Float.NEGATIVE_INFINITY));
+        assertThrows(ArithmeticException.class, () -> converter.convert(new BigDecimal("1.0000000000000000001")));
     }
 
     @Test

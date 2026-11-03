@@ -6,6 +6,7 @@ import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -65,9 +66,12 @@ public final class MapperCache {
      * @throws SQLException if ResultSet metadata extraction fails
      */
     public ResultSetMapper getMapper(ResultSet rs, BeanMappingMeta meta) throws SQLException {
-        MapperKey key = createKey(rs, meta.getType());
+        MapperKey key = createKey(rs, meta);
         return cacheManager.getMapperCache().get(key, k -> {
             try {
+                if (meta instanceof RecordMappingMeta recordMeta) {
+                    return new RecordResultSetMapper(rs, recordMeta, converterRegistry);
+                }
                 return new ResultSetHandler(rs, meta, converterRegistry);
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to create mapper for " + meta.getType(), e);
@@ -82,11 +86,11 @@ public final class MapperCache {
      * different column orders require different mappers (column positions matter).
      *
      * @param rs the ResultSet
-     * @param targetType the target bean type
+     * @param meta the bean mapping metadata
      * @return a cache key
      * @throws SQLException if metadata extraction fails
      */
-    private MapperKey createKey(ResultSet rs, Class<?> targetType) throws SQLException {
+    private MapperKey createKey(ResultSet rs, BeanMappingMeta meta) throws SQLException {
         ResultSetMetaData rsMetaData = rs.getMetaData();
         int columnCount = rsMetaData.getColumnCount();
         List<ColumnSignature> columns = new ArrayList<>(columnCount);
@@ -97,6 +101,7 @@ public final class MapperCache {
                 label = rsMetaData.getColumnName(i);
             }
             if (label == null || label.isBlank()) {
+                columns.add(new ColumnSignature("", Types.NULL));
                 continue;
             }
 
@@ -105,7 +110,19 @@ public final class MapperCache {
             columns.add(new ColumnSignature(columnName, jdbcType));
         }
 
-        return new MapperKey(targetType, columns);
+        return new MapperKey(meta.getType(), columns, new MappingContext(this, meta));
+    }
+
+    private record MappingContext(MapperCache cache, BeanMappingMeta meta) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof MappingContext that && cache == that.cache && meta == that.meta;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(cache) + System.identityHashCode(meta);
+        }
     }
 
     /**

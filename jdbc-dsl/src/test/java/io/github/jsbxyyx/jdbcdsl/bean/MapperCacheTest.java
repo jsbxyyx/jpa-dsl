@@ -146,6 +146,34 @@ class MapperCacheTest {
     }
 
     @Test
+    void unnamedColumnsRetainTheirPositionInTheCacheKey() throws SQLException {
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        BeanMappingMeta meta = metaFactory.create(TestEntity.class);
+        ResultSet first = createMockResultSet("", Types.INTEGER, "name", Types.VARCHAR);
+        ResultSet second = createMockResultSet("name", Types.VARCHAR, "", Types.INTEGER);
+        ResultSetMapper firstMapper = cache.getMapper(first, meta);
+        ResultSetMapper secondMapper = cache.getMapper(second, meta);
+        assertNotSame(firstMapper, secondMapper);
+        assertNull(((ResultSetHandler) firstMapper).getPropertyAccessor(0));
+        assertNull(((ResultSetHandler) secondMapper).getPropertyAccessor(1));
+    }
+
+    @Test
+    void sharedManagerIsolatesRegistriesAndMetadata() throws SQLException {
+        JdbcDslCacheManager manager = new JdbcDslCacheManager();
+        ConverterRegistry otherRegistry = mock(ConverterRegistry.class);
+        when(otherRegistry.getConverter(Types.VARCHAR, String.class)).thenReturn(value -> "custom");
+        MapperCache first = new MapperCache(manager, converterRegistry);
+        MapperCache second = new MapperCache(manager, otherRegistry);
+        BeanMappingMeta meta = metaFactory.create(TestEntity.class);
+        ResultSet rs = createMockResultSet("name", Types.VARCHAR);
+        when(rs.getObject(1)).thenReturn("original");
+        assertEquals("original", ((TestEntity) first.getMapper(rs, meta).mapRow(rs)).getName());
+        assertEquals("custom", ((TestEntity) second.getMapper(rs, meta).mapRow(rs)).getName());
+        assertNotSame(first.getMapper(rs, meta), first.getMapper(rs, metaFactory.create(TestEntity.class)));
+    }
+
+    @Test
     void testClearCache() throws SQLException {
         MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
         BeanMappingMeta meta = metaFactory.create(TestEntity.class);

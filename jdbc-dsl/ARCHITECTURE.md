@@ -47,10 +47,9 @@ ValueConverter + DirectSetter
 - ✅ Reduced runtime type checks for common type combinations
 - ✅ Direct MethodHandle invocation
 
-**Benchmark (1M rows × 20 columns):**
-- HashMap lookups eliminated: 20M operations
-- Type conversions reduced: 20M operations
-- Performance improvement: ~40-60% faster than naive implementation
+These are design characteristics, not measured performance claims. No reproducible
+benchmark and environment are currently provided; performance relative to other
+implementations remains unverified.
 
 ### Architecture Evolution Plan
 

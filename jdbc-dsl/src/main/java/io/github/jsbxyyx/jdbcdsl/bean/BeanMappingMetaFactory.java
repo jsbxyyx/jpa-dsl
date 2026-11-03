@@ -35,8 +35,7 @@ public final class BeanMappingMetaFactory {
      */
     public BeanMappingMeta create(Class<?> type) {
         if (type.isRecord()) {
-            throw new UnsupportedOperationException("Record types are not yet supported for SELECT queries. "
-                    + "Records require a different construction strategy using canonical constructors.");
+            return new RecordMappingMeta(type);
         }
 
         ObjectFactory<?> factory = createObjectFactory(type);

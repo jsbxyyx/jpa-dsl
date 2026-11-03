@@ -3,6 +3,7 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.util.HashMap;
@@ -70,11 +71,14 @@ public final class RecordMappingMeta implements BeanMappingMeta {
             parameterNames[i] = name;
             parameterTypes[i] = componentType;
             indexMap.put(name, i);
-            lowerIndexMap.put(name.toLowerCase(Locale.ROOT), i);
+            if (lowerIndexMap.put(name.toLowerCase(Locale.ROOT), i) != null) {
+                throw new IllegalArgumentException("Record components differ only in case on " + type.getName());
+            }
 
             // Create accessor for getter method
             try {
                 Method getterMethod = components[i].getAccessor();
+                getterMethod.setAccessible(true);
                 MethodHandle getterHandle = LOOKUP.unreflect(getterMethod);
                 PropertyAccessor accessor = new MethodHandleAccessor(name, componentType, getterHandle, null);
                 accessorMap.put(name, accessor);
@@ -96,43 +100,58 @@ public final class RecordMappingMeta implements BeanMappingMeta {
         }
     }
 
+    /**
+     * Records cannot be instantiated without component values.
+     *
+     * @throws UnsupportedOperationException always; use {@link #newInstance(Map)} or the
+     *     result-set mapper to provide all component values
+     */
     @Override
     public Object newInstance() {
-        // Records cannot be instantiated without parameters
-        // This method creates an instance with null values
-        Object[] args = new Object[parameterTypes.length];
-        try {
-            return canonicalConstructor.newInstance(args);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create instance of record " + type, e);
-        }
+        throw new UnsupportedOperationException(
+                "Cannot instantiate record " + type.getName() + " without component values");
     }
 
     /**
      * Creates a new record instance with the given property values.
      *
-     * <p>This is the preferred way to create record instances, as it allows
-     * setting all properties at construction time.
+     * <p>Every record component must be present in the map. A component explicitly
+     * mapped to {@code null} is distinct from a missing component.
      *
      * @param propertyValues map of property name to value
      * @return a new record instance
-     * @throws RuntimeException if instantiation fails
+     * @throws IllegalArgumentException if a component value is missing
+     * @throws IllegalStateException if record construction fails
      */
     public Object newInstance(Map<String, Object> propertyValues) {
         Object[] args = new Object[parameterTypes.length];
+        boolean[] provided = new boolean[parameterTypes.length];
 
         for (Map.Entry<String, Object> entry : propertyValues.entrySet()) {
             Integer index = getPropertyIndex(entry.getKey());
             if (index != null) {
                 args[index] = entry.getValue();
+                provided[index] = true;
             }
         }
 
+        for (int i = 0; i < provided.length; i++) {
+            if (!provided[i]) {
+                throw new IllegalArgumentException(
+                        "Missing value for record component " + parameterNames[i] + " of " + type.getName());
+            }
+        }
+
+        return newInstance(args);
+    }
+
+    Object newInstance(Object[] args) {
         try {
             return canonicalConstructor.newInstance(args);
-        } catch (Exception e) {
-            throw new RuntimeException(
-                    "Failed to create instance of record " + type + " with values: " + propertyValues, e);
+        } catch (InvocationTargetException e) {
+            throw new IllegalStateException("Failed to construct record " + type.getName(), e.getCause());
+        } catch (ReflectiveOperationException | IllegalArgumentException e) {
+            throw new IllegalStateException("Failed to construct record " + type.getName(), e);
         }
     }
 
@@ -173,7 +192,7 @@ public final class RecordMappingMeta implements BeanMappingMeta {
      * @param propertyName the property name
      * @return the parameter index, or null if not found
      */
-    private Integer getPropertyIndex(String propertyName) {
+    Integer getPropertyIndex(String propertyName) {
         // Try exact match first
         Integer index = propertyIndexMap.get(propertyName);
         if (index != null) {

@@ -33,8 +33,8 @@ public record ColumnSignature(String columnName, int jdbcType) {
      * @param jdbcType the JDBC type code
      */
     public ColumnSignature {
-        if (columnName == null || columnName.isBlank()) {
-            throw new IllegalArgumentException("Column name cannot be null or blank");
+        if (columnName == null) {
+            throw new IllegalArgumentException("Column name cannot be null");
         }
         // Normalize to lowercase for case-insensitive comparison
         columnName = columnName.toLowerCase(Locale.ROOT);

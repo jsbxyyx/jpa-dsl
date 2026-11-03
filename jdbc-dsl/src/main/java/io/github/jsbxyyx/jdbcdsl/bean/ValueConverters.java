@@ -2,6 +2,8 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 
 import org.springframework.core.convert.ConversionService;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
 
@@ -37,7 +39,8 @@ public final class ValueConverters {
      *
      * <p>JDBC drivers are not consistent about numeric return types. For example,
      * SMALLINT may be returned as Integer. The conversion therefore must follow
-     * the bean property type instead of the JDBC runtime value type.
+     * the bean property type instead of the JDBC runtime value type. Numeric
+     * values must be integral and within the target type's range.
      */
     public static ValueConverter numeric(Class<?> targetType) {
         if (targetType == Byte.class) {
@@ -86,19 +89,60 @@ public final class ValueConverters {
         if (!(value instanceof Number number)) {
             return value;
         }
+        long exactValue = exactLongValue(number, targetType);
         if (targetType == Byte.class || targetType == byte.class) {
-            return number.byteValue();
+            if (exactValue < Byte.MIN_VALUE || exactValue > Byte.MAX_VALUE) {
+                throw numericConversionFailure(number, targetType);
+            }
+            return (byte) exactValue;
         }
         if (targetType == Short.class || targetType == short.class) {
-            return number.shortValue();
+            if (exactValue < Short.MIN_VALUE || exactValue > Short.MAX_VALUE) {
+                throw numericConversionFailure(number, targetType);
+            }
+            return (short) exactValue;
         }
         if (targetType == Integer.class || targetType == int.class) {
-            return number.intValue();
+            if (exactValue < Integer.MIN_VALUE || exactValue > Integer.MAX_VALUE) {
+                throw numericConversionFailure(number, targetType);
+            }
+            return (int) exactValue;
         }
         if (targetType == Long.class || targetType == long.class) {
-            return number.longValue();
+            return exactValue;
         }
         return value;
+    }
+
+    private static long exactLongValue(Number number, Class<?> targetType) {
+        if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {
+            return number.longValue();
+        }
+        try {
+            if (number instanceof BigInteger integer) {
+                return integer.longValueExact();
+            }
+            if (number instanceof BigDecimal decimal) {
+                return decimal.longValueExact();
+            }
+            if (number instanceof Float || number instanceof Double) {
+                double value = number.doubleValue();
+                if (!Double.isFinite(value)) {
+                    throw numericConversionFailure(number, targetType);
+                }
+                return new BigDecimal(value).longValueExact();
+            }
+            return new BigDecimal(number.toString()).longValueExact();
+        } catch (ArithmeticException | NumberFormatException e) {
+            ArithmeticException failure = numericConversionFailure(number, targetType);
+            failure.initCause(e);
+            throw failure;
+        }
+    }
+
+    private static ArithmeticException numericConversionFailure(Number number, Class<?> targetType) {
+        return new ArithmeticException(
+                "Cannot convert " + number.getClass().getName() + " exactly to " + targetType.getTypeName());
     }
 
     private static final ValueConverter BYTE_WRAPPER_CONVERTER = value -> convertNumber(value, Byte.class);
