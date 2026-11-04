@@ -16,10 +16,13 @@ public final class InsertSpec<T> {
 
     private final Class<T> entityClass;
     private final List<String> columnNames;
+    private final List<ColumnSelection> selections;
 
-    private InsertSpec(Class<T> entityClass, List<String> columnNames) {
+    private InsertSpec(Class<T> entityClass, List<ColumnSelection> selections) {
         this.entityClass = entityClass;
-        this.columnNames = List.copyOf(columnNames);
+        this.selections = List.copyOf(selections);
+        this.columnNames =
+                this.selections.stream().map(ColumnSelection::columnName).toList();
     }
 
     /**
@@ -33,7 +36,24 @@ public final class InsertSpec<T> {
      * Creates a spec that inserts exactly the given column names.
      */
     public static <T> InsertSpec<T> of(Class<T> entityClass, List<String> columnNames) {
-        return new InsertSpec<>(entityClass, columnNames);
+        return new InsertSpec<>(
+                entityClass,
+                columnNames.stream()
+                        .map(column -> new ColumnSelection(column, null))
+                        .toList());
+    }
+
+    static <T> InsertSpec<T> fromSelections(Class<T> entityClass, List<ColumnSelection> selections) {
+        return new InsertSpec<>(entityClass, selections);
+    }
+
+    InsertSpec<T> resolve(EntityMeta meta) {
+        if (selections.stream().noneMatch(selection -> selection.propertyName() != null)) {
+            return this;
+        }
+        return of(
+                entityClass,
+                selections.stream().map(selection -> selection.resolve(meta)).toList());
     }
 
     /** The entity class. */
@@ -44,6 +64,8 @@ public final class InsertSpec<T> {
     /**
      * The explicit column names to insert, or an empty list meaning "use all entity columns
      * (minus IDENTITY-generated pk)".
+     * For typed builder selections, these reflect the legacy naming strategy at build time;
+     * an executor resolves the selected properties using its own naming strategy.
      */
     public List<String> getColumnNames() {
         return columnNames;

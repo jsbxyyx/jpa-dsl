@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Rendering context that holds the parameter map and counter for SQL generation.
@@ -18,14 +19,24 @@ public final class RenderContext {
     private final Map<String, Object> params;
     private int paramIdx;
     private int rawParamIdx;
+    private final Function<Class<?>, EntityMeta> metadata;
 
     /**
      * Creates a new render context with an empty parameter map.
      */
     public RenderContext() {
+        this(EntityMetaReader::read);
+    }
+
+    RenderContext(Function<Class<?>, EntityMeta> metadata) {
         this.params = new LinkedHashMap<>();
         this.paramIdx = 0;
         this.rawParamIdx = 0;
+        this.metadata = metadata;
+    }
+
+    EntityMeta entityMeta(Class<?> type) {
+        return metadata.apply(type);
     }
 
     /**

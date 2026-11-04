@@ -536,9 +536,26 @@ int changed = executor.update(
 
 执行器根据结果集列标签（column label）匹配目标属性或 record 组件，匹配时不区分大小写。普通 JavaBean DTO/实体应提供可访问的无参构造器；属性优先通过 setter 写入，没有 setter 时回退到可访问字段。`record` 使用规范构造器创建，支持 DSL 和原生 SQL；普通类的任意参数构造器不支持。列标签应与目标属性对应。投影列建议显式使用 `.as("propertyName")`，特别是聚合表达式、同名列或 JOIN 多表投影，避免列名歧义。
 
-没有对应属性的结果列会被忽略；匹配到属性的列若转换或赋值失败，将抛出 `IllegalStateException` 并终止查询，而不会返回不完整的对象。顶层异常信息包含列位置、属性名、目标类型和值的类型；原始异常可能包含实际数据。默认情况下，SQL `NULL` 映射到 Java 基本类型会报错；设置 `jdbcdsl.allow-null-to-primitive-default=true` 后，才会使用该基本类型的 Java 默认值（如 `0`、`false`）。包装类型始终保留 `null`，需要区分 SQL `NULL` 与默认值时应使用包装类型。
+没有对应属性的结果列默认会被忽略；可通过 `jdbcdsl.auto-mapping-unknown-column-behavior` 设为 `NONE`、`WARNING` 或 `FAILING`。多个结果列匹配同一 JavaBean 属性，或属性名称仅大小写不同，会报错；复杂投影可用 `queryMapped` / `selectMapped` 指定 Spring `RowMapper`。匹配到属性的列若转换或赋值失败，将抛出 `IllegalStateException` 并终止查询，而不会返回不完整的对象。顶层异常信息包含列位置、属性名、目标类型和值的类型；原始异常可能包含实际数据。默认情况下，SQL `NULL` 映射到 Java 基本类型会报错；设置 `jdbcdsl.allow-null-to-primitive-default=true` 后，才会使用该基本类型的 Java 默认值（如 `0`、`false`）。包装类型始终保留 `null`，需要区分 SQL `NULL` 与默认值时应使用包装类型。
 
 数值映射到 `byte`、`short`、`int`、`long` 及其包装类型时，必须是目标类型范围内的整数；溢出、非零小数部分以及 NaN/无穷大都会导致映射失败，不再静默截断。SQL 数值列映射依赖 JDBC 驱动返回的值，已有依赖截断行为的应用需要调整目标类型或查询。
+
+单列标量、JavaBean 和 record 使用相同的转换注册表及基本类型 NULL 策略。可提供 `ConverterRegistry` Spring Bean，或在构造 `JdbcDslExecutor` 时传入自定义注册表；自定义转换器应自行保证目标类型和转换语义。
+
+如需接近 MyBatis 的默认行为，可显式设置 `jdbcdsl.mapping-mode=MYBATIS`：整数类型通过 JDBC 的类型读取方法转换（结果依赖驱动），JavaBean 遇到 NULL 时跳过赋值，保留字段初始值；标量 NULL 返回 null。record 仍必须调用规范构造器，因此其基本类型 NULL 继续遵循 `allow-null-to-primitive-default`。这只兼容上述行为，并非完整复现 MyBatis 的全部映射语义。
+
+Spring 自动配置创建的执行器分别保存自身的命名、空 WHERE、NULL 和逻辑删除设置，即使多个 Spring Context 使用不同配置也互不影响。类型安全列引用按执行器的命名策略解析；字符串列名仍视为数据库原始列名。需要创建无 WHERE 的写入规格时，应使用绑定到执行器的构建器：
+
+```java
+UpdateSpec<User> updateAll = executor.updateBuilder(User.class)
+    .set(User::getStatus, "DISABLED")
+    .build(); // 仅当该执行器配置 allow-empty-where=true 时允许
+DeleteSpec<User> deleteAll = executor.deleteBuilder(User.class).build();
+```
+
+执行器还会在执行单条、批量、逻辑删除及 RETURNING 写入时检查自身的空 WHERE 策略，拒绝由其他宽松执行器创建的无条件规格。`update(sql, params)` 是原生 SQL 入口，不受此防护约束。非 Spring 用户可使用接收命名策略和各个开关的执行器构造器获得同样的隔离。
+
+为了兼容现有代码，Spring 自动配置仍会更新旧的 `JdbcDslConfig` 全局状态；静态 `UpdateBuilder.from` / `DeleteBuilder.from`、静态 `SqlRenderer` 及旧执行器构造器依赖该全局状态，不适合在不同配置的多个 Context 间隔离使用。静态构建器仍在构建时检查全局空 WHERE 设置，因此多 Context 下请使用上述执行器构建器。
 
 映射到 `record` 时，每个组件必须恰好匹配一个结果列，列顺序可以不同；缺少组件列或多个列匹配同一组件都会报错。基本类型组件遵循相同的 SQL `NULL` 配置。规范构造器抛出的异常会终止查询。
 
@@ -735,6 +752,8 @@ int[] affected = executor.executeBatchInsert(spec);
 ```
 
 `.columns(...)` 指定本次插入的属性；未指定时会插入实体映射中的全部列，但排除使用 `IDENTITY` 策略生成的主键。批量插入会在执行前为每行自动填充 `@CreatedDate` 和 `@LastModifiedDate` 字段。空集合会直接返回空的 `int[]`，不会执行 SQL。批量中的每个实体应使用相同的列集合；显式指定列时，确保每行都提供这些列所需的值。还应根据数据库和驱动限制控制批次大小。`affected` 是 JDBC 返回的每条批处理结果，不应假设所有驱动都返回完全相同的行数标记。
+
+批量 UPDATE 和 DELETE 按输入顺序执行，只合并相邻且 SQL 相同的语句；返回的计数对应输入顺序。需要整体原子性时，调用方仍应配置事务。
 
 ### Upsert（冲突时更新）
 

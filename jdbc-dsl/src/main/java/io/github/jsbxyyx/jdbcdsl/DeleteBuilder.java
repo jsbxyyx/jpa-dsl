@@ -3,6 +3,7 @@ package io.github.jsbxyyx.jdbcdsl;
 import io.github.jsbxyyx.jdbcdsl.predicate.PredicateNode;
 
 import java.util.Collection;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -23,15 +24,21 @@ public final class DeleteBuilder<T> {
     private final Class<T> entityClass;
     private final String alias;
     private WhereBuilder<T> whBuilder;
+    private final BooleanSupplier allowEmptyWhere;
 
-    private DeleteBuilder(Class<T> entityClass, String alias) {
+    private DeleteBuilder(Class<T> entityClass, String alias, BooleanSupplier allowEmptyWhere) {
         this.entityClass = entityClass;
         this.alias = alias;
+        this.allowEmptyWhere = allowEmptyWhere;
     }
 
     /** Starts building a DELETE for the given entity class. */
     public static <T> DeleteBuilder<T> from(Class<T> entityClass) {
-        return new DeleteBuilder<>(entityClass, "t");
+        return new DeleteBuilder<>(entityClass, "t", JdbcDslConfig::isAllowEmptyWhere);
+    }
+
+    static <T> DeleteBuilder<T> from(Class<T> entityClass, BooleanSupplier allowEmptyWhere) {
+        return new DeleteBuilder<>(entityClass, "t", allowEmptyWhere);
     }
 
     // ------------------------------------------------------------------ //
@@ -197,7 +204,7 @@ public final class DeleteBuilder<T> {
      */
     public DeleteSpec<T> build() {
         PredicateNode where = whereNode();
-        if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
+        if (where == null && !allowEmptyWhere.getAsBoolean()) {
             throw new IllegalStateException(
                     "DeleteBuilder requires at least one where(...) condition to prevent accidental full-table deletes. "
                             + "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");

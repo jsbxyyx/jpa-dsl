@@ -10,6 +10,8 @@ import io.github.jsbxyyx.jdbcdsl.PropertyRefResolver;
 import io.github.jsbxyyx.jdbcdsl.SnakeCaseNamingStrategy;
 import io.github.jsbxyyx.jdbcdsl.UpdateBuilder;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
+import io.github.jsbxyyx.jdbcdsl.bean.ConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
@@ -24,6 +26,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import javax.sql.DataSource;
@@ -127,8 +130,24 @@ public class JdbcDslAutoConfiguration {
             NamedParameterJdbcTemplate jdbc,
             Dialect dialect,
             JdbcDslCacheManager cacheManager,
-            BeanMappingMetaFactory beanMappingMetaFactory) {
+            BeanMappingMetaFactory beanMappingMetaFactory,
+            JdbcDslProperties properties,
+            ObjectProvider<ConverterRegistry> converterRegistryProvider,
+            ObjectProvider<NamingStrategy> namingStrategyProvider) {
         PropertyRefResolver.setCacheManager(cacheManager);
-        return new JdbcDslExecutor(jdbc, dialect, cacheManager, beanMappingMetaFactory);
+        ConverterRegistry converters = converterRegistryProvider.getIfAvailable(
+                () -> new DefaultConverterRegistry(DefaultConversionService.getSharedInstance()));
+        return new JdbcDslExecutor(
+                jdbc,
+                dialect,
+                cacheManager,
+                beanMappingMetaFactory,
+                converters,
+                properties.getAutoMappingUnknownColumnBehavior(),
+                properties.getMappingMode(),
+                properties.isAllowNullToPrimitiveDefault(),
+                properties.isLogicalDeleteAutoFilter(),
+                properties.isAllowEmptyWhere(),
+                namingStrategyProvider.getIfAvailable(() -> buildNamingStrategy(properties.getNamingStrategy())));
     }
 }

@@ -1,11 +1,18 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
+import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.MappingMode;
+import io.github.jsbxyyx.jdbcdsl.bean.UnknownColumnBehavior;
+import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
+import io.github.jsbxyyx.jdbcdsl.dialect.H2Dialect;
 import io.github.jsbxyyx.jdbcdsl.entity.TAuditUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
+import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -189,6 +196,43 @@ class JdbcDslNewFeaturesTest {
         } finally {
             JdbcDslConfig.setLogicalDeleteAutoFilter(true);
         }
+    }
+
+    @Test
+    void executorsKeepIndependentLogicalDeletePolicies() {
+        TAuditUser user = new TAuditUser("isolated", "ACTIVE");
+        executor.save(user);
+        executor.executeLogicalDelete(DeleteBuilder.from(TAuditUser.class)
+                .eq(TAuditUser::getId, user.getId())
+                .build());
+        JdbcDslCacheManager cache = new JdbcDslCacheManager();
+        DefaultConverterRegistry registry = new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+        JdbcDslExecutor filtered = new JdbcDslExecutor(
+                jdbcTemplate,
+                new H2Dialect(),
+                cache,
+                new BeanMappingMetaFactory(),
+                registry,
+                UnknownColumnBehavior.NONE,
+                MappingMode.STRICT,
+                false,
+                true);
+        JdbcDslExecutor unfiltered = new JdbcDslExecutor(
+                jdbcTemplate,
+                new H2Dialect(),
+                cache,
+                new BeanMappingMetaFactory(),
+                registry,
+                UnknownColumnBehavior.NONE,
+                MappingMode.STRICT,
+                false,
+                false);
+        SelectSpec<TAuditUser, TAuditUser> spec = SelectBuilder.from(TAuditUser.class)
+                .where(w -> w.eq(TAuditUser::getId, user.getId()))
+                .mapToEntity();
+        assertThat(filtered.select(spec)).isEmpty();
+        assertThat(unfiltered.select(spec)).hasSize(1);
+        assertThat(filtered.select(spec)).isEmpty();
     }
 
     @Test

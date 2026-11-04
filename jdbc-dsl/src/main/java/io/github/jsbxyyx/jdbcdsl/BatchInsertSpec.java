@@ -21,11 +21,18 @@ public final class BatchInsertSpec<T> {
     private final Class<T> entityClass;
     private final List<T> rows;
     private final List<String> columnNames;
+    private final List<ColumnSelection> selections;
 
-    BatchInsertSpec(Class<T> entityClass, List<T> rows, List<String> columnNames) {
+    BatchInsertSpec(Class<T> entityClass, List<T> rows, List<ColumnSelection> selections) {
         this.entityClass = entityClass;
         this.rows = List.copyOf(rows);
-        this.columnNames = List.copyOf(columnNames);
+        this.selections = List.copyOf(selections);
+        this.columnNames =
+                this.selections.stream().map(ColumnSelection::columnName).toList();
+    }
+
+    InsertSpec<T> insertSpec(EntityMeta meta) {
+        return InsertSpec.fromSelections(entityClass, selections).resolve(meta);
     }
 
     /** 实体类。 */
@@ -40,6 +47,7 @@ public final class BatchInsertSpec<T> {
 
     /**
      * 显式指定的列名列表，若为空则使用实体全部列（排除 IDENTITY 主键）。
+     * 类型安全选择的列名为构建时的旧全局策略结果，执行器使用自身命名策略重新解析属性。
      */
     public List<String> getColumnNames() {
         return columnNames;

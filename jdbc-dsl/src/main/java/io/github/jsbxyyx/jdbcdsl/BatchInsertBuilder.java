@@ -27,7 +27,7 @@ public final class BatchInsertBuilder<T> {
 
     private final Class<T> entityClass;
     private final List<T> rows;
-    private final List<String> columnNames = new ArrayList<>();
+    private final List<ColumnSelection> columns = new ArrayList<>();
 
     private BatchInsertBuilder(Class<T> entityClass, List<T> rows) {
         this.entityClass = entityClass;
@@ -63,7 +63,7 @@ public final class BatchInsertBuilder<T> {
         for (SFunction<T, ?> prop : props) {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
             String colName = meta.getColumnName(ref.propertyName());
-            columnNames.add(colName != null ? colName : ref.propertyName());
+            columns.add(new ColumnSelection(colName != null ? colName : ref.propertyName(), ref.propertyName()));
         }
         return this;
     }
@@ -74,6 +74,6 @@ public final class BatchInsertBuilder<T> {
      * @return 不可变的批量插入规格描述符
      */
     public BatchInsertSpec<T> build() {
-        return new BatchInsertSpec<>(entityClass, rows, columnNames);
+        return new BatchInsertSpec<>(entityClass, rows, columns);
     }
 }

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Function;
 
 /**
  * Renders a {@link SelectSpec} into a parameterized {@link RenderedSql}.
@@ -60,7 +61,11 @@ public final class SqlRenderer {
      * are rendered without a table-alias prefix (matching the output column aliases).
      */
     public static <R> RenderedSql renderUnion(UnionSpec<R> spec) {
-        RenderContext ctx = new RenderContext();
+        return renderUnion(spec, EntityMetaReader::read);
+    }
+
+    static <R> RenderedSql renderUnion(UnionSpec<R> spec, Function<Class<?>, EntityMeta> metadata) {
+        RenderContext ctx = new RenderContext(metadata);
 
         List<UnionSpec.Branch<R>> branches = spec.getBranches();
         StringBuilder sb = new StringBuilder();
@@ -134,7 +139,11 @@ public final class SqlRenderer {
      * Renders the SELECT query for a {@link SelectSpec}.
      */
     public static <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec) {
-        RenderContext ctx = new RenderContext();
+        return renderSelect(spec, EntityMetaReader::read);
+    }
+
+    static <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec, Function<Class<?>, EntityMeta> metadata) {
+        RenderContext ctx = new RenderContext(metadata);
         return new RenderedSql(buildSelectSql(spec, ctx, true), ctx.getParams());
     }
 
@@ -148,7 +157,7 @@ public final class SqlRenderer {
      */
     static <T, R> String buildSelectSql(SelectSpec<T, R> spec, RenderContext ctx, boolean includeOrderBy) {
         validateTableAliases(spec);
-        EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta rootMeta = ctx.entityMeta(spec.getEntityClass());
         String alias = spec.getAlias();
 
         StringBuilder sb = new StringBuilder();
@@ -170,7 +179,7 @@ public final class SqlRenderer {
         List<SqlExpression<?>> exprs = spec.getSelectedExpressions();
         validateSelectOutputAliases(exprs);
         if (exprs.isEmpty()) {
-            EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+            EntityMeta meta = ctx.entityMeta(spec.getEntityClass());
             StringJoiner cols = new StringJoiner(", ");
             meta.getPropertyToColumn()
                     .entrySet()
@@ -218,7 +227,7 @@ public final class SqlRenderer {
                 for (JOrder<T> order : sort.getOrders()) {
                     String colExpr;
                     if (order.isIgnoreCase() && order.getExpression() instanceof ColumnExpression<?> colExprNode) {
-                        String rendered = renderColumnExpression(colExprNode, spec);
+                        String rendered = renderColumnExpression(colExprNode, spec, ctx);
                         colExpr = "LOWER(" + rendered + ")";
                     } else {
                         colExpr = renderExpression(order.getExpression(), spec, ctx);
@@ -276,7 +285,11 @@ public final class SqlRenderer {
      * </ul>
      */
     public static <T, R> RenderedSql renderCount(SelectSpec<T, R> spec) {
-        RenderContext ctx = new RenderContext();
+        return renderCount(spec, EntityMetaReader::read);
+    }
+
+    static <T, R> RenderedSql renderCount(SelectSpec<T, R> spec, Function<Class<?>, EntityMeta> metadata) {
+        RenderContext ctx = new RenderContext(metadata);
 
         // COUNT must match the number of rows returned by a DISTINCT query. Counting
         // the underlying table/JOIN rows would over-count when the selected values repeat.
@@ -287,7 +300,7 @@ public final class SqlRenderer {
             return new RenderedSql("SELECT COUNT(*) FROM (" + innerSql + ") _count_t", ctx.getParams());
         }
 
-        EntityMeta rootMeta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta rootMeta = ctx.entityMeta(spec.getEntityClass());
         String alias = spec.getAlias();
         // Honour subqueryFrom > tableNameOverride > entity table name.
         String fromTarget;
@@ -398,7 +411,7 @@ public final class SqlRenderer {
         if (expr instanceof AliasedExpression<?> aliased) {
             return renderExpression(aliased.getInner(), spec, ctx) + " AS " + aliased.getAlias();
         } else if (expr instanceof ColumnExpression<?> col) {
-            String sql = renderColumnExpression(col, spec);
+            String sql = renderColumnExpression(col, spec, ctx);
             String propName = col.getPropertyRef().propertyName();
             return sql + " AS " + propName;
         } else {
@@ -421,7 +434,7 @@ public final class SqlRenderer {
             // In non-SELECT contexts (WHERE / ORDER BY / HAVING), render the inner expression.
             return renderExpression(aliased.getInner(), spec, ctx);
         } else if (expression instanceof ColumnExpression<?> col) {
-            return renderColumnExpression(col, spec);
+            return renderColumnExpression(col, spec, ctx);
         } else if (expression instanceof FunctionExpression<?> fn) {
             return renderFunctionExpression(fn, spec, ctx);
         } else if (expression instanceof AggregateExpression<?> agg) {
@@ -454,9 +467,10 @@ public final class SqlRenderer {
         }
     }
 
-    private static <T, R> String renderColumnExpression(ColumnExpression<?> col, SelectSpec<T, R> spec) {
+    private static <T, R> String renderColumnExpression(
+            ColumnExpression<?> col, SelectSpec<T, R> spec, RenderContext ctx) {
         PropertyRef pr = col.getPropertyRef();
-        EntityMeta meta = EntityMetaReader.read(pr.ownerClass());
+        EntityMeta meta = ctx.entityMeta(pr.ownerClass());
         String colName = meta.getColumnName(pr.propertyName());
         if (colName == null) {
             colName = pr.propertyName();
@@ -574,7 +588,7 @@ public final class SqlRenderer {
         } else if (node instanceof NotPredicate not) {
             return "NOT (" + renderPredicate(not.getChild(), spec, ctx) + ")";
         } else if (node instanceof OnEqPredicate onEq) {
-            return renderOnEqAsWhere(onEq, spec);
+            return renderOnEqAsWhere(onEq, spec, ctx);
         } else if (node instanceof InSubqueryPredicate inSub) {
             return renderInSubquery(inSub, spec, ctx);
         } else if (node instanceof ExistsPredicate exists) {
@@ -696,7 +710,7 @@ public final class SqlRenderer {
         if (cond instanceof OnEqPredicate onEq) {
             resolveAliasForRef(spec, onEq.getLeftRef(), onEq.getLeftAlias());
             resolveAliasForRef(spec, onEq.getRightRef(), onEq.getRightAlias());
-            return renderOnEq(onEq, subqueryAliases);
+            return renderOnEq(onEq, subqueryAliases, ctx);
         }
         return renderPredicate(cond, spec, ctx);
     }
@@ -708,25 +722,26 @@ public final class SqlRenderer {
      * alias (the camelCase property name), because that is what the subquery outputs.
      * For plain entity joins the DB column name is used instead.
      */
-    private static String resolveOnColumn(PropertyRef ref, String alias, Set<String> subqueryAliases) {
+    private static String resolveOnColumn(
+            PropertyRef ref, String alias, Set<String> subqueryAliases, RenderContext ctx) {
         if (subqueryAliases.contains(alias)) {
             // Subquery projects columns as camelCase property aliases
             return ref.propertyName();
         }
-        EntityMeta meta = EntityMetaReader.read(ref.ownerClass());
+        EntityMeta meta = ctx.entityMeta(ref.ownerClass());
         String col = meta.getColumnName(ref.propertyName());
         return col != null ? col : ref.propertyName();
     }
 
-    private static String renderOnEq(OnEqPredicate onEq, Set<String> subqueryAliases) {
-        String leftCol = resolveOnColumn(onEq.getLeftRef(), onEq.getLeftAlias(), subqueryAliases);
-        String rightCol = resolveOnColumn(onEq.getRightRef(), onEq.getRightAlias(), subqueryAliases);
+    private static String renderOnEq(OnEqPredicate onEq, Set<String> subqueryAliases, RenderContext ctx) {
+        String leftCol = resolveOnColumn(onEq.getLeftRef(), onEq.getLeftAlias(), subqueryAliases, ctx);
+        String rightCol = resolveOnColumn(onEq.getRightRef(), onEq.getRightAlias(), subqueryAliases, ctx);
         return onEq.getLeftAlias() + "." + leftCol + " = " + onEq.getRightAlias() + "." + rightCol;
     }
 
-    private static <T, R> String renderOnEqAsWhere(OnEqPredicate onEq, SelectSpec<T, R> spec) {
+    private static <T, R> String renderOnEqAsWhere(OnEqPredicate onEq, SelectSpec<T, R> spec, RenderContext ctx) {
         // In WHERE context there are no subquery aliases; fall back to column names.
-        return renderOnEq(onEq, Set.of());
+        return renderOnEq(onEq, Set.of(), ctx);
     }
 
     // ------------------------------------------------------------------ //
@@ -745,6 +760,7 @@ public final class SqlRenderer {
      */
     public static <T> RenderedSql renderUpsert(
             UpsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, Dialect dialect) {
+        spec = spec.resolve(meta);
         if (!spec.isDoNothing()
                 && Dialect.resolveUpdateColumns(spec, new ArrayList<>(colValues.keySet()), meta)
                         .isEmpty()) {
@@ -774,6 +790,7 @@ public final class SqlRenderer {
      */
     public static <T> RenderedSql renderInsert(
             InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
+        spec = spec.resolve(meta);
         List<String> cols =
                 spec.getColumnNames().isEmpty() ? new ArrayList<>(colValues.keySet()) : spec.getColumnNames();
 
@@ -828,7 +845,12 @@ public final class SqlRenderer {
      * @return the rendered UPDATE … RETURNING SQL and its parameters
      */
     public static <T> RenderedSql renderUpdateReturning(UpdateSpec<T> spec, List<String> returningCols) {
-        RenderedSql base = renderUpdate(spec);
+        return renderUpdateReturning(spec, returningCols, EntityMetaReader::read);
+    }
+
+    static <T> RenderedSql renderUpdateReturning(
+            UpdateSpec<T> spec, List<String> returningCols, Function<Class<?>, EntityMeta> metadata) {
+        RenderedSql base = renderUpdate(spec, metadata);
         if (returningCols == null || returningCols.isEmpty()) {
             return base;
         }
@@ -847,7 +869,12 @@ public final class SqlRenderer {
      * @return the rendered DELETE … RETURNING SQL and its parameters
      */
     public static <T> RenderedSql renderDeleteReturning(DeleteSpec<T> spec, List<String> returningCols) {
-        RenderedSql base = renderDelete(spec);
+        return renderDeleteReturning(spec, returningCols, EntityMetaReader::read);
+    }
+
+    static <T> RenderedSql renderDeleteReturning(
+            DeleteSpec<T> spec, List<String> returningCols, Function<Class<?>, EntityMeta> metadata) {
+        RenderedSql base = renderDelete(spec, metadata);
         if (returningCols == null || returningCols.isEmpty()) {
             return base;
         }
@@ -865,9 +892,12 @@ public final class SqlRenderer {
      * <p>Example output: {@code UPDATE t_user SET status = :p1, age = :p2 WHERE id = :p3}
      */
     public static <T> RenderedSql renderUpdate(UpdateSpec<T> spec) {
-        RenderContext ctx = new RenderContext();
+        return renderUpdate(spec, EntityMetaReader::read);
+    }
 
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+    static <T> RenderedSql renderUpdate(UpdateSpec<T> spec, Function<Class<?>, EntityMeta> metadata) {
+        RenderContext ctx = new RenderContext(metadata);
+        EntityMeta meta = ctx.entityMeta(spec.getEntityClass());
         StringBuilder sb =
                 new StringBuilder("UPDATE ").append(meta.getTableName()).append(" SET ");
 
@@ -902,9 +932,12 @@ public final class SqlRenderer {
      * <p>Example output: {@code DELETE FROM t_user WHERE status = :p1}
      */
     public static <T> RenderedSql renderDelete(DeleteSpec<T> spec) {
-        RenderContext ctx = new RenderContext();
+        return renderDelete(spec, EntityMetaReader::read);
+    }
 
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+    static <T> RenderedSql renderDelete(DeleteSpec<T> spec, Function<Class<?>, EntityMeta> metadata) {
+        RenderContext ctx = new RenderContext(metadata);
+        EntityMeta meta = ctx.entityMeta(spec.getEntityClass());
         StringBuilder sb = new StringBuilder("DELETE FROM ").append(meta.getTableName());
 
         if (spec.getWhere() != null) {
@@ -1062,7 +1095,7 @@ public final class SqlRenderer {
                 sb.append("(").append(innerSql).append(")");
             } else {
                 // Entity join: JOIN t_table
-                EntityMeta joinMeta = EntityMetaReader.read(join.getJoinEntityClass());
+                EntityMeta joinMeta = ctx.entityMeta(join.getJoinEntityClass());
                 sb.append(joinMeta.getTableName());
             }
             sb.append(" ").append(join.getAlias());

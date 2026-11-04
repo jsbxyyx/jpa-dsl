@@ -10,6 +10,7 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 
 /**
  * Thread-safe cache adapter for compiled ResultSet mappers.
@@ -37,6 +38,9 @@ public final class MapperCache {
 
     private final JdbcDslCacheManager cacheManager;
     private final ConverterRegistry converterRegistry;
+    private final UnknownColumnBehavior unknownColumns;
+    private final MappingMode mappingMode;
+    private final BooleanSupplier allowNullToPrimitiveDefault;
 
     /**
      * Creates a new MapperCache that uses the cache instance from JdbcDslCacheManager.
@@ -48,8 +52,41 @@ public final class MapperCache {
      * @param converterRegistry the converter registry to use for mapper creation
      */
     public MapperCache(JdbcDslCacheManager cacheManager, ConverterRegistry converterRegistry) {
+        this(cacheManager, converterRegistry, UnknownColumnBehavior.NONE);
+    }
+
+    public MapperCache(
+            JdbcDslCacheManager cacheManager,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns) {
+        this(cacheManager, converterRegistry, unknownColumns, MappingMode.STRICT);
+    }
+
+    public MapperCache(
+            JdbcDslCacheManager cacheManager,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode) {
+        this(
+                cacheManager,
+                converterRegistry,
+                unknownColumns,
+                mappingMode,
+                io.github.jsbxyyx.jdbcdsl.JdbcDslConfig::isAllowNullToPrimitiveDefault);
+    }
+
+    public MapperCache(
+            JdbcDslCacheManager cacheManager,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode,
+            BooleanSupplier allowNullToPrimitiveDefault) {
         this.cacheManager = cacheManager;
         this.converterRegistry = converterRegistry;
+        this.unknownColumns = java.util.Objects.requireNonNull(unknownColumns, "unknownColumns");
+        this.mappingMode = java.util.Objects.requireNonNull(mappingMode, "mappingMode");
+        this.allowNullToPrimitiveDefault =
+                java.util.Objects.requireNonNull(allowNullToPrimitiveDefault, "allowNullToPrimitiveDefault");
     }
 
     /**
@@ -70,9 +107,16 @@ public final class MapperCache {
         return cacheManager.getMapperCache().get(key, k -> {
             try {
                 if (meta instanceof RecordMappingMeta recordMeta) {
-                    return new RecordResultSetMapper(rs, recordMeta, converterRegistry);
+                    return new RecordResultSetMapper(
+                            rs,
+                            recordMeta,
+                            converterRegistry,
+                            unknownColumns,
+                            mappingMode,
+                            allowNullToPrimitiveDefault);
                 }
-                return new ResultSetHandler(rs, meta, converterRegistry);
+                return new ResultSetHandler(
+                        rs, meta, converterRegistry, unknownColumns, mappingMode, allowNullToPrimitiveDefault);
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to create mapper for " + meta.getType(), e);
             }

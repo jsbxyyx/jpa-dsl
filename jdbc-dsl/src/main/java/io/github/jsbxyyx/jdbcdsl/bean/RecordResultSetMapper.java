@@ -1,11 +1,11 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
-import io.github.jsbxyyx.jdbcdsl.JdbcDslConfig;
 import org.springframework.util.ClassUtils;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.function.BooleanSupplier;
 
 /**
  * Maps result columns to the canonical constructor of a record.
@@ -15,12 +15,23 @@ final class RecordResultSetMapper implements ResultSetMapper {
     private final RecordMappingMeta meta;
     private final ComponentMapping[] mappings;
     private final int columnCount;
+    private final MappingMode mappingMode;
+    private final BooleanSupplier allowNullToPrimitiveDefault;
 
     private record ComponentMapping(
             int columnIndex, String name, Class<?> type, int jdbcType, ValueConverter converter) {}
 
-    RecordResultSetMapper(ResultSet rs, RecordMappingMeta meta, ConverterRegistry registry) throws SQLException {
+    RecordResultSetMapper(
+            ResultSet rs,
+            RecordMappingMeta meta,
+            ConverterRegistry registry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode,
+            BooleanSupplier allowNullToPrimitiveDefault)
+            throws SQLException {
         this.meta = meta;
+        this.mappingMode = mappingMode;
+        this.allowNullToPrimitiveDefault = allowNullToPrimitiveDefault;
         String[] names = meta.getParameterNames();
         Class<?>[] types = meta.getParameterTypes();
         mappings = new ComponentMapping[names.length];
@@ -37,6 +48,7 @@ final class RecordResultSetMapper implements ResultSetMapper {
             }
             Integer index = meta.getPropertyIndex(label);
             if (index == null) {
+                unknownColumns.handle(label, meta.getType());
                 continue;
             }
             if (mappings[index] != null) {
@@ -60,9 +72,10 @@ final class RecordResultSetMapper implements ResultSetMapper {
         Object[] args = new Object[mappings.length];
         for (int i = 0; i < mappings.length; i++) {
             ComponentMapping mapping = mappings[i];
-            Object value = ResultSetHandler.readValue(rs, mapping.columnIndex(), mapping.type(), mapping.jdbcType());
+            Object value = ResultSetHandler.readValue(
+                    rs, mapping.columnIndex(), mapping.type(), mapping.jdbcType(), mappingMode);
             if (value == null && mapping.type().isPrimitive()) {
-                if (!JdbcDslConfig.isAllowNullToPrimitiveDefault()) {
+                if (!allowNullToPrimitiveDefault.getAsBoolean()) {
                     throw new IllegalStateException("SQL NULL cannot be mapped to primitive record component "
                             + mapping.name() + " at column " + mapping.columnIndex() + " of "
                             + meta.getType().getName()
