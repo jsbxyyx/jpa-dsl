@@ -49,6 +49,18 @@ class ResultMappingIntegrationTest {
                 .isInstanceOf(org.springframework.jdbc.IncorrectResultSetColumnCountException.class);
     }
 
+    @Test
+    void scalarMappingHandlesMultipleRowsAndSeparateResultSets() {
+        assertThat(executor.query("SELECT X FROM SYSTEM_RANGE(1, 3)", Map.of(), Long.class))
+                .containsExactly(1L, 2L, 3L);
+        assertThat(executor.query("SELECT CAST(X AS VARCHAR) FROM SYSTEM_RANGE(1, 2)", Map.of(), String.class))
+                .containsExactly("1", "2");
+        assertThatThrownBy(() -> executor.query("SELECT 1, 2", Map.of(), Long.class))
+                .isInstanceOf(org.springframework.jdbc.IncorrectResultSetColumnCountException.class);
+        assertThat(executor.queryOne("SELECT CAST(8 AS BIGINT)", Map.of(), Long.class))
+                .isEqualTo(8L);
+    }
+
     @BeforeEach
     void setUp() {
         JdbcDslConfig.setAllowNullToPrimitiveDefault(false);
