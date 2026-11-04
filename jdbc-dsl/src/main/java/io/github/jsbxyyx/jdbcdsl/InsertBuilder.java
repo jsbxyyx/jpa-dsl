@@ -1,7 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -28,7 +27,7 @@ import java.util.List;
 public final class InsertBuilder<T> {
 
     private final Class<T> entityClass;
-    private final List<String> columnNames = new ArrayList<>();
+    private final List<ColumnSelection> columns = new ArrayList<>();
 
     private InsertBuilder(Class<T> entityClass) {
         this.entityClass = entityClass;
@@ -54,7 +53,7 @@ public final class InsertBuilder<T> {
         for (SFunction<T, ?> prop : props) {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
             String colName = meta.getColumnName(ref.propertyName());
-            columnNames.add(colName != null ? colName : ref.propertyName());
+            columns.add(new ColumnSelection(colName != null ? colName : ref.propertyName(), ref.propertyName()));
         }
         return this;
     }
@@ -66,12 +65,14 @@ public final class InsertBuilder<T> {
      * @param columns the column names (from {@code @Column(name=...)})
      */
     public InsertBuilder<T> columns(String... columns) {
-        columnNames.addAll(Arrays.asList(columns));
+        for (String column : columns) {
+            this.columns.add(new ColumnSelection(column, null));
+        }
         return this;
     }
 
     /** Builds the {@link InsertSpec}. */
     public InsertSpec<T> build() {
-        return InsertSpec.of(entityClass, columnNames);
+        return InsertSpec.fromSelections(entityClass, columns);
     }
 }

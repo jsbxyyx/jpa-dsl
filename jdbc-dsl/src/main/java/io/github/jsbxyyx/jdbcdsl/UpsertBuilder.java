@@ -32,8 +32,8 @@ import java.util.List;
 public final class UpsertBuilder<T> {
 
     private final Class<T> entityClass;
-    private final List<String> conflictColumns = new ArrayList<>();
-    private final List<String> updateColumns = new ArrayList<>();
+    private final List<ColumnSelection> conflictColumns = new ArrayList<>();
+    private final List<ColumnSelection> updateColumns = new ArrayList<>();
     private boolean doNothing = false;
 
     private UpsertBuilder(Class<T> entityClass) {
@@ -59,7 +59,7 @@ public final class UpsertBuilder<T> {
         for (SFunction<T, ?> prop : props) {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
             String col = meta.getColumnName(ref.propertyName());
-            conflictColumns.add(col != null ? col : ref.propertyName());
+            conflictColumns.add(new ColumnSelection(col != null ? col : ref.propertyName(), ref.propertyName()));
         }
         return this;
     }
@@ -76,7 +76,7 @@ public final class UpsertBuilder<T> {
         for (SFunction<T, ?> prop : props) {
             PropertyRef ref = PropertyRefResolver.resolve(prop);
             String col = meta.getColumnName(ref.propertyName());
-            updateColumns.add(col != null ? col : ref.propertyName());
+            updateColumns.add(new ColumnSelection(col != null ? col : ref.propertyName(), ref.propertyName()));
         }
         return this;
     }
@@ -111,6 +111,6 @@ public final class UpsertBuilder<T> {
     }
 
     public UpsertSpec<T> build() {
-        return new UpsertSpec<>(entityClass, conflictColumns, updateColumns, doNothing);
+        return UpsertSpec.fromSelections(entityClass, conflictColumns, updateColumns, doNothing);
     }
 }

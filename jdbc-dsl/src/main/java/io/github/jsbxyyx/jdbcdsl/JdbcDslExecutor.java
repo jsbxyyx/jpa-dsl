@@ -1,12 +1,17 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
 import io.github.jsbxyyx.jdbcdsl.bean.ConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.bean.MapperCache;
+import io.github.jsbxyyx.jdbcdsl.bean.MappingMode;
 import io.github.jsbxyyx.jdbcdsl.bean.PropertyAccessor;
 import io.github.jsbxyyx.jdbcdsl.bean.ResultSetMapper;
+import io.github.jsbxyyx.jdbcdsl.bean.ScalarRowMapper;
+import io.github.jsbxyyx.jdbcdsl.bean.UnknownColumnBehavior;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.Dialect;
 import io.github.jsbxyyx.jdbcdsl.dialect.DialectDetector;
@@ -19,7 +24,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.SingleColumnRowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -34,6 +38,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +65,11 @@ public final class JdbcDslExecutor {
     private final BeanMappingMetaFactory beanMappingMetaFactory;
     private final MapperCache mapperCache;
     private final ConverterRegistry converterRegistry;
+    private final MappingMode mappingMode;
+    private final BooleanSupplier allowNullToPrimitiveDefault;
+    private final BooleanSupplier logicalDeleteAutoFilter;
+    private final BooleanSupplier allowEmptyWhere;
+    private final Function<Class<?>, EntityMeta> metadata;
     private TimeProvider timeProvider = LocalDateTime::now;
 
     /**
@@ -93,12 +104,163 @@ public final class JdbcDslExecutor {
             Dialect dialect,
             JdbcDslCacheManager cacheManager,
             BeanMappingMetaFactory beanMappingMetaFactory) {
+        this(
+                jdbc,
+                dialect,
+                cacheManager,
+                beanMappingMetaFactory,
+                new DefaultConverterRegistry(DefaultConversionService.getSharedInstance()),
+                UnknownColumnBehavior.NONE);
+    }
+
+    /**
+     * Creates an executor with a custom conversion registry and unknown-column policy.
+     * Mapper caches are isolated by executor, even when the cache manager is shared.
+     */
+    public JdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns) {
+        this(
+                jdbc,
+                dialect,
+                cacheManager,
+                beanMappingMetaFactory,
+                converterRegistry,
+                unknownColumns,
+                MappingMode.STRICT);
+    }
+
+    public JdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode) {
+        this(
+                jdbc,
+                dialect,
+                cacheManager,
+                beanMappingMetaFactory,
+                converterRegistry,
+                unknownColumns,
+                mappingMode,
+                JdbcDslConfig::isAllowNullToPrimitiveDefault,
+                JdbcDslConfig::isLogicalDeleteAutoFilter,
+                JdbcDslConfig::isAllowEmptyWhere,
+                EntityMetaReader::read);
+    }
+
+    /**
+     * Creates an executor with fixed NULL and logical-delete policies independent of legacy static configuration.
+     */
+    public JdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode,
+            boolean allowNullToPrimitiveDefault,
+            boolean logicalDeleteAutoFilter) {
+        this(
+                jdbc,
+                dialect,
+                cacheManager,
+                beanMappingMetaFactory,
+                converterRegistry,
+                unknownColumns,
+                mappingMode,
+                () -> allowNullToPrimitiveDefault,
+                () -> logicalDeleteAutoFilter,
+                JdbcDslConfig::isAllowEmptyWhere,
+                EntityMetaReader::read);
+    }
+
+    /**
+     * Creates an executor with fixed naming, empty-WHERE, NULL and logical-delete policies.
+     * Type-safe column references are resolved with this executor's naming strategy.
+     */
+    public JdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode,
+            boolean allowNullToPrimitiveDefault,
+            boolean logicalDeleteAutoFilter,
+            boolean allowEmptyWhere,
+            NamingStrategy namingStrategy) {
+        this(
+                jdbc,
+                dialect,
+                cacheManager,
+                beanMappingMetaFactory,
+                converterRegistry,
+                unknownColumns,
+                mappingMode,
+                () -> allowNullToPrimitiveDefault,
+                () -> logicalDeleteAutoFilter,
+                () -> allowEmptyWhere,
+                fixedMetadata(namingStrategy));
+    }
+
+    private static Function<Class<?>, EntityMeta> fixedMetadata(NamingStrategy namingStrategy) {
+        java.util.Objects.requireNonNull(namingStrategy, "namingStrategy");
+        Cache<Class<?>, EntityMeta> cache = Caffeine.newBuilder()
+                .maximumSize(JdbcDslCacheManager.DEFAULT_BEAN_MAPPING_CACHE_MAX_SIZE)
+                .build();
+        return type -> cache.get(type, key -> EntityMetaReader.read(key, namingStrategy));
+    }
+
+    private JdbcDslExecutor(
+            NamedParameterJdbcTemplate jdbc,
+            Dialect dialect,
+            JdbcDslCacheManager cacheManager,
+            BeanMappingMetaFactory beanMappingMetaFactory,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode,
+            BooleanSupplier allowNullToPrimitiveDefault,
+            BooleanSupplier logicalDeleteAutoFilter,
+            BooleanSupplier allowEmptyWhere,
+            Function<Class<?>, EntityMeta> metadata) {
         this.jdbc = jdbc;
         this.dialect = dialect;
         this.cacheManager = cacheManager;
         this.beanMappingMetaFactory = beanMappingMetaFactory;
-        this.converterRegistry = new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
-        this.mapperCache = new MapperCache(cacheManager, converterRegistry);
+        this.converterRegistry = java.util.Objects.requireNonNull(converterRegistry, "converterRegistry");
+        this.mappingMode = java.util.Objects.requireNonNull(mappingMode, "mappingMode");
+        this.allowNullToPrimitiveDefault = allowNullToPrimitiveDefault;
+        this.logicalDeleteAutoFilter = logicalDeleteAutoFilter;
+        this.allowEmptyWhere = allowEmptyWhere;
+        this.metadata = metadata;
+        this.mapperCache = new MapperCache(
+                cacheManager, converterRegistry, unknownColumns, mappingMode, allowNullToPrimitiveDefault);
+    }
+
+    /** Creates an update builder using this executor's empty-WHERE policy. */
+    public <T> UpdateBuilder<T> updateBuilder(Class<T> entityClass) {
+        return UpdateBuilder.from(entityClass, allowEmptyWhere);
+    }
+
+    /** Creates a delete builder using this executor's empty-WHERE policy. */
+    public <T> DeleteBuilder<T> deleteBuilder(Class<T> entityClass) {
+        return DeleteBuilder.from(entityClass, allowEmptyWhere);
+    }
+
+    private void requireWhere(PredicateNode where) {
+        if (where == null && !allowEmptyWhere.getAsBoolean()) {
+            throw new IllegalStateException("UPDATE or DELETE without WHERE is disabled for this executor");
+        }
     }
 
     /**
@@ -144,6 +306,11 @@ public final class JdbcDslExecutor {
         return jdbc.query(sql, params, mapper);
     }
 
+    /** Executes raw SQL with an explicitly supplied row mapping. */
+    public <R> List<R> queryMapped(String sql, Map<String, Object> params, RowMapper<R> mapper) {
+        return jdbc.query(sql, params, mapper);
+    }
+
     /**
      * Executes an arbitrary SQL query and returns the first row mapped to {@code resultClass},
      * or {@code null} if no rows match.
@@ -177,8 +344,15 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
+        return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
+    }
+
+    /** Executes a DSL query with an explicitly supplied row mapping. */
+    public <T, R> List<R> selectMapped(SelectSpec<T, ?> spec, RowMapper<R> mapper) {
+        SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(spec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
 
@@ -191,7 +365,7 @@ public final class JdbcDslExecutor {
      * @throws IllegalStateException if the entity class has no {@code @Id} field
      */
     public <T> T selectById(Class<T> entityClass, Object id) {
-        EntityMeta meta = EntityMetaReader.read(entityClass);
+        EntityMeta meta = metadata.apply(entityClass);
         String idPropName = meta.getIdPropertyName();
         if (idPropName == null) {
             throw new IllegalStateException("No @Id field found on " + entityClass.getName());
@@ -227,7 +401,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> long count(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
+        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec, metadata);
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
         return total != null ? total : 0L;
     }
@@ -243,7 +417,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
         Map<String, Object> queryParams = new LinkedHashMap<>(rendered.getParams());
         String querySql = rendered.getSql();
         if (pageable.isPaged()) {
@@ -264,7 +438,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> R findOne(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
         String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
@@ -286,7 +460,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> R findOne(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
         String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
@@ -309,7 +483,7 @@ public final class JdbcDslExecutor {
      * }</pre>
      */
     public <R> List<R> union(UnionSpec<R> spec) {
-        RenderedSql rendered = SqlRenderer.renderUnion(applyLogicalDeleteFilter(spec));
+        RenderedSql rendered = SqlRenderer.renderUnion(applyLogicalDeleteFilter(spec), metadata);
         RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -318,7 +492,7 @@ public final class JdbcDslExecutor {
      * Executes a paginated {@link UnionSpec} and returns a page of results.
      */
     public <R> List<R> union(UnionSpec<R> spec, long offset, int size) {
-        RenderedSql rendered = SqlRenderer.renderUnion(applyLogicalDeleteFilter(spec));
+        RenderedSql rendered = SqlRenderer.renderUnion(applyLogicalDeleteFilter(spec), metadata);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(rendered.getParams());
         String paginatedSql = dialect.applyPagination(rendered.getSql(), offset, size, paginatedParams);
         RowMapper<R> mapper = buildBeanRowMapper(spec.getDtoClass());
@@ -337,11 +511,11 @@ public final class JdbcDslExecutor {
         }
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
 
-        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec);
+        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec, metadata);
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
         long totalCount = total != null ? total : 0L;
 
-        RenderedSql selectSql = SqlRenderer.renderSelect(effectiveSpec);
+        RenderedSql selectSql = SqlRenderer.renderSelect(effectiveSpec, metadata);
         Map<String, Object> paginatedParams = new LinkedHashMap<>(selectSql.getParams());
         String paginatedSql =
                 dialect.applyPagination(selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
@@ -364,8 +538,9 @@ public final class JdbcDslExecutor {
      * @return the number of rows affected
      */
     public <T> int executeUpdate(UpdateSpec<T> spec) {
+        requireWhere(spec.getWhere());
         UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
-        RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
+        RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec, metadata);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -376,16 +551,16 @@ public final class JdbcDslExecutor {
      * @return the number of rows affected
      */
     public <T> int executeDelete(DeleteSpec<T> spec) {
-        RenderedSql rendered = SqlRenderer.renderDelete(spec);
+        requireWhere(spec.getWhere());
+        RenderedSql rendered = SqlRenderer.renderDelete(spec, metadata);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
     /**
      * Executes a batch of UPDATE statements described by the given {@link UpdateSpec} list.
      *
-     * <p>Specs that produce the same SQL (same SET columns and WHERE structure) are grouped
-     * together and executed as a single {@link NamedParameterJdbcTemplate#batchUpdate} call.
-     * Specs that differ in SQL are collected into separate groups and executed in encounter order.
+     * <p>Consecutive specs that produce the same SQL are executed together in a single
+     * {@link NamedParameterJdbcTemplate#batchUpdate} call. Groups execute in input order.
      *
      * <p>{@link org.springframework.data.annotation.LastModifiedDate} auto-fill is applied to
      * each spec before rendering, exactly as in {@link #executeUpdate(UpdateSpec)}.
@@ -400,13 +575,13 @@ public final class JdbcDslExecutor {
         if (specs == null || specs.isEmpty()) {
             return new int[0];
         }
-        LinkedHashMap<String, List<BatchItem>> groups = new LinkedHashMap<>();
+        List<BatchGroup> groups = new ArrayList<>();
         for (int i = 0; i < specs.size(); i++) {
             UpdateSpec<T> spec = specs.get(i);
+            requireWhere(spec.getWhere());
             UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
-            RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec);
-            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
-                    .add(new BatchItem(i, rendered.getParams()));
+            RenderedSql rendered = SqlRenderer.renderUpdate(effectiveSpec, metadata);
+            addBatchItem(groups, rendered, i);
         }
         return executeBatchGroups(groups, specs.size());
     }
@@ -414,7 +589,8 @@ public final class JdbcDslExecutor {
     /**
      * Executes a batch of DELETE statements described by the given {@link DeleteSpec} list.
      *
-     * <p>Like {@link #executeBatchUpdate}, specs producing the same SQL are batched together.
+     * <p>Like {@link #executeBatchUpdate}, only consecutive specs producing the same SQL
+     * are batched together, preserving input order.
      *
      * <p>If {@code specs} is empty an empty {@code int[]} is returned immediately.
      *
@@ -426,12 +602,12 @@ public final class JdbcDslExecutor {
         if (specs == null || specs.isEmpty()) {
             return new int[0];
         }
-        LinkedHashMap<String, List<BatchItem>> groups = new LinkedHashMap<>();
+        List<BatchGroup> groups = new ArrayList<>();
         for (int i = 0; i < specs.size(); i++) {
             DeleteSpec<T> spec = specs.get(i);
-            RenderedSql rendered = SqlRenderer.renderDelete(spec);
-            groups.computeIfAbsent(rendered.getSql(), k -> new ArrayList<>())
-                    .add(new BatchItem(i, rendered.getParams()));
+            requireWhere(spec.getWhere());
+            RenderedSql rendered = SqlRenderer.renderDelete(spec, metadata);
+            addBatchItem(groups, rendered, i);
         }
         return executeBatchGroups(groups, specs.size());
     }
@@ -449,7 +625,8 @@ public final class JdbcDslExecutor {
      * @throws IllegalArgumentException 当实体类没有 {@code @LogicalDelete} 字段时
      */
     public <T> int executeLogicalDelete(DeleteSpec<T> spec) {
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        requireWhere(spec.getWhere());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         String ldPropName = meta.getLogicalDeletePropertyName();
         if (ldPropName == null) {
             throw new IllegalArgumentException(
@@ -461,7 +638,7 @@ public final class JdbcDslExecutor {
                 ldPropName,
                 convertLogicalDeleteString(meta.getLogicalDeletedValue(), spec.getEntityClass(), ldPropName)));
         UpdateSpec<T> updateSpec = new UpdateSpec<>(spec.getEntityClass(), assignments, spec.getWhere());
-        RenderedSql rendered = SqlRenderer.renderUpdate(updateSpec);
+        RenderedSql rendered = SqlRenderer.renderUpdate(updateSpec, metadata);
         return jdbc.update(rendered.getSql(), rendered.getParams());
     }
 
@@ -499,7 +676,8 @@ public final class JdbcDslExecutor {
      * @throws UnsupportedOperationException if the configured dialect does not support UPSERT
      */
     public <T> void upsert(UpsertSpec<T> spec, T entity) {
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
+        spec = spec.resolve(meta);
         injectInsertTimestamps(entity, meta);
         // Include an identity PK only when it is needed as the conflict key. The dialect
         // resolver still excludes it from the UPDATE SET clause.
@@ -526,7 +704,7 @@ public final class JdbcDslExecutor {
     public <T> void save(T entity) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
-        EntityMeta meta = EntityMetaReader.read(entityClass);
+        EntityMeta meta = metadata.apply(entityClass);
         injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         doInsert(InsertSpec.of(entityClass), meta, colValues, entity);
@@ -550,7 +728,7 @@ public final class JdbcDslExecutor {
      * @param entity the entity to insert
      */
     public <T> void save(InsertSpec<T> spec, T entity) {
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         injectInsertTimestamps(entity, meta);
         boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, excludeIdentityPk);
@@ -570,7 +748,7 @@ public final class JdbcDslExecutor {
     public <T> void saveNonNull(T entity) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
-        EntityMeta meta = EntityMetaReader.read(entityClass);
+        EntityMeta meta = metadata.apply(entityClass);
         injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         // Remove null-valued columns
@@ -598,7 +776,7 @@ public final class JdbcDslExecutor {
         if (rows.isEmpty()) {
             return new int[0];
         }
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
 
         // Auto-fill timestamps for each row
@@ -608,9 +786,7 @@ public final class JdbcDslExecutor {
 
         // Build column values for the first row to determine the column set and SQL
         LinkedHashMap<String, Object> firstColValues = buildColumnValues(rows.get(0), meta, excludeIdentityPk);
-        InsertSpec<T> insertSpec = spec.getColumnNames().isEmpty()
-                ? InsertSpec.of(spec.getEntityClass())
-                : InsertSpec.of(spec.getEntityClass(), spec.getColumnNames());
+        InsertSpec<T> insertSpec = spec.insertSpec(meta);
         RenderedSql rendered = SqlRenderer.renderInsert(insertSpec, meta, firstColValues);
 
         // Build SqlParameterSource array (one entry per row)
@@ -676,7 +852,7 @@ public final class JdbcDslExecutor {
     public final <T, R> List<R> saveReturning(T entity, Class<R> resultClass, SFunction<T, ?>... returningProps) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
-        EntityMeta meta = EntityMetaReader.read(entityClass);
+        EntityMeta meta = metadata.apply(entityClass);
         injectInsertTimestamps(entity, meta);
         LinkedHashMap<String, Object> colValues = buildColumnValues(entity, meta, true);
         List<String> returningCols = resolveColumnNames(entityClass, meta, returningProps);
@@ -704,10 +880,11 @@ public final class JdbcDslExecutor {
     @SafeVarargs
     public final <T, R> List<R> executeUpdateReturning(
             UpdateSpec<T> spec, Class<R> resultClass, SFunction<T, ?>... returningProps) {
+        requireWhere(spec.getWhere());
         UpdateSpec<T> effectiveSpec = injectLastModifiedDate(spec);
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
-        RenderedSql rendered = SqlRenderer.renderUpdateReturning(effectiveSpec, returningCols);
+        RenderedSql rendered = SqlRenderer.renderUpdateReturning(effectiveSpec, returningCols, metadata);
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -727,9 +904,10 @@ public final class JdbcDslExecutor {
     @SafeVarargs
     public final <T, R> List<R> executeDeleteReturning(
             DeleteSpec<T> spec, Class<R> resultClass, SFunction<T, ?>... returningProps) {
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        requireWhere(spec.getWhere());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         List<String> returningCols = resolveColumnNames(spec.getEntityClass(), meta, returningProps);
-        RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, returningCols);
+        RenderedSql rendered = SqlRenderer.renderDeleteReturning(spec, returningCols, metadata);
         RowMapper<R> mapper = buildBeanRowMapper(resultClass);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -791,7 +969,7 @@ public final class JdbcDslExecutor {
     public <T> int updateById(T entity) {
         @SuppressWarnings("unchecked")
         Class<T> entityClass = (Class<T>) entity.getClass();
-        EntityMeta meta = EntityMetaReader.read(entityClass);
+        EntityMeta meta = metadata.apply(entityClass);
         BeanMappingMeta beanMeta =
                 cacheManager.getBeanMappingCache().get(entityClass, cls -> beanMappingMetaFactory.create(entityClass));
 
@@ -831,7 +1009,7 @@ public final class JdbcDslExecutor {
      * @throws IllegalStateException if the entity class has no {@code @Id} field
      */
     public <T> int deleteById(Class<T> entityClass, Object id) {
-        EntityMeta meta = EntityMetaReader.read(entityClass);
+        EntityMeta meta = metadata.apply(entityClass);
 
         String idPropName = meta.getIdPropertyName();
         if (idPropName == null) {
@@ -869,11 +1047,9 @@ public final class JdbcDslExecutor {
                 || java.time.temporal.Temporal.class.isAssignableFrom(cls);
     }
 
-    @SuppressWarnings("unchecked")
     private <R> RowMapper<R> buildBeanRowMapper(Class<R> beanClass) {
         if (isScalarType(beanClass)) {
-            return (RowMapper<R>)
-                    cacheManager.getRowMapperCache().get(beanClass, cls -> new SingleColumnRowMapper<>(beanClass));
+            return new ScalarRowMapper<>(beanClass, converterRegistry, mappingMode, allowNullToPrimitiveDefault);
         }
         return createBeanRowMapper(beanClass);
     }
@@ -928,15 +1104,15 @@ public final class JdbcDslExecutor {
     // ------------------------------------------------------------------ //
 
     /**
-     * If {@link JdbcDslConfig#isLogicalDeleteAutoFilter()} is {@code true} and the root entity
+     * If logical-delete filtering is enabled and the root entity
      * has a {@code @LogicalDelete} field, returns a new {@link SelectSpec} with an additional
      * {@code AND alias.deleted_col = normalValue} predicate. Otherwise returns {@code spec} as-is.
      */
-    private static <T, R> SelectSpec<T, R> applyLogicalDeleteFilter(SelectSpec<T, R> spec) {
-        if (!JdbcDslConfig.isLogicalDeleteAutoFilter()) {
+    private <T, R> SelectSpec<T, R> applyLogicalDeleteFilter(SelectSpec<T, R> spec) {
+        if (!logicalDeleteAutoFilter.getAsBoolean()) {
             return spec;
         }
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         String ldPropName = meta.getLogicalDeletePropertyName();
         if (ldPropName == null) {
             return spec;
@@ -973,8 +1149,8 @@ public final class JdbcDslExecutor {
     /**
      * Applies the same root-entity logical-delete filter used by SELECT to every UNION branch.
      */
-    private static <R> UnionSpec<R> applyLogicalDeleteFilter(UnionSpec<R> spec) {
-        if (!JdbcDslConfig.isLogicalDeleteAutoFilter()) {
+    private <R> UnionSpec<R> applyLogicalDeleteFilter(UnionSpec<R> spec) {
+        if (!logicalDeleteAutoFilter.getAsBoolean()) {
             return spec;
         }
         List<UnionSpec.Branch<R>> branches = spec.getBranches();
@@ -995,14 +1171,25 @@ public final class JdbcDslExecutor {
         return builder.orderBy(spec.getSort()).build();
     }
 
-    private int[] executeBatchGroups(LinkedHashMap<String, List<BatchItem>> groups, int resultSize) {
+    private void addBatchItem(List<BatchGroup> groups, RenderedSql rendered, int index) {
+        BatchGroup group = groups.isEmpty() ? null : groups.get(groups.size() - 1);
+        if (group == null || !group.sql().equals(rendered.getSql())) {
+            group = new BatchGroup(rendered.getSql(), new ArrayList<>());
+            groups.add(group);
+        }
+        group.items().add(new BatchItem(index, rendered.getParams()));
+    }
+
+    private record BatchGroup(String sql, List<BatchItem> items) {}
+
+    private int[] executeBatchGroups(List<BatchGroup> groups, int resultSize) {
         int[] results = new int[resultSize];
-        for (Map.Entry<String, List<BatchItem>> entry : groups.entrySet()) {
-            List<BatchItem> items = entry.getValue();
+        for (BatchGroup group : groups) {
+            List<BatchItem> items = group.items();
             MapSqlParameterSource[] batchParams = items.stream()
                     .map(item -> new MapSqlParameterSource(item.params()))
                     .toArray(MapSqlParameterSource[]::new);
-            int[] batchResults = jdbc.batchUpdate(entry.getKey(), batchParams);
+            int[] batchResults = jdbc.batchUpdate(group.sql(), batchParams);
             if (batchResults.length != items.size()) {
                 throw new IllegalStateException(
                         "Batch update returned " + batchResults.length + " counts for " + items.size() + " statements");
@@ -1043,7 +1230,7 @@ public final class JdbcDslExecutor {
      * {@link UpdateSpec}. Otherwise returns {@code spec} unchanged.
      */
     private <T> UpdateSpec<T> injectLastModifiedDate(UpdateSpec<T> spec) {
-        EntityMeta meta = EntityMetaReader.read(spec.getEntityClass());
+        EntityMeta meta = metadata.apply(spec.getEntityClass());
         List<String> lmdProps = meta.getLastModifiedDatePropertyNames();
         if (lmdProps.isEmpty()) {
             return spec;

@@ -1163,6 +1163,17 @@ class JdbcDslIntegrationTest {
     // ------------------------------------------------------------------ //
 
     @Test
+    void selectMappedUsesExplicitRowMapper() {
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class)
+                .select(TUser::getUsername)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity();
+        assertThat(executor.selectMapped(
+                        spec, (rs, row) -> rs.getString("username").toUpperCase()))
+                .containsExactly("ALICE");
+    }
+
+    @Test
     void executeBatchUpdate_multipleSpecs_updatesAllRows() {
         // Update alice status → INACTIVE, bob status → ACTIVE
         UpdateSpec<TUser> spec1 = UpdateBuilder.from(TUser.class)
@@ -1212,6 +1223,29 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
+    void executeBatchUpdate_preservesDependentStatementOrder() {
+        UpdateSpec<TUser> first = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "CHECKED")
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        UpdateSpec<TUser> middle = UpdateBuilder.from(TUser.class)
+                .set(TUser::getAge, 99)
+                .where(w -> w.eq(TUser::getStatus, "CHECKED"))
+                .build();
+        UpdateSpec<TUser> last = UpdateBuilder.from(TUser.class)
+                .set(TUser::getStatus, "DONE")
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+
+        assertThat(executor.executeBatchUpdate(List.of(first, middle, last))).containsExactly(1, 1, 1);
+        TUser alice = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .mapToEntity());
+        assertThat(alice.getAge()).isEqualTo(99);
+        assertThat(alice.getStatus()).isEqualTo("DONE");
+    }
+
+    @Test
     void executeBatchUpdate_emptyList_returnsEmptyArray() {
         int[] results = executor.executeBatchUpdate(List.of());
         assertThat(results).isEmpty();
@@ -1250,6 +1284,20 @@ class JdbcDslIntegrationTest {
                 .build();
 
         assertThat(executor.executeBatchDelete(List.of(first, middle, last))).containsExactly(1, 0, 1);
+    }
+
+    @Test
+    void executeBatchDelete_preservesDependentStatementOrder() {
+        DeleteSpec<TUser> first = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "alice"))
+                .build();
+        DeleteSpec<TUser> middle = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getStatus, "ACTIVE"))
+                .build();
+        DeleteSpec<TUser> last = DeleteBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getUsername, "charlie"))
+                .build();
+        assertThat(executor.executeBatchDelete(List.of(first, middle, last))).containsExactly(1, 1, 0);
     }
 
     @Test

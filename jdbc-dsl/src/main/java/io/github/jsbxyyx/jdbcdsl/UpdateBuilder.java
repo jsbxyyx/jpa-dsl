@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -34,15 +35,21 @@ public final class UpdateBuilder<T> {
     private final String alias;
     private final List<Map.Entry<String, Object>> assignments = new ArrayList<>();
     private WhereBuilder<T> whBuilder;
+    private final BooleanSupplier allowEmptyWhere;
 
-    private UpdateBuilder(Class<T> entityClass, String alias) {
+    private UpdateBuilder(Class<T> entityClass, String alias, BooleanSupplier allowEmptyWhere) {
         this.entityClass = entityClass;
         this.alias = alias;
+        this.allowEmptyWhere = allowEmptyWhere;
     }
 
     /** Starts building an UPDATE for the given entity class. */
     public static <T> UpdateBuilder<T> from(Class<T> entityClass) {
-        return new UpdateBuilder<>(entityClass, "t");
+        return new UpdateBuilder<>(entityClass, "t", JdbcDslConfig::isAllowEmptyWhere);
+    }
+
+    static <T> UpdateBuilder<T> from(Class<T> entityClass, BooleanSupplier allowEmptyWhere) {
+        return new UpdateBuilder<>(entityClass, "t", allowEmptyWhere);
     }
 
     /**
@@ -385,7 +392,7 @@ public final class UpdateBuilder<T> {
     public UpdateSpec<T> build() {
         validateAssignments();
         PredicateNode where = whereNode();
-        if (where == null && !JdbcDslConfig.isAllowEmptyWhere()) {
+        if (where == null && !allowEmptyWhere.getAsBoolean()) {
             throw new IllegalStateException(
                     "UpdateBuilder requires at least one where(...) condition to prevent accidental full-table updates. "
                             + "Use buildUnsafe() to bypass, or set jdbcdsl.allow-empty-where=true globally.");

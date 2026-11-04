@@ -1,13 +1,22 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
+import io.github.jsbxyyx.jdbcdsl.bean.ConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.MappingMode;
+import io.github.jsbxyyx.jdbcdsl.bean.UnknownColumnBehavior;
+import io.github.jsbxyyx.jdbcdsl.bean.ValueConverter;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import io.github.jsbxyyx.jdbcdsl.dialect.H2Dialect;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +35,19 @@ class ResultMappingIntegrationTest {
     private static final String REVERSED = "SELECT 'Smith' AS lastName, 'Alice' AS firstName";
 
     private JdbcDslExecutor executor;
+
+    @Test
+    void scalarMappingSupportsDateTimeStringsAndRequiresOneColumn() {
+        assertThat(executor.queryOne("SELECT DATE '2024-01-02'", Map.of(), LocalDate.class))
+                .isEqualTo(LocalDate.of(2024, 1, 2));
+        assertThat(executor.queryOne("SELECT TIME '03:04:05'", Map.of(), LocalTime.class))
+                .isEqualTo(LocalTime.of(3, 4, 5));
+        assertThat(executor.queryOne("SELECT TIMESTAMP '2024-01-02 03:04:05'", Map.of(), LocalDateTime.class))
+                .isEqualTo(LocalDateTime.of(2024, 1, 2, 3, 4, 5));
+        assertThat(executor.queryOne("SELECT 'hello'", Map.of(), String.class)).isEqualTo("hello");
+        assertThatThrownBy(() -> executor.queryOne("SELECT 1, 2", Map.of(), Integer.class))
+                .isInstanceOf(org.springframework.jdbc.IncorrectResultSetColumnCountException.class);
+    }
 
     @BeforeEach
     void setUp() {
@@ -137,6 +159,163 @@ class ResultMappingIntegrationTest {
                 .isEqualTo(42);
         assertThat(executor.queryOne("SELECT CAST(2147483647 AS BIGINT) AS count", Map.of(), PrimitiveRecord.class))
                 .isEqualTo(new PrimitiveRecord(Integer.MAX_VALUE));
+    }
+
+    @Test
+    void scalarMappingUsesStrictNumericAndPrimitiveNullPolicy() {
+        for (String sql : List.of("SELECT CAST(2147483648 AS BIGINT)", "SELECT CAST(42.5 AS DECIMAL(4, 1))")) {
+            assertThatThrownBy(() -> executor.queryOne(sql, Map.of(), Integer.class))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasCauseInstanceOf(ArithmeticException.class);
+        }
+        assertThat(executor.queryOne("SELECT CAST(42.0 AS DECIMAL(4, 1))", Map.of(), Integer.class))
+                .isEqualTo(42);
+        assertThat(executor.queryOne("SELECT CAST(NULL AS INTEGER)", Map.of(), Integer.class))
+                .isNull();
+        assertThatThrownBy(() -> executor.queryOne("SELECT CAST(NULL AS INTEGER)", Map.of(), int.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SQL NULL");
+        JdbcDslConfig.setAllowNullToPrimitiveDefault(true);
+        try {
+            assertThat(executor.queryOne("SELECT CAST(NULL AS INTEGER)", Map.of(), int.class))
+                    .isZero();
+        } finally {
+            JdbcDslConfig.setAllowNullToPrimitiveDefault(false);
+        }
+    }
+
+    @Test
+    void duplicateColumnsCannotSilentlyOverwriteBeanProperty() {
+        assertThatThrownBy(() ->
+                        executor.queryOne("SELECT 'Alice' AS firstName, 'Bob' AS FIRSTNAME", Map.of(), Person.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Multiple columns")
+                .hasMessageContaining("firstName");
+        assertThatThrownBy(() -> executor.queryOne("SELECT 'Alice' AS name", Map.of(), AmbiguousDto.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Ambiguous case-insensitive properties");
+    }
+
+    @Test
+    void unknownColumnPolicyAndConvertersAreIsolatedWithSharedCache() {
+        NamedParameterJdbcTemplate template = new NamedParameterJdbcTemplate(
+                new DriverManagerDataSource("jdbc:h2:mem:mapping;DB_CLOSE_DELAY=-1", "sa", ""));
+        JdbcDslCacheManager cache = new JdbcDslCacheManager();
+        ConverterRegistry defaults = new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+        JdbcDslExecutor permissive = new JdbcDslExecutor(
+                template, new H2Dialect(), cache, new BeanMappingMetaFactory(), defaults, UnknownColumnBehavior.NONE);
+        JdbcDslExecutor strict = new JdbcDslExecutor(
+                template,
+                new H2Dialect(),
+                cache,
+                new BeanMappingMetaFactory(),
+                defaults,
+                UnknownColumnBehavior.FAILING);
+        String sql = "SELECT 'Alice' AS firstName, 'Smith' AS lastName, 1 AS extra";
+        assertName(permissive.queryOne(sql, Map.of(), Person.class));
+        assertThatThrownBy(() -> strict.queryOne(sql, Map.of(), Person.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("EXTRA");
+        assertThatThrownBy(() -> strict.queryOne(sql, Map.of(), PersonRecord.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("EXTRA");
+
+        ConverterRegistry custom = new ConverterRegistry() {
+            @Override
+            public ValueConverter getConverter(int jdbcType, Class<?> targetType) {
+                return targetType == String.class
+                        ? value -> value == null ? null : "custom"
+                        : defaults.getConverter(jdbcType, targetType);
+            }
+
+            @Override
+            public ValueConverter getConverter(Class<?> sourceType, Class<?> targetType) {
+                return defaults.getConverter(sourceType, targetType);
+            }
+        };
+        JdbcDslExecutor customized = new JdbcDslExecutor(
+                template, new H2Dialect(), cache, new BeanMappingMetaFactory(), custom, UnknownColumnBehavior.NONE);
+        assertThat(customized.queryOne("SELECT 'original'", Map.of(), String.class))
+                .isEqualTo("custom");
+        assertThat(customized.queryOne(FORWARD, Map.of(), Person.class).firstName)
+                .isEqualTo("custom");
+        assertName(permissive.queryOne(FORWARD, Map.of(), Person.class));
+    }
+
+    @Test
+    void explicitRowMapperSupportsCustomProjection() {
+        assertThat(executor.queryMapped(
+                        "SELECT 'Alice' AS firstName, 'Smith' AS lastName",
+                        Map.of(),
+                        (rs, rowNum) -> rs.getString("lastName") + ", " + rs.getString("firstName")))
+                .containsExactly("Smith, Alice");
+    }
+
+    @Test
+    void mybatisModeUsesJdbcIntegerReadsAndSkipsNullBeanAssignments() {
+        NamedParameterJdbcTemplate template = new NamedParameterJdbcTemplate(
+                new DriverManagerDataSource("jdbc:h2:mem:mapping;DB_CLOSE_DELAY=-1", "sa", ""));
+        JdbcDslExecutor compatible = new JdbcDslExecutor(
+                template,
+                new H2Dialect(),
+                new JdbcDslCacheManager(),
+                new BeanMappingMetaFactory(),
+                new DefaultConverterRegistry(DefaultConversionService.getSharedInstance()),
+                UnknownColumnBehavior.NONE,
+                MappingMode.MYBATIS);
+
+        assertThat(compatible.queryOne("SELECT CAST(42.5 AS DECIMAL(4,1))", Map.of(), Integer.class))
+                .isEqualTo(43);
+        assertThat(compatible.queryOne("SELECT NULL", Map.of(), int.class)).isNull();
+        InitializedDto dto = compatible.queryOne(
+                "SELECT CAST(NULL AS INTEGER) AS count, CAST(NULL AS VARCHAR) AS name", Map.of(), InitializedDto.class);
+        assertThat(dto.count).isEqualTo(7);
+        assertThat(dto.name).isEqualTo("initial");
+        assertThat(compatible.queryOne("SELECT CAST(42.5 AS DECIMAL(4,1)) AS count", Map.of(), PrimitiveRecord.class))
+                .isEqualTo(new PrimitiveRecord(43));
+        assertThatThrownBy(() -> compatible.queryOne("SELECT NULL AS count", Map.of(), PrimitiveRecord.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SQL NULL");
+    }
+
+    @Test
+    void fixedNullPoliciesAreIndependentWithSharedMapperCache() {
+        NamedParameterJdbcTemplate template = new NamedParameterJdbcTemplate(
+                new DriverManagerDataSource("jdbc:h2:mem:mapping;DB_CLOSE_DELAY=-1", "sa", ""));
+        JdbcDslCacheManager cache = new JdbcDslCacheManager();
+        ConverterRegistry registry = new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+        JdbcDslExecutor strict = new JdbcDslExecutor(
+                template,
+                new H2Dialect(),
+                cache,
+                new BeanMappingMetaFactory(),
+                registry,
+                UnknownColumnBehavior.NONE,
+                MappingMode.STRICT,
+                false,
+                true);
+        JdbcDslExecutor permissive = new JdbcDslExecutor(
+                template,
+                new H2Dialect(),
+                cache,
+                new BeanMappingMetaFactory(),
+                registry,
+                UnknownColumnBehavior.NONE,
+                MappingMode.STRICT,
+                true,
+                true);
+        JdbcDslConfig.setAllowNullToPrimitiveDefault(true);
+        try {
+            assertThat(permissive.queryOne("SELECT NULL AS count", Map.of(), PrimitiveRecord.class))
+                    .isEqualTo(new PrimitiveRecord(0));
+            assertThat(permissive.queryOne("SELECT NULL", Map.of(), int.class)).isZero();
+            assertThatThrownBy(() -> strict.queryOne("SELECT NULL AS count", Map.of(), PrimitiveRecord.class))
+                    .isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> strict.queryOne("SELECT NULL", Map.of(), int.class))
+                    .isInstanceOf(IllegalStateException.class);
+        } finally {
+            JdbcDslConfig.setAllowNullToPrimitiveDefault(false);
+        }
     }
 
     @Test
@@ -252,6 +431,16 @@ class ResultMappingIntegrationTest {
 
     static class IntegerDto {
         private Integer count;
+    }
+
+    static class InitializedDto {
+        private int count = 7;
+        private String name = "initial";
+    }
+
+    static class AmbiguousDto {
+        private String name;
+        private String NAME;
     }
 
     static class RejectingDto {

@@ -38,7 +38,11 @@ public final class JavaBeanMeta implements BeanMappingMeta {
         // Build lowercase map for case-insensitive lookup
         Map<String, PropertyAccessor> lowerMap = new HashMap<>(properties.size());
         for (Map.Entry<String, PropertyAccessor> entry : properties.entrySet()) {
-            lowerMap.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
+            PropertyAccessor previous = lowerMap.putIfAbsent(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
+            if (previous != null) {
+                throw new IllegalStateException("Ambiguous case-insensitive properties " + previous.getName() + " and "
+                        + entry.getKey() + " on " + type.getName());
+            }
         }
         this.lowerCaseProperties = Map.copyOf(lowerMap);
     }

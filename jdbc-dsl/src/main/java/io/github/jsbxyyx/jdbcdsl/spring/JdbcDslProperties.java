@@ -1,5 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.spring;
 
+import io.github.jsbxyyx.jdbcdsl.bean.MappingMode;
+import io.github.jsbxyyx.jdbcdsl.bean.UnknownColumnBehavior;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -44,6 +46,9 @@ public class JdbcDslProperties {
      * Defaults to {@code false}, which fails explicitly instead.
      */
     private boolean allowNullToPrimitiveDefault = false;
+
+    private UnknownColumnBehavior autoMappingUnknownColumnBehavior = UnknownColumnBehavior.NONE;
+    private MappingMode mappingMode = MappingMode.STRICT;
 
     /**
      * Naming strategy used to derive column and table names when no explicit JPA annotation
@@ -140,6 +145,22 @@ public class JdbcDslProperties {
 
     public void setAllowNullToPrimitiveDefault(boolean allowNullToPrimitiveDefault) {
         this.allowNullToPrimitiveDefault = allowNullToPrimitiveDefault;
+    }
+
+    public UnknownColumnBehavior getAutoMappingUnknownColumnBehavior() {
+        return autoMappingUnknownColumnBehavior;
+    }
+
+    public void setAutoMappingUnknownColumnBehavior(UnknownColumnBehavior behavior) {
+        this.autoMappingUnknownColumnBehavior = behavior;
+    }
+
+    public MappingMode getMappingMode() {
+        return mappingMode;
+    }
+
+    public void setMappingMode(MappingMode mappingMode) {
+        this.mappingMode = mappingMode;
     }
 
     public String getNamingStrategy() {

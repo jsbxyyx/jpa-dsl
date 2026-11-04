@@ -46,7 +46,14 @@ public final class EntityMetaReader {
      * @return metadata extracted from JPA annotations
      */
     public static EntityMeta read(Class<?> entityClass) {
-        return CACHE.computeIfAbsent(entityClass, EntityMetaReader::doRead);
+        return CACHE.computeIfAbsent(entityClass, key -> read(key, JdbcDslConfig.getNamingStrategy()));
+    }
+
+    /**
+     * Reads metadata with an explicit naming strategy. The caller owns any cache for the result.
+     */
+    public static EntityMeta read(Class<?> entityClass, NamingStrategy naming) {
+        return doRead(entityClass, java.util.Objects.requireNonNull(naming, "naming"));
     }
 
     /**
@@ -57,8 +64,7 @@ public final class EntityMetaReader {
         CACHE.clear();
     }
 
-    private static EntityMeta doRead(Class<?> entityClass) {
-        NamingStrategy naming = JdbcDslConfig.getNamingStrategy();
+    private static EntityMeta doRead(Class<?> entityClass, NamingStrategy naming) {
 
         // --- Table name ---
         String tableName;

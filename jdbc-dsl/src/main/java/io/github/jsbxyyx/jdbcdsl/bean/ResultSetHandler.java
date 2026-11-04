@@ -9,7 +9,10 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * Optimized ResultSet to Bean mapper that preprocesses column metadata.
@@ -50,6 +53,8 @@ public final class ResultSetHandler implements ResultSetMapper {
     private final ColumnMapping[] columnMappings;
     private final int columnCount;
     private final ConverterRegistry converterRegistry;
+    private final MappingMode mappingMode;
+    private final BooleanSupplier allowNullToPrimitiveDefault;
 
     /**
      * Internal structure that caches optimized converter for each column.
@@ -105,12 +110,46 @@ public final class ResultSetHandler implements ResultSetMapper {
      */
     public ResultSetHandler(ResultSet rs, BeanMappingMeta meta, ConverterRegistry converterRegistry)
             throws SQLException {
+        this(rs, meta, converterRegistry, UnknownColumnBehavior.NONE);
+    }
+
+    public ResultSetHandler(
+            ResultSet rs,
+            BeanMappingMeta meta,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns)
+            throws SQLException {
+        this(rs, meta, converterRegistry, unknownColumns, MappingMode.STRICT);
+    }
+
+    public ResultSetHandler(
+            ResultSet rs,
+            BeanMappingMeta meta,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode)
+            throws SQLException {
+        this(rs, meta, converterRegistry, unknownColumns, mappingMode, JdbcDslConfig::isAllowNullToPrimitiveDefault);
+    }
+
+    public ResultSetHandler(
+            ResultSet rs,
+            BeanMappingMeta meta,
+            ConverterRegistry converterRegistry,
+            UnknownColumnBehavior unknownColumns,
+            MappingMode mappingMode,
+            BooleanSupplier allowNullToPrimitiveDefault)
+            throws SQLException {
         this.meta = meta;
         this.converterRegistry = converterRegistry;
+        this.mappingMode = java.util.Objects.requireNonNull(mappingMode, "mappingMode");
+        this.allowNullToPrimitiveDefault =
+                java.util.Objects.requireNonNull(allowNullToPrimitiveDefault, "allowNullToPrimitiveDefault");
         ResultSetMetaData rsMetaData = rs.getMetaData();
         this.columnCount = rsMetaData.getColumnCount();
         this.columnMappings = new ColumnMapping[columnCount];
 
+        Set<String> mappedProperties = new HashSet<>();
         // Preprocess: build optimized column mappings
         for (int i = 1; i <= columnCount; i++) {
             String label = rsMetaData.getColumnLabel(i);
@@ -127,7 +166,12 @@ public final class ResultSetHandler implements ResultSetMapper {
             // Get PropertyAccessor
             PropertyAccessor accessor = meta.getPropertyAccessor(propertyName);
             if (accessor == null) {
+                unknownColumns.handle(label, meta.getType());
                 continue;
+            }
+            if (!mappedProperties.add(accessor.getName().toLowerCase(Locale.ROOT))) {
+                throw new IllegalStateException("Multiple columns match property " + accessor.getName() + " of "
+                        + meta.getType().getName());
             }
 
             // Select optimized converter based on target property type.
@@ -169,14 +213,17 @@ public final class ResultSetHandler implements ResultSetMapper {
                 continue; // Column not mapped to any property
             }
 
-            Object value = readValue(rs, i + 1, mapping.accessor.getType(), mapping.jdbcType);
+            Object value = readValue(rs, i + 1, mapping.accessor.getType(), mapping.jdbcType, mappingMode);
 
             // Optimized conversion and property setting:
             // - Type conversion via pre-selected optimal converter
             // - Direct property setting bypassing double conversion
             try {
+                if (value == null && mappingMode == MappingMode.MYBATIS) {
+                    continue;
+                }
                 if (value == null && mapping.accessor.getType().isPrimitive()) {
-                    if (!JdbcDslConfig.isAllowNullToPrimitiveDefault()) {
+                    if (!allowNullToPrimitiveDefault.getAsBoolean()) {
                         throw new IllegalStateException("SQL NULL cannot be mapped to primitive property "
                                 + mapping.accessor.getName() + " of "
                                 + meta.getType().getName()
@@ -201,6 +248,26 @@ public final class ResultSetHandler implements ResultSetMapper {
     }
 
     static Object readValue(ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType) throws SQLException {
+        return readValue(rs, columnIndex, targetType, jdbcType, MappingMode.STRICT);
+    }
+
+    static Object readValue(ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType, MappingMode mode)
+            throws SQLException {
+        if (mode == MappingMode.MYBATIS) {
+            Object value = null;
+            if (targetType == byte.class || targetType == Byte.class) {
+                value = rs.getByte(columnIndex);
+            } else if (targetType == short.class || targetType == Short.class) {
+                value = rs.getShort(columnIndex);
+            } else if (targetType == int.class || targetType == Integer.class) {
+                value = rs.getInt(columnIndex);
+            } else if (targetType == long.class || targetType == Long.class) {
+                value = rs.getLong(columnIndex);
+            }
+            if (value != null) {
+                return rs.wasNull() ? null : value;
+            }
+        }
         if (targetType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
             return rs.getObject(columnIndex, LocalDateTime.class);
         }
