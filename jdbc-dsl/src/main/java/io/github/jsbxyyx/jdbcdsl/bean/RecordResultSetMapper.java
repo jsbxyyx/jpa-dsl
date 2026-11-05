@@ -100,7 +100,7 @@ final class RecordResultSetMapper implements ResultSetMapper {
                         e);
             }
         }
-        return meta.newInstance(args);
+        return meta.newMappedInstance(args);
     }
 
     @Override

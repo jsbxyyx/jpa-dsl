@@ -106,6 +106,17 @@ int totalPages = page.getTotalPages();
 List<UserDto> content = executor.select(spec, pageable);
 ~~~
 
+如果需要判断是否还有下一页但不需要总数，可使用 `selectSlice`：
+
+~~~java
+Slice<UserDto> slice = executor.selectSlice(spec, pageable);
+boolean hasNext = slice.hasNext();
+// Repository：repository.slice(spec, pageable)
+~~~
+
+Slice 仅执行一次查询，最多读取并映射 `size + 1` 行，不提供总记录数；
+要求分页且 `size < Integer.MAX_VALUE`。它仍使用 OFFSET，深分页可能较慢。
+
 ### 3. 查询最大值：`MAX`
 
 聚合函数通过 `SqlFunctions` 提供。单列聚合结果可映射到对应的 Java 包装类型：
@@ -517,6 +528,19 @@ int changed = executor.update(
 
 `queryOne` 在没有结果时返回 `null`；`update` 返回受影响行数。所有动态数据都应放入参数 Map，通过 `:name` 占位符绑定。表名、列名、排序方向等 SQL 结构不能通过 JDBC 参数占位符绑定；若这些结构必须动态选择，应使用白名单映射。不要把不可信输入拼进 SQL 文本。
 
+### 逐行处理大结果集
+
+```java
+executor.selectEach(spec, user -> process(user));
+executor.selectEach(spec, JPageable.of(0, 500), user -> process(user));
+executor.queryEach("SELECT id FROM users WHERE status = :status",
+    Map.of("status", "ACTIVE"), Long.class, id -> processId(id));
+// 自定义映射：executor.queryEachMapped(sql, params, rowMapper, consumer);
+// Repository：repository.forEach(spec, consumer);
+```
+
+逐行回调同步执行，执行器不创建完整结果 `List`；`selectEach` 使用与 `select` 相同的映射和逻辑删除过滤，其分页重载不执行 COUNT；`selectEachMapped` / `queryEachMapped` 可传入自定义 `RowMapper`。映射或回调抛出的异常会终止读取并向上传播，JDBC 资源由 Spring 在方法返回或异常时关闭；回调期间不要将 ResultSet 或连接交给其他线程。回调接收的数据仍可能被调用方保存，驱动也可能自行缓冲结果：应在初始化 `JdbcTemplate` 时配置合适的 fetch size，并按实际数据库驱动要求配置游标与事务（例如 PostgreSQL 游标读取通常需要非自动提交事务）。不要在并发请求中临时修改共享 `JdbcTemplate` 的 fetch size。
+
 ## 原生 SQL 与 Raw SQL 表达式
 
 执行器的 `query` / `queryOne` 是完整 SQL 的入口。构建 DSL 条件时，也可以在确有必要时使用 Raw SQL 表达式来表达 DSL 暂不支持的片段。Raw SQL 是显式的安全边界：SQL 片段本身应由开发者控制，值应通过参数绑定传入，不能把用户输入直接拼接到片段中。
@@ -527,6 +551,7 @@ int changed = executor.update(
 
 - `JPageable.of(page, size)` 的页码从 `0` 开始；`size` 必须为正数。
 - `executor.select(spec, pageable)` 只返回分页列表，不额外执行 COUNT。
+- `executor.selectSlice(spec, pageable)` 多读取一行判断是否有下一页，不执行 COUNT。
 - `executor.selectPage(spec, pageable)` 返回 Spring Data `Page`，需要额外统计总数。
 - 分页结果应使用确定性的排序；仅依赖数据库默认返回顺序，跨页时可能出现重复或遗漏。
 - `executor.count(spec)` 遵循查询结果的 SQL 语义：普通 JOIN（未启用 `distinct()`）产生的多行会分别计数；带 `GROUP BY` 时统计应用 `HAVING` 后的分组数；启用 `distinct()` 时会包裹去重后的完整 SELECT 投影再计数。因此，`distinct()` 的去重范围取决于 SELECT 投影列，而不是自动按根实体主键去重。若只需统计某个键的去重数量，可显式使用 `COUNT(DISTINCT ...)`。
@@ -752,6 +777,8 @@ int[] affected = executor.executeBatchInsert(spec);
 ```
 
 `.columns(...)` 指定本次插入的属性；未指定时会插入实体映射中的全部列，但排除使用 `IDENTITY` 策略生成的主键。批量插入会在执行前为每行自动填充 `@CreatedDate` 和 `@LastModifiedDate` 字段。空集合会直接返回空的 `int[]`，不会执行 SQL。批量中的每个实体应使用相同的列集合；显式指定列时，确保每行都提供这些列所需的值。还应根据数据库和驱动限制控制批次大小。`affected` 是 JDBC 返回的每条批处理结果，不应假设所有驱动都返回完全相同的行数标记。
+
+可通过 `executor.executeBatchInsert(spec, 500)` 或 `repository.saveAll(entities, 500)` 按输入顺序分块执行，批次大小必须为正数。结果数组仍与输入顺序一致；分块只限制每次 JDBC 调用的临时参数数组，输入集合和结果数组仍完整保存在内存中。所有实体的时间戳在第一个批次执行前填充。若后续批次失败，之前的批次可能已经执行；需要整体原子性时应使用事务。
 
 批量 UPDATE 和 DELETE 按输入顺序执行，只合并相邻且 SQL 相同的语句；返回的计数对应输入顺序。需要整体原子性时，调用方仍应配置事务。
 

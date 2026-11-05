@@ -6,9 +6,11 @@ import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
 import io.github.jsbxyyx.jdbcdsl.bean.ConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
+import io.github.jsbxyyx.jdbcdsl.bean.JavaBeanMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.MapperCache;
 import io.github.jsbxyyx.jdbcdsl.bean.MappingMode;
 import io.github.jsbxyyx.jdbcdsl.bean.PropertyAccessor;
+import io.github.jsbxyyx.jdbcdsl.bean.RecordMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.ResultSetMapper;
 import io.github.jsbxyyx.jdbcdsl.bean.ScalarRowMapper;
 import io.github.jsbxyyx.jdbcdsl.bean.UnknownColumnBehavior;
@@ -22,6 +24,8 @@ import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -34,11 +38,13 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,6 +64,9 @@ import java.util.stream.Collectors;
  * Pass a custom dialect (e.g., {@link io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect}) as needed.
  */
 public final class JdbcDslExecutor {
+
+    // Avoid access-plan setup overhead for small batches.
+    private static final int MIN_BATCH_ROWS_FOR_ACCESS_PLAN = 16;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Dialect dialect;
@@ -312,6 +321,42 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Maps and consumes each row without collecting the entire result in a list.
+     * The callback runs synchronously while the JDBC resources are open.
+     *
+     * <p>Driver buffering is independent of this method. Configure fetch size and any
+     * driver-specific cursor or transaction settings on the underlying JdbcTemplate/DataSource.
+     * Do not pass user-controlled SQL directly; bind values through {@code params}.
+     *
+     * @param sql parameterized SQL
+     * @param params named parameters
+     * @param resultClass scalar, bean, or record result type
+     * @param consumer callback invoked once per row, including null scalar values
+     * @param <R> result type
+     */
+    public <R> void queryEach(
+            String sql, Map<String, Object> params, Class<R> resultClass, Consumer<? super R> consumer) {
+        queryEachMapped(sql, params, buildBeanRowMapper(resultClass), consumer);
+    }
+
+    /**
+     * Consumes each raw SQL result row using an explicitly supplied mapper.
+     * Mapping and callback exceptions stop iteration and propagate to the caller.
+     */
+    public <R> void queryEachMapped(
+            String sql, Map<String, Object> params, RowMapper<R> mapper, Consumer<? super R> consumer) {
+        java.util.Objects.requireNonNull(mapper, "mapper");
+        java.util.Objects.requireNonNull(consumer, "consumer");
+        jdbc.query(sql, params, (ResultSetExtractor<Void>) rs -> {
+            int rowNum = 0;
+            while (rs.next()) {
+                consumer.accept(mapper.mapRow(rs, rowNum++));
+            }
+            return null;
+        });
+    }
+
+    /**
      * Executes an arbitrary SQL query and returns the first row mapped to {@code resultClass},
      * or {@code null} if no rows match.
      */
@@ -354,6 +399,49 @@ public final class JdbcDslExecutor {
         SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(spec);
         RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
+    }
+
+    /**
+     * Maps and consumes a DSL query one row at a time without building a result list.
+     * The same logical-delete filtering and mapping rules as {@link #select(SelectSpec)}
+     * apply. Driver buffering and fetch-size configuration are described by
+     * {@link #queryEach(String, Map, Class, Consumer)}.
+     */
+    public <T, R> void selectEach(SelectSpec<T, R> spec, Consumer<? super R> consumer) {
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        queryEachMapped(
+                rendered.getSql(), rendered.getParams(), buildBeanRowMapper(effectiveSpec.getDtoClass()), consumer);
+    }
+
+    /**
+     * Consumes a paged or sorted-unpaged DSL query without executing a COUNT query.
+     * Pagination and sort follow {@link #select(SelectSpec, JPageable)}.
+     */
+    public <T, R> void selectEach(SelectSpec<T, R> spec, JPageable<T> pageable, Consumer<? super R> consumer) {
+        selectEachMapped(spec, pageable, buildBeanRowMapper(spec.getDtoClass()), consumer);
+    }
+
+    /**
+     * Consumes a DSL query one row at a time using an explicitly supplied mapper.
+     */
+    public <T, R> void selectEachMapped(SelectSpec<T, ?> spec, RowMapper<R> mapper, Consumer<? super R> consumer) {
+        SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(spec);
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        queryEachMapped(rendered.getSql(), rendered.getParams(), mapper, consumer);
+    }
+
+    /** Consumes a paged or sorted-unpaged DSL query using an explicitly supplied mapper. */
+    public <T, R> void selectEachMapped(
+            SelectSpec<T, ?> spec, JPageable<T> pageable, RowMapper<R> mapper, Consumer<? super R> consumer) {
+        SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        Map<String, Object> params = new LinkedHashMap<>(rendered.getParams());
+        String sql = rendered.getSql();
+        if (pageable.isPaged()) {
+            sql = dialect.applyPagination(sql, pageable.offset(), pageable.getSize(), params);
+        }
+        queryEachMapped(sql, params, mapper, consumer);
     }
 
     /**
@@ -524,6 +612,31 @@ public final class JdbcDslExecutor {
         List<R> content = jdbc.query(paginatedSql, paginatedParams, mapper);
 
         return new PageImpl<>(content, pageable.toSpringPageable(), totalCount);
+    }
+
+    /**
+     * Executes a paginated SELECT without a COUNT query. One extra row is fetched
+     * to determine whether another slice exists; no total count is available.
+     * Ordering and logical-delete filtering match {@link #select(SelectSpec, JPageable)}.
+     *
+     * @throws IllegalArgumentException if the pageable is unpaged or its size cannot be incremented
+     */
+    public <T, R> Slice<R> selectSlice(SelectSpec<T, R> spec, JPageable<T> pageable) {
+        if (pageable.isUnpaged()) {
+            throw new IllegalArgumentException("slice() requires a paged JPageable");
+        }
+        int size = pageable.getSize();
+        if (size == Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("slice() requires a page size smaller than Integer.MAX_VALUE");
+        }
+        SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
+        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        Map<String, Object> params = new LinkedHashMap<>(rendered.getParams());
+        String sql = dialect.applyPagination(rendered.getSql(), pageable.offset(), size + 1, params);
+        List<R> rows = jdbc.query(sql, params, buildBeanRowMapper(effectiveSpec.getDtoClass()));
+        boolean hasNext = rows.size() > size;
+        List<R> content = hasNext ? new ArrayList<>(rows.subList(0, size)) : rows;
+        return new SliceImpl<>(content, pageable.toSpringPageable(), hasNext);
     }
 
     /**
@@ -772,6 +885,30 @@ public final class JdbcDslExecutor {
      * @return 每行受影响的行数数组
      */
     public <T> int[] executeBatchInsert(BatchInsertSpec<T> spec) {
+        return executeBatchInsertInternal(spec, 0);
+    }
+
+    /**
+     * Inserts rows in consecutive JDBC batches of at most {@code batchSize} rows.
+     *
+     * <p>Counts are returned in input order. The specification already holds all input rows;
+     * chunking bounds the temporary parameter arrays, not the input or result arrays.
+     * If a later batch fails, earlier batches may already have executed. Use an external
+     * transaction when the entire operation must be atomic.
+     *
+     * @param spec batch insert specification
+     * @param batchSize maximum number of rows per JDBC batch; must be positive
+     * @param <T> entity type
+     * @return driver-reported update counts in input order
+     */
+    public <T> int[] executeBatchInsert(BatchInsertSpec<T> spec, int batchSize) {
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("batchSize must be positive");
+        }
+        return executeBatchInsertInternal(spec, batchSize);
+    }
+
+    private <T> int[] executeBatchInsertInternal(BatchInsertSpec<T> spec, int batchSize) {
         List<T> rows = spec.getRows();
         if (rows.isEmpty()) {
             return new int[0];
@@ -788,22 +925,104 @@ public final class JdbcDslExecutor {
         LinkedHashMap<String, Object> firstColValues = buildColumnValues(rows.get(0), meta, excludeIdentityPk);
         InsertSpec<T> insertSpec = spec.insertSpec(meta);
         RenderedSql rendered = SqlRenderer.renderInsert(insertSpec, meta, firstColValues);
-
-        // Build SqlParameterSource array (one entry per row)
-        List<String> cols = new ArrayList<>(firstColValues.keySet());
-        MapSqlParameterSource[] batchParams = rows.stream()
-                .map(row -> {
-                    LinkedHashMap<String, Object> cv = buildColumnValues(row, meta, excludeIdentityPk);
-                    Map<String, Object> p = new LinkedHashMap<>();
-                    for (String col : cols) {
-                        p.put(col, cv.get(col));
-                    }
-                    return new MapSqlParameterSource(p);
-                })
-                .toArray(MapSqlParameterSource[]::new);
-
-        return jdbc.batchUpdate(rendered.getSql(), batchParams);
+        BatchInsertParameters parameters = rows.size() >= MIN_BATCH_ROWS_FOR_ACCESS_PLAN
+                ? new BatchInsertParameters(meta, excludeIdentityPk)
+                : null;
+        if (batchSize == 0 || batchSize >= rows.size()) {
+            return jdbc.batchUpdate(
+                    rendered.getSql(),
+                    buildBatchInsertParams(rows, 0, rows.size(), meta, excludeIdentityPk, parameters));
+        }
+        int[] counts = new int[rows.size()];
+        for (int start = 0; start < rows.size(); ) {
+            int end = start + Math.min(batchSize, rows.size() - start);
+            int[] chunk = jdbc.batchUpdate(
+                    rendered.getSql(), buildBatchInsertParams(rows, start, end, meta, excludeIdentityPk, parameters));
+            if (chunk.length != end - start) {
+                throw new IllegalStateException(
+                        "Batch insert returned " + chunk.length + " counts for " + (end - start) + " rows");
+            }
+            System.arraycopy(chunk, 0, counts, start, chunk.length);
+            start = end;
+        }
+        return counts;
     }
+
+    private <T> MapSqlParameterSource[] buildBatchInsertParams(
+            List<T> rows, int start, int end, EntityMeta meta, boolean skipIdentityPk, BatchInsertParameters plan) {
+        if (plan != null) {
+            return plan.build(rows, start, end);
+        }
+        MapSqlParameterSource[] params = new MapSqlParameterSource[end - start];
+        for (int i = start; i < end; i++) {
+            T row = rows.get(i);
+            Class<?> rowClass = row.getClass();
+            BeanMappingMeta beanMeta = cacheManager.getBeanMappingCache().get(rowClass, beanMappingMetaFactory::create);
+            MapSqlParameterSource values = new MapSqlParameterSource();
+            for (Map.Entry<String, String> entry : meta.getPropertyToColumn().entrySet()) {
+                String property = entry.getKey();
+                if (skipIdentityPk && meta.isIdGeneratedByIdentity() && property.equals(meta.getIdPropertyName())) {
+                    continue;
+                }
+                values.addValue(entry.getValue(), beanMeta.getProperty(row, property));
+            }
+            params[i - start] = values;
+        }
+        return params;
+    }
+
+    private final class BatchInsertParameters {
+        private final EntityMeta meta;
+        private final boolean skipIdentityPk;
+        private final Map<Class<?>, BatchAccessPlan> plansByType = new HashMap<>();
+
+        private BatchInsertParameters(EntityMeta meta, boolean skipIdentityPk) {
+            this.meta = meta;
+            this.skipIdentityPk = skipIdentityPk;
+        }
+
+        private BatchProperty[] properties(BeanMappingMeta beanMeta) {
+            List<BatchProperty> properties = new ArrayList<>();
+            // Custom metadata may implement getProperty differently from its accessors.
+            boolean builtInMeta = beanMeta instanceof JavaBeanMeta || beanMeta instanceof RecordMappingMeta;
+            for (Map.Entry<String, String> entry : meta.getPropertyToColumn().entrySet()) {
+                String name = entry.getKey();
+                if (!skipIdentityPk || !meta.isIdGeneratedByIdentity() || !name.equals(meta.getIdPropertyName())) {
+                    properties.add(new BatchProperty(
+                            entry.getValue(), name, builtInMeta ? beanMeta.getPropertyAccessor(name) : null));
+                }
+            }
+            return properties.toArray(BatchProperty[]::new);
+        }
+
+        private <T> MapSqlParameterSource[] build(List<T> rows, int start, int end) {
+            MapSqlParameterSource[] params = new MapSqlParameterSource[end - start];
+            for (int i = start; i < end; i++) {
+                T row = rows.get(i);
+                Class<?> rowClass = row.getClass();
+                BeanMappingMeta beanMeta =
+                        cacheManager.getBeanMappingCache().get(rowClass, beanMappingMetaFactory::create);
+                BatchAccessPlan plan = plansByType.get(rowClass);
+                if (plan == null || plan.meta() != beanMeta) {
+                    plan = new BatchAccessPlan(beanMeta, properties(beanMeta));
+                    plansByType.put(rowClass, plan);
+                }
+                MapSqlParameterSource values = new MapSqlParameterSource();
+                for (BatchProperty property : plan.properties()) {
+                    Object value = property.accessor() == null
+                            ? beanMeta.getProperty(row, property.name())
+                            : property.accessor().get(row);
+                    values.addValue(property.column(), value);
+                }
+                params[i - start] = values;
+            }
+            return params;
+        }
+    }
+
+    private record BatchAccessPlan(BeanMappingMeta meta, BatchProperty[] properties) {}
+
+    private record BatchProperty(String column, String name, PropertyAccessor accessor) {}
 
     private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, T entity) {
         RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, colValues);

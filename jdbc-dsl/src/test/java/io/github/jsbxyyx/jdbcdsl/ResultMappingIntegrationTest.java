@@ -392,6 +392,12 @@ class ResultMappingIntegrationTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(ValidatedRecord.class.getName())
                 .hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> executor.queryOne("SELECT 'bad' AS name", Map.of(), ErrorRecord.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(ErrorRecord.class.getName())
+                .hasCauseInstanceOf(AssertionError.class);
+        assertThat(executor.queryOne("SELECT 1 AS ignored", Map.of(), EmptyRecord.class))
+                .isEqualTo(new EmptyRecord());
     }
 
     @Test
@@ -472,6 +478,14 @@ class ResultMappingIntegrationTest {
     private record OtherPersonRecord(String firstName, String lastName) {}
 
     private record TimestampRecord(LocalDateTime createdAt) {}
+
+    private record EmptyRecord() {}
+
+    private record ErrorRecord(String name) {
+        private ErrorRecord {
+            throw new AssertionError("constructor failed");
+        }
+    }
 
     private record ValidatedRecord(String name) {
         private ValidatedRecord {

@@ -1,9 +1,19 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import javax.tools.ToolProvider;
+
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,6 +70,10 @@ class BeanMappingMetaTest {
     private record PrivateRecord(String name) {}
 
     private record AmbiguousRecord(String name, String NAME) {}
+
+    private record WidePrimitiveRecord(long value) {}
+
+    private record AllPrimitivesRecord(boolean a, byte b, short c, char d, int e, long f, float g, double h) {}
 
     @Test
     void testJavaBeanMapping() {
@@ -171,6 +185,52 @@ class BeanMappingMetaTest {
         assertEquals(1L, record.id());
         assertEquals("John", record.name());
         assertEquals(30, record.age());
+    }
+
+    @Test
+    void recordInstantiationFromMapPreservesReflectionPrimitiveWidening() {
+        RecordMappingMeta meta = new RecordMappingMeta(WidePrimitiveRecord.class);
+        assertEquals(new WidePrimitiveRecord(7L), meta.newInstance(Map.of("value", 7)));
+    }
+
+    @Test
+    void mappedRecordConstructorUnboxesEveryPrimitiveType() {
+        RecordMappingMeta meta = new RecordMappingMeta(AllPrimitivesRecord.class);
+        assertEquals(
+                new AllPrimitivesRecord(true, (byte) 1, (short) 2, 'x', 3, 4L, 5F, 6D),
+                meta.newMappedInstance(new Object[] {true, (byte) 1, (short) 2, 'x', 3, 4L, 5F, 6D}));
+    }
+
+    @Test
+    void mappedConstructorSupportsMaximumArityRecords(@TempDir Path dir) throws Exception {
+        for (int variant = 0; variant < 3; variant++) {
+            boolean wide = variant != 0;
+            String name = "WideRecord" + variant;
+            int count = variant == 0 ? 254 : variant == 1 ? 128 : 127;
+            String parameters = IntStream.range(0, count)
+                    .mapToObj(i -> (wide && i < 126 ? "long" : "int") + " p" + i)
+                    .collect(Collectors.joining(","));
+            Path source = dir.resolve(name + ".java");
+            Files.writeString(source, "public record " + name + "(" + parameters + ") {}");
+            assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, source.toString()));
+            try (URLClassLoader loader =
+                    new URLClassLoader(new URL[] {dir.toUri().toURL()})) {
+                Class<?> recordType = loader.loadClass(name);
+                RecordMappingMeta meta = new RecordMappingMeta(recordType);
+                Object[] values = new Object[count];
+                Arrays.fill(values, 7);
+                if (wide) {
+                    Arrays.fill(values, 0, 126, 7L);
+                }
+                Object record = meta.newMappedInstance(values);
+                assertEquals(recordType, record.getClass());
+                if (wide) {
+                    assertEquals(7L, meta.getProperty(record, "p0"));
+                } else {
+                    assertEquals(7, meta.getProperty(record, "p0"));
+                }
+            }
+        }
     }
 
     @Test

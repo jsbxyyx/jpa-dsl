@@ -10,11 +10,13 @@ Java 17+ 类型安全 JDBC 查询 DSL，基于 Spring JDBC，使用 Maven 多模
 |---|---|---|
 | **jdbc-dsl** | 类型安全 SQL 构建与执行，支持 CRUD、JOIN、分页、排序、投影、聚合、子查询、CTE、窗口函数及数据库方言 | [使用指南](jdbc-dsl/README.md) |
 | **jdbc-integration-tests** | 面向真实数据库的集成测试 | [集成测试说明](jdbc-integration-tests/README.md) |
+| **jdbc-benchmarks** | 可选的 JMH 性能基准模块 | [基准说明](jdbc-benchmarks/README.md) |
 
 ## 文档导航
 
 - [安装与快速开始、查询和写操作、分页与 COUNT、参数绑定、结果映射、Spring 配置、代码生成](jdbc-dsl/README.md)
 - [MySQL 集成测试配置、运行方式与数据安全说明](jdbc-integration-tests/README.md)
+- [性能基准构建、运行和结果解读](jdbc-benchmarks/README.md)
 
 ## 环境要求
 
@@ -47,7 +49,10 @@ Windows 可使用 mvnw.cmd 替代 ./mvnw。
 ├── jdbc-dsl/
 │   ├── pom.xml
 │   └── README.md
-└── jdbc-integration-tests/
+├── jdbc-integration-tests/
+│   ├── pom.xml
+│   └── README.md
+└── jdbc-benchmarks/       # 通过 benchmarks profile 启用
     ├── pom.xml
     └── README.md
 ~~~

@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -36,6 +37,7 @@ public final class RecordMappingMeta implements BeanMappingMeta {
 
     private final Class<?> type;
     private final Constructor<?> canonicalConstructor;
+    private final MethodHandle mappedConstructor;
     private final String[] parameterNames;
     private final Class<?>[] parameterTypes;
     private final Map<String, Integer> propertyIndexMap;
@@ -95,8 +97,18 @@ public final class RecordMappingMeta implements BeanMappingMeta {
         try {
             this.canonicalConstructor = type.getDeclaredConstructor(parameterTypes);
             this.canonicalConstructor.setAccessible(true);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Failed to find canonical constructor for record: " + type, e);
+            int parameterSlots = 0;
+            for (Class<?> parameterType : parameterTypes) {
+                parameterSlots += parameterType == long.class || parameterType == double.class ? 2 : 1;
+            }
+            // Method-handle constructor adapters need additional JVM argument slots.
+            this.mappedConstructor = parameterSlots >= 254
+                    ? null
+                    : LOOKUP.unreflectConstructor(canonicalConstructor)
+                            .asSpreader(Object[].class, parameterTypes.length)
+                            .asType(MethodType.methodType(Object.class, Object[].class));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException("Failed to access canonical constructor for record: " + type, e);
         }
     }
 
@@ -151,6 +163,19 @@ public final class RecordMappingMeta implements BeanMappingMeta {
         } catch (InvocationTargetException e) {
             throw new IllegalStateException("Failed to construct record " + type.getName(), e.getCause());
         } catch (ReflectiveOperationException | IllegalArgumentException e) {
+            throw new IllegalStateException("Failed to construct record " + type.getName(), e);
+        }
+    }
+
+    // The result mapper has already converted and checked every argument. Keep the
+    // public map-based path reflective because reflection also allows primitive widening.
+    Object newMappedInstance(Object[] args) {
+        if (mappedConstructor == null) {
+            return newInstance(args);
+        }
+        try {
+            return (Object) mappedConstructor.invokeExact(args);
+        } catch (Throwable e) {
             throw new IllegalStateException("Failed to construct record " + type.getName(), e);
         }
     }

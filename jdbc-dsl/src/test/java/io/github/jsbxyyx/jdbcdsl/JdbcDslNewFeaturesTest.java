@@ -15,6 +15,9 @@ import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -42,6 +45,9 @@ class JdbcDslNewFeaturesTest {
 
     @Autowired
     private NamedParameterJdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private JdbcDslExecutor executor;
     private static final LocalDateTime FIXED_TIME = LocalDateTime.of(2024, 6, 1, 12, 0, 0);
@@ -109,6 +115,39 @@ class JdbcDslNewFeaturesTest {
             assertThat(u.getCreatedAt()).as("createdAt").isEqualTo(FIXED_TIME);
             assertThat(u.getUpdatedAt()).as("updatedAt").isEqualTo(FIXED_TIME);
         });
+    }
+
+    @Test
+    void chunkedBatchInsertPersistsAllRowsAndExplicitColumns() {
+        List<TAuditUser> users = List.of(
+                new TAuditUser("chunk1", "ACTIVE"),
+                new TAuditUser("chunk2", "ACTIVE"),
+                new TAuditUser("chunk3", "INACTIVE"));
+        BatchInsertSpec<TAuditUser> spec = BatchInsertBuilder.of(TAuditUser.class, users)
+                .columns(TAuditUser::getUsername, TAuditUser::getStatus)
+                .build();
+        assertThat(executor.executeBatchInsert(spec, 2)).containsExactly(1, 1, 1);
+        assertThat(users).allSatisfy(user -> assertThat(user.getCreatedAt()).isEqualTo(FIXED_TIME));
+        List<String> names = jdbcTemplate.queryForList(
+                "SELECT username FROM t_audit_user WHERE username LIKE 'chunk%' ORDER BY id",
+                java.util.Map.of(), String.class);
+        assertThat(names).containsExactly("chunk1", "chunk2", "chunk3");
+    }
+
+    @Test
+    void chunkedBatchInsertRollsBackEarlierChunksInTransaction() {
+        List<TAuditUser> users = List.of(new TAuditUser("rolled-back", "ACTIVE"), new TAuditUser(null, "ACTIVE"));
+        BatchInsertSpec<TAuditUser> spec =
+                BatchInsertBuilder.of(TAuditUser.class, users).build();
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        assertThatThrownBy(() -> transaction.executeWithoutResult(status -> executor.executeBatchInsert(spec, 1)))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+        Integer remaining = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM t_audit_user WHERE username = :name",
+                java.util.Map.of("name", "rolled-back"),
+                Integer.class);
+        assertThat(remaining).isZero();
     }
 
     // ------------------------------------------------------------------ //

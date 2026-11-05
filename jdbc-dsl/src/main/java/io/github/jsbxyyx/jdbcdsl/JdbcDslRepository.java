@@ -1,9 +1,11 @@
 package io.github.jsbxyyx.jdbcdsl;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Slice;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Generic base repository for a single jdbc-dsl entity type.
@@ -71,6 +73,23 @@ public abstract class JdbcDslRepository<T, ID> {
         return jdbcDslExecutor.executeBatchInsert(spec);
     }
 
+    /**
+     * Inserts entities in consecutive JDBC batches of at most {@code batchSize} rows.
+     * The iterable is materialized before execution; use a transaction for atomicity.
+     *
+     * @param entities entities to insert
+     * @param batchSize maximum rows per JDBC batch; must be positive
+     * @return driver-reported update counts in input order
+     */
+    public int[] saveAll(Iterable<T> entities, int batchSize) {
+        Objects.requireNonNull(entities, "entities");
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("batchSize must be positive");
+        }
+        BatchInsertSpec<T> spec = BatchInsertBuilder.of(entityClass, entities).build();
+        return jdbcDslExecutor.executeBatchInsert(spec, batchSize);
+    }
+
     /** Inserts an entity using the columns selected by the supplied specification. */
     public void save(InsertSpec<T> spec, T entity) {
         jdbcDslExecutor.save(spec, entity);
@@ -126,6 +145,16 @@ public abstract class JdbcDslRepository<T, ID> {
         return jdbcDslExecutor.select(spec, pageable);
     }
 
+    /** Consumes each selected row synchronously without building a result list. */
+    public <R> void forEach(SelectSpec<T, R> spec, Consumer<? super R> consumer) {
+        jdbcDslExecutor.selectEach(spec, consumer);
+    }
+
+    /** Consumes a paged or sorted-unpaged query without a count query. */
+    public <R> void forEach(SelectSpec<T, R> spec, JPageable<T> pageable, Consumer<? super R> consumer) {
+        jdbcDslExecutor.selectEach(spec, pageable, consumer);
+    }
+
     /** Returns the first matching row, or {@code null} when no row matches. */
     public <R> R findOne(SelectSpec<T, R> spec) {
         return jdbcDslExecutor.findOne(spec);
@@ -139,5 +168,10 @@ public abstract class JdbcDslRepository<T, ID> {
     /** Executes a paginated SELECT including a count query. */
     public <R> Page<R> page(SelectSpec<T, R> spec, JPageable<T> pageable) {
         return jdbcDslExecutor.selectPage(spec, pageable);
+    }
+
+    /** Executes a paginated SELECT with next-slice detection but no count query. */
+    public <R> Slice<R> slice(SelectSpec<T, R> spec, JPageable<T> pageable) {
+        return jdbcDslExecutor.selectSlice(spec, pageable);
     }
 }
