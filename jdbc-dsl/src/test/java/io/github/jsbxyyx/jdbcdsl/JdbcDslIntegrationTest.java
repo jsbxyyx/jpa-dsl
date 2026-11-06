@@ -846,6 +846,25 @@ class JdbcDslIntegrationTest {
     }
 
     @Test
+    void save_withBoundInsertSpecUsesCurrentValuesAndSelectedColumns() {
+        TUser user = new TUser("before", "omitted@example.com", 45, "ACTIVE");
+        var spec = InsertBuilder.of(user)
+                .columns(TUser::getUsername, TUser::getStatus)
+                .build();
+        user.setUsername("bound-user");
+
+        executor.save(spec);
+
+        assertThat(user.getId()).isNotNull();
+        var found = executor.findOne(SelectBuilder.from(TUser.class)
+                .where(w -> w.eq(TUser::getId, user.getId()))
+                .mapToEntity());
+        assertThat(found.getUsername()).isEqualTo("bound-user");
+        assertThat(found.getEmail()).isNull();
+        assertThat(found.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
     void saveNonNull_insertsOnlyNonNullColumns() {
         // email is null → should not be inserted (column will have DB default / null)
         TUser newUser = new TUser("grace", null, 22, "ACTIVE");

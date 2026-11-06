@@ -95,6 +95,11 @@ public abstract class JdbcDslRepository<T, ID> {
         jdbcDslExecutor.save(spec, entity);
     }
 
+    /** Inserts the entity bound to the supplied specification. */
+    public void save(InsertSpec<T> spec) {
+        jdbcDslExecutor.save(spec);
+    }
+
     /** Inserts only the non-null properties of an entity. */
     public void saveNonNull(T entity) {
         jdbcDslExecutor.saveNonNull(entity);

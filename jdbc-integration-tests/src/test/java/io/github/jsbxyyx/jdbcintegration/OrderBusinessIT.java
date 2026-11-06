@@ -1,11 +1,13 @@
 package io.github.jsbxyyx.jdbcintegration;
 
 import io.github.jsbxyyx.jdbcdsl.BatchInsertBuilder;
+import io.github.jsbxyyx.jdbcdsl.InsertBuilder;
 import io.github.jsbxyyx.jdbcdsl.JPageable;
 import io.github.jsbxyyx.jdbcdsl.JdbcDslExecutor;
 import io.github.jsbxyyx.jdbcdsl.SelectBuilder;
 import io.github.jsbxyyx.jdbcdsl.UpdateBuilder;
 import io.github.jsbxyyx.jdbcdsl.UpsertBuilder;
+import io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -15,6 +17,8 @@ import jakarta.persistence.Table;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.SQLWarningException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -438,6 +442,81 @@ class OrderBusinessIT {
                         "SELECT product_name FROM jpa_dsl_it_inventory WHERE sku = ?",
                         String.class,
                         inventory.getSku()));
+    }
+
+    @Test
+    void mysqlInsertIgnoreInsertsOrSkipsAndKeepsNativeWarningSemantics() {
+        var spec = InsertBuilder.into(Inventory.class).ignore().build();
+        Inventory inserted = new Inventory("SKU-IGNORE", "First", new BigDecimal("5.00"), 2L);
+        executor.save(InsertBuilder.of(inserted).ignore().build());
+        assertNotNull(inserted.getId());
+
+        Inventory duplicate = new Inventory("SKU-IGNORE", "Changed", new BigDecimal("9.00"), 5L);
+        duplicate.id = 987655L;
+        executor.save(spec, duplicate);
+        assertEquals(987655L, duplicate.getId());
+        assertEquals(
+                "First",
+                jdbc.queryForObject(
+                        "SELECT product_name FROM jpa_dsl_it_inventory WHERE sku = ?", String.class, "SKU-IGNORE"));
+
+        Inventory longName = new Inventory("SKU-LONG", "x".repeat(121), new BigDecimal("1.00"), 1L);
+        assertThrows(DataAccessException.class, () -> executor.save(longName));
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM jpa_dsl_it_inventory WHERE sku = ?", Integer.class, "SKU-LONG"));
+        executor.save(spec, longName);
+        assertNotNull(longName.getId());
+        assertEquals(
+                "x".repeat(120),
+                jdbc.queryForObject(
+                        "SELECT product_name FROM jpa_dsl_it_inventory WHERE sku = ?", String.class, "SKU-LONG"));
+    }
+
+    @Test
+    void mysqlInsertIgnoreHonorsExplicitColumnsAndTransactionRollback() {
+        var spec = InsertBuilder.into(Inventory.class)
+                .columns(
+                        Inventory::getId,
+                        Inventory::getSku,
+                        Inventory::getProductName,
+                        Inventory::getUnitPrice,
+                        Inventory::getQuantity)
+                .ignore()
+                .build();
+        Inventory item = new Inventory("SKU-ROLLBACK", "Rollback", new BigDecimal("4.00"), 1L);
+        item.id = 987654L;
+        transactions.executeWithoutResult(status -> {
+            executor.save(spec, item);
+            assertEquals(
+                    987654L,
+                    jdbc.queryForObject(
+                            "SELECT id FROM jpa_dsl_it_inventory WHERE sku = ?", Long.class, item.getSku()));
+            status.setRollbackOnly();
+        });
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM jpa_dsl_it_inventory WHERE sku = ?", Integer.class, item.getSku()));
+    }
+
+    @Test
+    void mysqlInsertIgnoreCanSurfaceWarningsAndRollback() {
+        JdbcTemplate warningJdbc = new JdbcTemplate(dataSource);
+        warningJdbc.setIgnoreWarnings(false);
+        JdbcDslExecutor warningExecutor =
+                new JdbcDslExecutor(new NamedParameterJdbcTemplate(warningJdbc), new MySqlDialect());
+        Inventory longName = new Inventory("SKU-WARNING", "x".repeat(121), new BigDecimal("1.00"), 1L);
+        var spec = InsertBuilder.into(Inventory.class).ignore().build();
+
+        assertThrows(
+                SQLWarningException.class,
+                () -> transactions.executeWithoutResult(status -> warningExecutor.save(spec, longName)));
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM jpa_dsl_it_inventory WHERE sku = ?", Integer.class, longName.getSku()));
     }
 
     @Test

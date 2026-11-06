@@ -841,6 +841,18 @@ public final class JdbcDslExecutor {
     }
 
     /**
+     * Inserts the entity bound by {@link InsertBuilder#of(Object)}.
+     *
+     * @throws IllegalArgumentException if the specification has no bound entity
+     */
+    public <T> void save(InsertSpec<T> spec) {
+        if (spec.getEntity() == null) {
+            throw new IllegalArgumentException("InsertSpec has no bound entity; use save(spec, entity)");
+        }
+        save(spec, spec.getEntity());
+    }
+
+    /**
      * Inserts {@code entity} using the columns specified by {@code spec}.
      *
      * <p>If the spec has no explicit column names, all entity columns are inserted (excluding
@@ -849,6 +861,8 @@ public final class JdbcDslExecutor {
      *
      * <p>When the entity's primary key is {@code IDENTITY}-generated and the spec does not
      * restrict columns, the generated key is read back and set on the entity.
+     * With {@link InsertBuilder#ignore()}, a skipped row leaves the entity's ID unchanged.
+     * MySQL may turn non-duplicate errors into warnings and adjust inserted values.
      *
      * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
      * {@link org.springframework.data.annotation.LastModifiedDate} are automatically set to the
@@ -858,6 +872,9 @@ public final class JdbcDslExecutor {
      * @param entity the entity to insert
      */
     public <T> void save(InsertSpec<T> spec, T entity) {
+        if (spec.getEntity() != null && spec.getEntity() != entity) {
+            throw new IllegalArgumentException("InsertSpec is bound to a different entity");
+        }
         EntityMeta meta = metadata.apply(spec.getEntityClass());
         injectInsertTimestamps(entity, meta);
         boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
@@ -1042,12 +1059,12 @@ public final class JdbcDslExecutor {
     private record BatchProperty(String column, String name, PropertyAccessor accessor) {}
 
     private <T> void doInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues, T entity) {
-        RenderedSql rendered = SqlRenderer.renderInsert(spec, meta, colValues);
+        RenderedSql rendered = dialect.renderInsert(spec, meta, colValues);
         if (meta.isIdGeneratedByIdentity()) {
             MapSqlParameterSource paramSource = new MapSqlParameterSource(rendered.getParams());
             GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
-            jdbc.update(rendered.getSql(), paramSource, keyHolder);
-            Number key = keyHolder.getKey();
+            int count = jdbc.update(rendered.getSql(), paramSource, keyHolder);
+            Number key = count > 0 ? keyHolder.getKey() : null;
             if (key != null && meta.getIdPropertyName() != null) {
                 @SuppressWarnings("unchecked")
                 Class<T> entityClass = (Class<T>) entity.getClass();

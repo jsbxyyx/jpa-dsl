@@ -43,5 +43,6 @@ Use a dedicated test database. The configured account needs permission to create
 - Change an order from pending to paid with a guarded update.
 - Batch insert orders and verify aggregate results.
 - MySQL UPSERT against a unique SKU.
+- Native `INSERT IGNORE` insertion, duplicate handling, value truncation, explicit columns and rollback.
 - Roll back a checkout when a downstream step fails.
 - Verify pagination results and total count.

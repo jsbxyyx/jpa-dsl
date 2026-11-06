@@ -805,7 +805,20 @@ executor.upsert(spec, user);
 
 `onConflict(...)` 应对应数据库中实际存在的唯一键或唯一索引。`doUpdate(...)` 指定冲突时更新的列；不指定更新列时，默认更新所有非冲突列。`doNothing()` 可用于冲突时跳过更新。执行 Upsert 时，`@CreatedDate` 和 `@LastModifiedDate` 字段会在渲染前自动填充；默认更新列策略会排除 `@CreatedDate`，避免冲突更新时覆盖创建时间。各数据库的 Upsert 语法和唯一键推断方式不同：MySQL 根据表上的唯一索引判断冲突，PostgreSQL/H2 等需要明确冲突目标；`Sql2008Dialect` 不支持 Upsert。请确认配置的方言支持该操作，并在目标数据库验证行为。
 
-**MySQL 不支持 `doNothing()`**：该操作会在执行 SQL 前抛出 `UnsupportedOperationException`。此前使用的 `INSERT IGNORE` 还可能将截断等非重复键错误降级为警告并写入错误数据；空更新也会触发更新触发器，因此不能安全替代。MySQL 的 `doUpdate(...)` 不受此限制。
+**MySQL 不支持严格的 `doNothing()`**：该操作会在执行 SQL 前抛出 `UnsupportedOperationException`。`INSERT IGNORE` 还可能将截断等非重复键错误降级为警告并调整数据；空更新也会触发更新触发器，因此不能安全替代。MySQL 的 `doUpdate(...)` 不受此限制。
+
+若业务明确需要 MySQL 原生 `INSERT IGNORE`，可显式调用：
+
+```java
+InsertSpec<User> spec = InsertBuilder.into(User.class).ignore().build();
+executor.save(spec, entity);
+// 或将实体绑定到规格：
+executor.save(InsertBuilder.of(entity).ignore().build());
+```
+
+`InsertBuilder.of(entity)` 保存实体引用，执行时读取实体的当前值；也可不加 `ignore()` 用于普通插入。`into(Class)` 构建的规格不绑定实体，可复用于 `save(spec, entity)`；绑定的规格不能用于另一个实体。
+
+`ignore()` 遵循 MySQL 本身的 IGNORE 语义，而非仅忽略重复键；不同错误和 SQL 模式可能产生警告、跳过行或调整后写入。`save` 不返回受影响行数或警告；如需这些信息，请直接使用 JDBC。Spring `JdbcTemplate` 也可配置 `setIgnoreWarnings(false)` 将 JDBC 警告作为异常抛出（包括重复键警告），但警告是在语句执行后检查的；需要回滚写入时应使用事务。方法按普通插入规则填充审计时间，包括被跳过的行；默认不插入 IDENTITY 主键，成功插入后会回填生成的主键，被跳过时 ID 保持不变。显式列规格可包含主键。其他方言默认不支持此选项。
 
 ## 事务边界
 

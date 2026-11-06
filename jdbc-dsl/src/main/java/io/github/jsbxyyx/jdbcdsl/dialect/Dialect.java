@@ -1,8 +1,10 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.InsertSpec;
 import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
+import io.github.jsbxyyx.jdbcdsl.SqlRenderer;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
 import java.util.HashSet;
@@ -159,6 +161,15 @@ public interface Dialect {
     default RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
         throw new UnsupportedOperationException(
                 "UPSERT is not supported by dialect: " + getClass().getSimpleName());
+    }
+
+    /** Renders an INSERT, rejecting native IGNORE unless the dialect supports it. */
+    default <T> RenderedSql renderInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
+        if (spec.isIgnore()) {
+            throw new UnsupportedOperationException(
+                    "INSERT IGNORE is not supported by dialect: " + getClass().getSimpleName());
+        }
+        return SqlRenderer.renderInsert(spec, meta, colValues);
     }
 
     /**

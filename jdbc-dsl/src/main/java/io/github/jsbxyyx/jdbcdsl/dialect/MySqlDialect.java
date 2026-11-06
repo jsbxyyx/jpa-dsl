@@ -1,8 +1,10 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.InsertSpec;
 import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
+import io.github.jsbxyyx.jdbcdsl.SqlRenderer;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
 import java.util.ArrayList;
@@ -41,6 +43,11 @@ public final class MySqlDialect implements Dialect {
             throw new IllegalArgumentException("Expected SQL to end with the specified lock clause: " + lockMode);
         }
         return applyPagination(sql.substring(0, sql.length() - lockSql.length()), offset, limit, params) + lockSql;
+    }
+
+    @Override
+    public <T> RenderedSql renderInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
+        return SqlRenderer.renderInsert(spec, meta, colValues);
     }
 
     @Override

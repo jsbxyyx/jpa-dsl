@@ -789,6 +789,8 @@ public final class SqlRenderer {
      *
      * <p>Parameter names equal the column names (e.g. column {@code created_at} →
      * parameter {@code :created_at}).
+     * An IGNORE spec produces native {@code INSERT IGNORE}; direct callers must
+     * ensure the database supports this syntax and its semantics.
      *
      * <p>Example output:
      * {@code INSERT INTO t_user (username, email) VALUES (:username, :email)}
@@ -812,7 +814,8 @@ public final class SqlRenderer {
             params.put(col, colValues.get(col));
         }
 
-        String sql = "INSERT INTO " + meta.getTableName() + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
+        String sql = (spec.isIgnore() ? "INSERT IGNORE INTO " : "INSERT INTO ") + meta.getTableName() + " (" + colJoiner
+                + ") VALUES (" + valJoiner + ")";
         return new RenderedSql(sql, params);
     }
 

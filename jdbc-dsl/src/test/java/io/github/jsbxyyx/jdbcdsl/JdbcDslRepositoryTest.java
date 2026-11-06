@@ -61,6 +61,15 @@ class JdbcDslRepositoryTest {
     }
 
     @Test
+    void saveBoundInsertSpecDelegatesToExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        var spec = InsertBuilder.of(new TUser()).ignore().build();
+        repository.save(spec);
+        verify(executor).save(spec);
+    }
+
+    @Test
     void saveAllAcceptsSetAndDelegatesToBatchInsert() {
         JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
         TestUserRepository repository = new TestUserRepository(executor);

@@ -2,6 +2,7 @@ package io.github.jsbxyyx.jdbcdsl;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Fluent builder for {@link InsertSpec} (JDBC INSERT statements).
@@ -27,15 +28,29 @@ import java.util.List;
 public final class InsertBuilder<T> {
 
     private final Class<T> entityClass;
+    private final T entity;
     private final List<ColumnSelection> columns = new ArrayList<>();
+    private boolean ignore;
 
-    private InsertBuilder(Class<T> entityClass) {
+    private InsertBuilder(Class<T> entityClass, T entity) {
         this.entityClass = entityClass;
+        this.entity = entity;
     }
 
     /** Starts building an INSERT for the given entity class. */
     public static <T> InsertBuilder<T> into(Class<T> entityClass) {
-        return new InsertBuilder<>(entityClass);
+        return new InsertBuilder<>(entityClass, null);
+    }
+
+    /**
+     * Starts building an INSERT bound to an entity. The resulting spec can be
+     * passed directly to {@link JdbcDslExecutor#save(InsertSpec)}.
+     */
+    public static <T> InsertBuilder<T> of(T entity) {
+        Objects.requireNonNull(entity, "entity");
+        @SuppressWarnings("unchecked")
+        Class<T> entityClass = (Class<T>) entity.getClass();
+        return new InsertBuilder<>(entityClass, entity);
     }
 
     /**
@@ -71,8 +86,17 @@ public final class InsertBuilder<T> {
         return this;
     }
 
+    /**
+     * Requests native {@code INSERT IGNORE}. MySQL can downgrade non-duplicate errors
+     * to warnings and adjust values; support depends on the configured dialect.
+     */
+    public InsertBuilder<T> ignore() {
+        this.ignore = true;
+        return this;
+    }
+
     /** Builds the {@link InsertSpec}. */
     public InsertSpec<T> build() {
-        return InsertSpec.fromSelections(entityClass, columns);
+        return InsertSpec.fromSelections(entityClass, columns, ignore, entity);
     }
 }
