@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -251,6 +252,84 @@ class ConverterRegistryTest {
         assertThrows(ArithmeticException.class, () -> converter.convert(Double.POSITIVE_INFINITY));
         assertThrows(ArithmeticException.class, () -> converter.convert(Float.NEGATIVE_INFINITY));
         assertThrows(ArithmeticException.class, () -> converter.convert(new BigDecimal("1.0000000000000000001")));
+    }
+
+    @Test
+    void floatingPointConversionsMatchExactDecimalReference() {
+        Random random = new Random(0x5eedL);
+        double[] boundaries = {
+            -0x1.0p63,
+            Math.nextDown(-0x1.0p63),
+            Math.nextUp(-0x1.0p63),
+            0x1.0p63,
+            Math.nextDown(0x1.0p63),
+            Math.nextUp(0x1.0p63),
+            -0.0,
+            0.0,
+            Double.MIN_VALUE,
+            -Double.MIN_VALUE,
+            -129,
+            -128,
+            127,
+            128,
+            -32769,
+            -32768,
+            32767,
+            32768,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE,
+            0x1.0p31,
+            -1.5,
+            1.5,
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY
+        };
+        for (double value : boundaries) {
+            assertFloatingConversionMatchesReference(value);
+            assertFloatingConversionMatchesReference((float) value);
+        }
+        for (int i = 0; i < 5000; i++) {
+            assertFloatingConversionMatchesReference(Double.longBitsToDouble(random.nextLong()));
+            assertFloatingConversionMatchesReference(Float.intBitsToFloat(random.nextInt()));
+            assertFloatingConversionMatchesReference((double) random.nextLong());
+            assertFloatingConversionMatchesReference((float) random.nextInt());
+        }
+    }
+
+    private void assertFloatingConversionMatchesReference(Number input) {
+        Class<?>[][] types = {
+            {byte.class, Byte.class}, {short.class, Short.class},
+            {int.class, Integer.class}, {long.class, Long.class}
+        };
+        long[] minima = {Byte.MIN_VALUE, Short.MIN_VALUE, Integer.MIN_VALUE, Long.MIN_VALUE};
+        long[] maxima = {Byte.MAX_VALUE, Short.MAX_VALUE, Integer.MAX_VALUE, Long.MAX_VALUE};
+        double value = input.doubleValue();
+        Long exact = null;
+        if (Double.isFinite(value)) {
+            try {
+                exact = new BigDecimal(value).longValueExact();
+            } catch (ArithmeticException ignored) {
+                // An inexact or out-of-range value must fail for every target type.
+            }
+        }
+        for (int i = 0; i < types.length; i++) {
+            for (Class<?> type : types[i]) {
+                ValueConverter converter = registry.getConverter(Types.NUMERIC, type);
+                if (exact == null || exact < minima[i] || exact > maxima[i]) {
+                    ArithmeticException failure =
+                            assertThrows(ArithmeticException.class, () -> converter.convert(input));
+                    assertEquals(
+                            "Cannot convert " + input.getClass().getName() + " exactly to " + type.getTypeName(),
+                            failure.getMessage());
+                    assertEquals(exact == null, failure.getCause() instanceof ArithmeticException);
+                } else {
+                    Number result = (Number) converter.convert(input);
+                    assertEquals(exact.longValue(), result.longValue());
+                    assertEquals(types[i][1], result.getClass());
+                }
+            }
+        }
     }
 
     @Test

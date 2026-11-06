@@ -90,6 +90,11 @@ class BenchmarkCorrectnessTest {
         benchmark.clearWrites(db);
         assertEquals(201, benchmark.dslChunkedBatch(db).length);
         assertEquals(expected, writes());
+        benchmark.clearWrites(db);
+        assertEquals(
+                1,
+                db.jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM " + BenchmarkDatabase.WRITES + " WHERE amount = -1", Integer.class));
     }
 
     @Test
@@ -108,9 +113,36 @@ class BenchmarkCorrectnessTest {
         }
     }
 
+    @Test
+    void paginationRenderingScenariosPreserveParameterNames() {
+        PaginationRenderingBenchmark benchmark = new PaginationRenderingBenchmark();
+        benchmark.scenario = "normal";
+        benchmark.setup();
+        assertTrue(benchmark.renderPagination().endsWith("LIMIT :_limit OFFSET :_offset"));
+        benchmark.scenario = "quoted";
+        benchmark.setup();
+        assertTrue(benchmark.renderPagination().endsWith("LIMIT :_limit OFFSET :_offset"));
+        benchmark.scenario = "collision";
+        benchmark.setup();
+        assertTrue(benchmark.renderPagination().endsWith("LIMIT :_limit_1 OFFSET :_offset_1"));
+    }
+
+    @Test
+    void numericConversionBenchmarkProducesEquivalentValues() {
+        NumericConversionBenchmark benchmark = new NumericConversionBenchmark();
+        for (String source : List.of("double", "float")) {
+            benchmark.source = source;
+            benchmark.setup();
+            assertEquals(128L, benchmark.convertExactInteger());
+            assertEquals(-129L, benchmark.convertExactInteger());
+            assertEquals(65536L, benchmark.convertExactInteger());
+            assertEquals(1234567L, benchmark.convertExactInteger());
+        }
+    }
+
     private static List<BenchmarkRecord> writes() {
         return db.jdbc.query(
-                "SELECT id, name, amount FROM " + BenchmarkDatabase.WRITES + " ORDER BY id",
+                "SELECT id, name, amount FROM " + BenchmarkDatabase.WRITES + " WHERE amount >= 0 ORDER BY id",
                 (rs, rowNum) -> QueryBenchmark.readRecord(rs));
     }
 

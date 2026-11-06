@@ -130,6 +130,10 @@ public final class ValueConverters {
                 if (!Double.isFinite(value)) {
                     throw numericConversionFailure(number, targetType);
                 }
+                // The upper bound must be exclusive: (double) Long.MAX_VALUE rounds to 2^63.
+                if (value >= -0x1.0p63 && value < 0x1.0p63 && value == Math.rint(value)) {
+                    return (long) value;
+                }
                 return new BigDecimal(value).longValueExact();
             }
             return new BigDecimal(number.toString()).longValueExact();

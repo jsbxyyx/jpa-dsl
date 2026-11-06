@@ -43,6 +43,8 @@ public class BatchBenchmark {
             throw new IllegalArgumentException("batchSize must be positive");
         }
         rangeStart = db.reserveRange(batchSize);
+        // A permanent boundary row separates adjacent ranges for InnoDB next-key locks.
+        db.jdbc.update(BenchmarkDatabase.INSERT_WRITE, rangeStart + batchSize, "range-guard", -1);
         rows = new ArrayList<>(batchSize);
         for (int i = 0; i < batchSize; i++) {
             rows.add(new BenchmarkWrite(rangeStart + i, "name-" + i, i));

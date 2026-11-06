@@ -174,6 +174,27 @@ class ResultMappingIntegrationTest {
     }
 
     @Test
+    void floatingPointValuesUseExactIntegerMappingForScalarsBeansAndRecords() {
+        for (String jdbcType : List.of("REAL", "DOUBLE PRECISION")) {
+            String exact = "SELECT CAST(42.0 AS " + jdbcType + ") AS count";
+            assertThat(executor.queryOne(exact, Map.of(), Integer.class)).isEqualTo(42);
+            assertThat(executor.queryOne(exact, Map.of(), IntegerDto.class).count)
+                    .isEqualTo(42);
+            assertThat(executor.queryOne(exact, Map.of(), PrimitiveRecord.class))
+                    .isEqualTo(new PrimitiveRecord(42));
+
+            for (String input : List.of("42.5", "2147483648")) {
+                String invalid = "SELECT CAST(" + input + " AS " + jdbcType + ") AS count";
+                for (Class<?> type : List.of(Integer.class, IntegerDto.class, PrimitiveRecord.class)) {
+                    assertThatThrownBy(() -> executor.queryOne(invalid, Map.of(), type))
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasCauseInstanceOf(ArithmeticException.class);
+                }
+            }
+        }
+    }
+
+    @Test
     void scalarMappingUsesStrictNumericAndPrimitiveNullPolicy() {
         for (String sql : List.of("SELECT CAST(2147483648 AS BIGINT)", "SELECT CAST(42.5 AS DECIMAL(4, 1))")) {
             assertThatThrownBy(() -> executor.queryOne(sql, Map.of(), Integer.class))

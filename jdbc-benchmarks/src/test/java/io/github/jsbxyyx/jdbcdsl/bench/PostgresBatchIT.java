@@ -48,7 +48,7 @@ class PostgresBatchIT {
 
     private List<BenchmarkRecord> writes() {
         return db.jdbc.query(
-                "SELECT id, name, amount FROM " + BenchmarkDatabase.WRITES + " ORDER BY id",
+                "SELECT id, name, amount FROM " + BenchmarkDatabase.WRITES + " WHERE amount >= 0 ORDER BY id",
                 (rs, rowNum) -> QueryBenchmark.readRecord(rs));
     }
 }

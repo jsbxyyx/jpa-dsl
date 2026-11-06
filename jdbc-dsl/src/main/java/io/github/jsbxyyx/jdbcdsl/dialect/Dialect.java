@@ -47,6 +47,9 @@ public interface Dialect {
     /** Checks for a named parameter token, ignoring occurrences inside common SQL quoted text/comments. */
     static boolean containsNamedParameter(String sql, String name) {
         String token = ":" + name;
+        if (sql.indexOf(token) < 0) {
+            return false;
+        }
         int from = 0;
         while (from < sql.length()) {
             char c = sql.charAt(from);

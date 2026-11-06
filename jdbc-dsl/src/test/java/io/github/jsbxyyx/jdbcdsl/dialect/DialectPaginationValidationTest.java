@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Verifies that every dialect enforces the same pagination argument contract. */
@@ -67,6 +69,25 @@ class DialectPaginationValidationTest {
     }
 
     @Test
+    void allDialectsDetectPaginationNamesPresentOnlyInSql() {
+        for (Dialect dialect : dialects) {
+            LinkedHashMap<String, Object> params = new LinkedHashMap<>();
+            String sql = dialect.applyPagination(
+                    "SELECT * FROM t WHERE a = :_offset AND b = :_limit AND c = :_end", 10, 5, params);
+
+            assertThat(params).as(dialect.getClass().getSimpleName()).containsEntry("_offset_1", 10L);
+            assertThat(sql).as(dialect.getClass().getSimpleName()).contains(":_offset_1");
+            if (dialect instanceof Oracle11gDialect) {
+                assertThat(params).containsEntry("_end_1", 15L);
+                assertThat(sql).contains(":_end_1");
+            } else {
+                assertThat(params).containsEntry("_limit_1", 5);
+                assertThat(sql).contains(":_limit_1");
+            }
+        }
+    }
+
+    @Test
     void oracle11gPreservesExistingEndParameter() {
         LinkedHashMap<String, Object> params = new LinkedHashMap<>();
         params.put("_end", 999L);
@@ -97,6 +118,24 @@ class DialectPaginationValidationTest {
                 .isFalse();
         org.assertj.core.api.Assertions.assertThat(Dialect.containsNamedParameter(sql, "_offset_2"))
                 .isTrue();
+    }
+
+    @Test
+    void parameterScannerDistinguishesRealTokensFromTextAndPrefixes() {
+        assertThat(Dialect.containsNamedParameter("SELECT :p1", "_limit")).isFalse();
+        assertThat(Dialect.containsNamedParameter("SELECT :_limit_more, :_limit$other", "_limit"))
+                .isFalse();
+        assertThat(Dialect.containsNamedParameter("SELECT value::_limit", "_limit"))
+                .isFalse();
+        assertThat(Dialect.containsNamedParameter("SELECT ':_limit', :_limit", "_limit"))
+                .isTrue();
+        assertThat(Dialect.containsNamedParameter("SELECT $$:_limit$$, :_limit", "_limit"))
+                .isTrue();
+        assertThat(Dialect.containsNamedParameter("SELECT /* :_limit */ :_limit", "_limit"))
+                .isTrue();
+        assertThat(Dialect.containsNamedParameter("SELECT ':_limit", "_limit")).isFalse();
+        assertThat(Dialect.uniquePaginationParamName("_limit", "SELECT ':_limit', :_limit", Map.of()))
+                .isEqualTo("_limit_1");
     }
 
     @Test

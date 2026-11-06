@@ -62,6 +62,7 @@ public class BenchmarkDatabase {
             try (Connection connection = dataSource.getConnection();
                     PreparedStatement statement = connection.prepareStatement(
                             "INSERT INTO " + ROWS + " (id, name, amount) VALUES (?, ?, ?)")) {
+                connection.setAutoCommit(false);
                 for (int i = 1; i <= DATASET_SIZE; i++) {
                     statement.setLong(1, i);
                     statement.setString(2, "name-" + i);
@@ -69,6 +70,7 @@ public class BenchmarkDatabase {
                     statement.addBatch();
                 }
                 statement.executeBatch();
+                connection.commit();
             }
             dsl = new JdbcDslExecutor(new NamedParameterJdbcTemplate(jdbc));
         } catch (Exception e) {
@@ -82,7 +84,7 @@ public class BenchmarkDatabase {
     }
 
     long reserveRange(int size) {
-        return nextRange.getAndUpdate(start -> Math.addExact(start, size));
+        return nextRange.getAndUpdate(start -> Math.addExact(start, Math.addExact(size, 1)));
     }
 
     @TearDown(Level.Trial)
