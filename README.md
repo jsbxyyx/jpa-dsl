@@ -41,6 +41,8 @@ Java 17+ 类型安全 JDBC 查询 DSL，基于 Spring JDBC，使用 Maven 多模
 
 Windows 可使用 mvnw.cmd 替代 ./mvnw。
 
+GitHub Actions 在推送和拉取请求时运行 Java 17 单元测试、MySQL 8 和 PostgreSQL 16 的真实数据库回归。该门禁不能替代实际业务负载的压测、故障恢复和上线验收。
+
 ## 仓库结构
 
 ~~~text

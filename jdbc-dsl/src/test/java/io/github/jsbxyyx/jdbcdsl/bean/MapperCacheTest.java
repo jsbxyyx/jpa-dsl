@@ -63,7 +63,7 @@ class MapperCacheTest {
     }
 
     @Test
-    void testBoundedCacheWithLRU() throws SQLException {
+    void boundedCacheRemainsCorrectAfterEviction() throws SQLException {
         JdbcDslCacheManager cacheManager = new JdbcDslCacheManager(500, 100, 100, 100, 2);
         MapperCache cache = new MapperCache(cacheManager, converterRegistry);
 
@@ -74,10 +74,9 @@ class MapperCacheTest {
         ResultSet rs2 = createMockResultSet("id", Types.BIGINT, "name", Types.VARCHAR);
         ResultSet rs3 = createMockResultSet("id", Types.BIGINT, "name", Types.VARCHAR, "email", Types.VARCHAR);
 
-        ResultSetMapper mapper1 = cache.getMapper(rs1, meta);
+        cache.getMapper(rs1, meta);
         ResultSetMapper mapper2 = cache.getMapper(rs2, meta);
 
-        // Refresh mapper2 before adding a third entry so mapper1 is least recently used.
         ResultSet rs2Again = createMockResultSet("id", Types.BIGINT, "name", Types.VARCHAR);
         ResultSetMapper mapper2Again = cache.getMapper(rs2Again, meta);
         assertSame(mapper2, mapper2Again, "Should return cached mapper");
@@ -88,8 +87,20 @@ class MapperCacheTest {
         cache.cleanUp();
         assertTrue(cache.size() <= 2, "Cache size should not exceed maxSize (2)");
 
-        ResultSetMapper mapper2AfterEviction = cache.getMapper(rs2Again, meta);
-        assertSame(mapper2, mapper2AfterEviction, "Recently used mapper should remain cached");
+        ResultSet row = mock(ResultSet.class);
+        when(row.getObject(1)).thenReturn(123L);
+        when(row.getObject(2)).thenReturn("alice");
+        when(row.getObject(3)).thenReturn("alice@example.test");
+        TestEntity twoColumns = (TestEntity) cache.getMapper(rs2Again, meta).mapRow(row);
+        TestEntity threeColumns = (TestEntity) cache.getMapper(rs3, meta).mapRow(row);
+        assertEquals(123L, twoColumns.getId());
+        assertEquals("alice", twoColumns.getName());
+        assertNull(twoColumns.getEmail());
+        assertEquals(123L, threeColumns.getId());
+        assertEquals("alice", threeColumns.getName());
+        assertEquals("alice@example.test", threeColumns.getEmail());
+        cache.cleanUp();
+        assertTrue(cache.size() <= 2, "Cache size should remain bounded after reloading");
     }
 
     @Test

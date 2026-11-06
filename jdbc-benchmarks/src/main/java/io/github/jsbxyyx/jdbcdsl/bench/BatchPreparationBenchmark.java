@@ -17,6 +17,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
@@ -37,6 +38,7 @@ public class BatchPreparationBenchmark {
     RecordingTemplate jdbc;
     private JdbcDslExecutor dsl;
     private BatchInsertSpec<BenchmarkWrite> spec;
+    private List<BenchmarkWrite> rows;
 
     @Setup(Level.Trial)
     public void setup() {
@@ -45,7 +47,7 @@ public class BatchPreparationBenchmark {
         }
         jdbc = new RecordingTemplate();
         dsl = new JdbcDslExecutor(jdbc, new H2Dialect());
-        List<BenchmarkWrite> rows = new ArrayList<>(batchSize);
+        rows = new ArrayList<>(batchSize);
         for (int i = 0; i < batchSize; i++) {
             rows.add(new BenchmarkWrite((long) i, "name-" + i, i));
         }
@@ -55,6 +57,20 @@ public class BatchPreparationBenchmark {
     @Benchmark
     public int[] prepareBatch() {
         return dsl.executeBatchInsert(spec);
+    }
+
+    @Benchmark
+    public int[] prepareSpringBatch() {
+        SqlParameterSource[] parameters = new SqlParameterSource[rows.size()];
+        for (int i = 0; i < rows.size(); i++) {
+            BenchmarkWrite row = rows.get(i);
+            parameters[i] = new MapSqlParameterSource()
+                    .addValue("id", row.getId())
+                    .addValue("name", row.getName())
+                    .addValue("amount", row.getAmount());
+        }
+        return jdbc.batchUpdate(
+                "INSERT INTO jpa_dsl_bench_writes (id, name, amount) VALUES (:id, :name, :amount)", parameters);
     }
 
     static final class RecordingTemplate extends NamedParameterJdbcTemplate {

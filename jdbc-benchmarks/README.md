@@ -106,8 +106,11 @@ one query or one complete batch, **not one row**; compare like `rowCount` or
   setup also adds harness overhead, especially for small batches. GC allocation
   metrics include the cleanup/setup allocations, so they are not insert-only.
 * `BatchPreparationBenchmark` replaces JDBC execution with a recording template
-  and measures DSL SQL rendering and parameter preparation without a database,
-  driver or network. Its result is not end-to-end insert performance.
+  and compares DSL SQL rendering and parameter preparation with an explicit
+  Spring named-parameter baseline for the same SQL and values, without a database,
+  driver or network. The baseline uses fixed SQL and direct getters; it does not
+  include DSL metadata lookup or rendering. Its result is not end-to-end insert
+  performance.
 * `PaginationRenderingBenchmark` measures dialect pagination rendering in
   isolation, including ordinary SQL, quoted parameter-like text and actual
   parameter-name collisions. It does not measure query execution.

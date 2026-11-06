@@ -100,16 +100,27 @@ class BenchmarkCorrectnessTest {
     @Test
     void batchPreparationRetainsSqlAndEveryParameter() {
         BatchPreparationBenchmark benchmark = new BatchPreparationBenchmark();
-        benchmark.batchSize = 100;
-        benchmark.setup();
-        assertEquals(100, benchmark.prepareBatch().length);
-        assertTrue(benchmark.jdbc.sql.contains("jpa_dsl_bench_writes"));
-        assertEquals(100, benchmark.jdbc.parameters.length);
-        for (int i = 0; i < 100; i++) {
-            var params = benchmark.jdbc.parameters[i];
-            assertEquals((long) i, params.getValue("id"));
-            assertEquals("name-" + i, params.getValue("name"));
-            assertEquals(i, params.getValue("amount"));
+        for (int size : List.of(1, 100, 1000)) {
+            benchmark.batchSize = size;
+            benchmark.setup();
+            assertEquals(size, benchmark.prepareBatch().length);
+            String dslSql = benchmark.jdbc.sql;
+            var dslParams = benchmark.jdbc.parameters;
+            assertEquals(size, benchmark.prepareSpringBatch().length);
+            assertEquals(dslSql, benchmark.jdbc.sql);
+            assertEquals(size, dslParams.length);
+            assertEquals(size, benchmark.jdbc.parameters.length);
+            for (int i = 0; i < size; i++) {
+                var params = dslParams[i];
+                var springParams = benchmark.jdbc.parameters[i];
+                assertArrayEquals(params.getParameterNames(), springParams.getParameterNames());
+                assertEquals((long) i, params.getValue("id"));
+                assertEquals("name-" + i, params.getValue("name"));
+                assertEquals(i, params.getValue("amount"));
+                for (String column : List.of("id", "name", "amount")) {
+                    assertEquals(params.getValue(column), springParams.getValue(column));
+                }
+            }
         }
     }
 
