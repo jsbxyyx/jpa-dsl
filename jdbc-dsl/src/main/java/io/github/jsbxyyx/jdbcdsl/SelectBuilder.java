@@ -329,6 +329,9 @@ public final class SelectBuilder<T> {
      * </ul>
      *
      * <p>Not all databases support all modes. Check your database documentation.
+     * Hold a transaction on the same DataSource while the lock is needed; in auto-commit
+     * mode it may be released as soon as the statement completes. Locked specs cannot be
+     * used as subqueries, CTE bodies, or set-operation branches.
      *
      * @param mode the row-level locking mode
      */

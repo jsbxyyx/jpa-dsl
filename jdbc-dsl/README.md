@@ -559,6 +559,14 @@ executor.queryEach("SELECT id FROM users WHERE status = :status",
 - `executor.count(spec)` 遵循查询结果的 SQL 语义：普通 JOIN（未启用 `distinct()`）产生的多行会分别计数；带 `GROUP BY` 时统计应用 `HAVING` 后的分组数；启用 `distinct()` 时会包裹去重后的完整 SELECT 投影再计数。因此，`distinct()` 的去重范围取决于 SELECT 投影列，而不是自动按根实体主键去重。若只需统计某个键的去重数量，可显式使用 `COUNT(DISTINCT ...)`。
 - 数据库方言会生成不同分页 SQL。SQL Server 在未指定排序时可能需要补充语法所需的排序表达式，但这不等同于稳定的业务排序。
 
+### 行锁与分页
+
+`forUpdate()` 等行锁必须在与执行器使用同一数据源的事务中使用；自动提交下锁可能在语句结束时立即释放。锁定的 `SelectSpec` 不能作为子查询、CTE 主体或集合操作分支使用，此类组合会明确报错，不会静默丢弃锁；单独的 `count` 也不接受锁定的规格。SQL Server 行锁需要表提示，目前执行器会明确拒绝，而不会生成无效的 `FOR UPDATE`。
+
+MySQL 分页和 `findOne` 会将分页子句放在行锁之前。`selectSlice` 为判断下一页会额外读取一行，使用行锁时该额外行也可能被锁到事务结束；任务队列等场景应考虑锁范围。`selectPage` 的 COUNT 是独立的无锁查询，不应用 `SKIP LOCKED`；其总数和内容可能受并发、隔离级别及跳锁影响而不一致。其他数据库的锁模式与分页组合请在实际数据库版本验证。
+
+Oracle 12c+ 的行限制子句不能与行锁组合，Oracle 11g 的嵌套分页也无法保证预期锁范围，因此执行器会拒绝 Oracle 的带锁分页（包括 `findOne`）；不分页的行锁不受此限制。
+
 ## 结果映射约定
 
 执行器根据结果集列标签（column label）匹配目标属性或 record 组件，匹配时不区分大小写。普通 JavaBean DTO/实体应提供可访问的无参构造器；属性优先通过 setter 写入，没有 setter 时回退到可访问字段。`record` 使用规范构造器创建，支持 DSL 和原生 SQL；普通类的任意参数构造器不支持。列标签应与目标属性对应。投影列建议显式使用 `.as("propertyName")`，特别是聚合表达式、同名列或 JOIN 多表投影，避免列名歧义。
@@ -657,7 +665,7 @@ SelectSpec<User, User> spec = SelectBuilder.from(User.class)
     .mapToEntity();
 ```
 
-上例中的 `col(...)` 来自 `SqlFunctions`。外层列与子查询投影应保持类型一致。`notInSubquery(...)` 遵循 SQL 的 `NOT IN` NULL 语义：子查询结果包含 NULL 时，比较结果可能变为 UNKNOWN，业务上需要排除 NULL 时应在子查询中显式过滤。若使用 `EXISTS`，请确保子查询条件确实关联到外层记录；非相关子查询只判断整个子查询是否至少返回一行。子查询渲染会与外层共享参数上下文，自动分配不冲突的参数名；内层 `ORDER BY` 和锁定子句不会带入内联子查询。
+上例中的 `col(...)` 来自 `SqlFunctions`。外层列与子查询投影应保持类型一致。`notInSubquery(...)` 遵循 SQL 的 `NOT IN` NULL 语义：子查询结果包含 NULL 时，比较结果可能变为 UNKNOWN，业务上需要排除 NULL 时应在子查询中显式过滤。若使用 `EXISTS`，请确保子查询条件确实关联到外层记录；非相关子查询只判断整个子查询是否至少返回一行。子查询渲染会与外层共享参数上下文，自动分配不冲突的参数名；内层 `ORDER BY` 不会保留，内层指定行锁则会报错。
 
 标量子查询可通过 `Scalar.scalar(...)` 包装，再用于 `eqScalar`、`gtScalar` 等比较方法：
 

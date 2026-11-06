@@ -156,6 +156,15 @@ public final class SqlRenderer {
      *                       inside a subquery in SQL-92)
      */
     static <T, R> String buildSelectSql(SelectSpec<T, R> spec, RenderContext ctx, boolean includeOrderBy) {
+        return buildSelectSql(spec, ctx, includeOrderBy, false);
+    }
+
+    private static <T, R> String buildSelectSql(
+            SelectSpec<T, R> spec, RenderContext ctx, boolean includeOrderBy, boolean omitRootLockForCount) {
+        if (!includeOrderBy && !omitRootLockForCount && spec.getLockMode() != null) {
+            throw new IllegalArgumentException(
+                    "Row locks are not supported inside subqueries, CTEs, or set-operation branches");
+        }
         validateTableAliases(spec);
         EntityMeta rootMeta = ctx.entityMeta(spec.getEntityClass());
         String alias = spec.getAlias();
@@ -244,14 +253,7 @@ public final class SqlRenderer {
             }
             // Locking clause is a top-level SELECT modifier; never emitted inside subqueries.
             if (spec.getLockMode() != null) {
-                String lockSql =
-                        switch (spec.getLockMode()) {
-                            case UPDATE -> " FOR UPDATE";
-                            case UPDATE_NOWAIT -> " FOR UPDATE NOWAIT";
-                            case UPDATE_SKIP_LOCKED -> " FOR UPDATE SKIP LOCKED";
-                            case SHARE -> " FOR SHARE";
-                        };
-                sb.append(lockSql);
+                sb.append(spec.getLockMode().sql());
             }
         }
 
@@ -289,6 +291,13 @@ public final class SqlRenderer {
     }
 
     static <T, R> RenderedSql renderCount(SelectSpec<T, R> spec, Function<Class<?>, EntityMeta> metadata) {
+        if (spec.getLockMode() != null) {
+            throw new IllegalArgumentException("A standalone COUNT query cannot acquire the requested row lock");
+        }
+        return renderCountForPage(spec, metadata);
+    }
+
+    static <T, R> RenderedSql renderCountForPage(SelectSpec<T, R> spec, Function<Class<?>, EntityMeta> metadata) {
         RenderContext ctx = new RenderContext(metadata);
 
         // COUNT must match the number of rows returned by a DISTINCT query. Counting
@@ -296,7 +305,7 @@ public final class SqlRenderer {
         // Render the complete SELECT (without ORDER BY) as a derived table so DISTINCT
         // applies to the actual projection, including multi-column and expression selects.
         if (spec.isDistinct()) {
-            String innerSql = buildSelectSqlUnchecked(spec, ctx, false);
+            String innerSql = buildSelectSql(spec, ctx, false, true);
             return new RenderedSql("SELECT COUNT(*) FROM (" + innerSql + ") _count_t", ctx.getParams());
         }
 

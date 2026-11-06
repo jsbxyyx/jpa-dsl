@@ -272,6 +272,11 @@ public final class JdbcDslExecutor {
         }
     }
 
+    private <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec) {
+        dialect.validateLockMode(spec.getLockMode());
+        return SqlRenderer.renderSelect(spec, metadata);
+    }
+
     /**
      * Replaces the time provider used for auto-filling
      * {@link org.springframework.data.annotation.CreatedDate} and
@@ -389,7 +394,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
@@ -397,7 +402,7 @@ public final class JdbcDslExecutor {
     /** Executes a DSL query with an explicitly supplied row mapping. */
     public <T, R> List<R> selectMapped(SelectSpec<T, ?> spec, RowMapper<R> mapper) {
         SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         return jdbc.query(rendered.getSql(), rendered.getParams(), mapper);
     }
 
@@ -409,7 +414,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> void selectEach(SelectSpec<T, R> spec, Consumer<? super R> consumer) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         queryEachMapped(
                 rendered.getSql(), rendered.getParams(), buildBeanRowMapper(effectiveSpec.getDtoClass()), consumer);
     }
@@ -427,7 +432,7 @@ public final class JdbcDslExecutor {
      */
     public <T, R> void selectEachMapped(SelectSpec<T, ?> spec, RowMapper<R> mapper, Consumer<? super R> consumer) {
         SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         queryEachMapped(rendered.getSql(), rendered.getParams(), mapper, consumer);
     }
 
@@ -435,11 +440,12 @@ public final class JdbcDslExecutor {
     public <T, R> void selectEachMapped(
             SelectSpec<T, ?> spec, JPageable<T> pageable, RowMapper<R> mapper, Consumer<? super R> consumer) {
         SelectSpec<T, ?> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         Map<String, Object> params = new LinkedHashMap<>(rendered.getParams());
         String sql = rendered.getSql();
         if (pageable.isPaged()) {
-            sql = dialect.applyPagination(sql, pageable.offset(), pageable.getSize(), params);
+            sql = dialect.applyPagination(
+                    sql, pageable.offset(), pageable.getSize(), params, effectiveSpec.getLockMode());
         }
         queryEachMapped(sql, params, mapper, consumer);
     }
@@ -485,7 +491,7 @@ public final class JdbcDslExecutor {
      * <p>For queries with JOINs and no GROUP BY, the count includes every row produced by the
      * JOIN, matching SQL row semantics; a root entity matching multiple joined rows contributes
      * multiple rows. For queries with GROUP BY, the count is the number of groups after HAVING
-     * is applied.
+     * is applied. A standalone COUNT cannot acquire row locks and rejects a locked spec.
      */
     public <T, R> long count(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
@@ -505,11 +511,12 @@ public final class JdbcDslExecutor {
      */
     public <T, R> List<R> select(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         Map<String, Object> queryParams = new LinkedHashMap<>(rendered.getParams());
         String querySql = rendered.getSql();
         if (pageable.isPaged()) {
-            querySql = dialect.applyPagination(querySql, pageable.offset(), pageable.getSize(), queryParams);
+            querySql = dialect.applyPagination(
+                    querySql, pageable.offset(), pageable.getSize(), queryParams, effectiveSpec.getLockMode());
         }
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         return jdbc.query(querySql, queryParams, mapper);
@@ -526,9 +533,10 @@ public final class JdbcDslExecutor {
      */
     public <T, R> R findOne(SelectSpec<T, R> spec) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(spec);
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
-        String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
+        String limitedSql =
+                dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams, effectiveSpec.getLockMode());
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         List<R> results = jdbc.query(limitedSql, limitedParams, mapper);
         return results.isEmpty() ? null : results.get(0);
@@ -548,9 +556,10 @@ public final class JdbcDslExecutor {
      */
     public <T, R> R findOne(SelectSpec<T, R> spec, JPageable<T> pageable) {
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         Map<String, Object> limitedParams = new LinkedHashMap<>(rendered.getParams());
-        String limitedSql = dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams);
+        String limitedSql =
+                dialect.applyPagination(rendered.getSql(), 0, 1, limitedParams, effectiveSpec.getLockMode());
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         List<R> results = jdbc.query(limitedSql, limitedParams, mapper);
         return results.isEmpty() ? null : results.get(0);
@@ -592,6 +601,7 @@ public final class JdbcDslExecutor {
      *
      * <p>The total count follows {@link #count(SelectSpec)} semantics: JOIN queries without
      * GROUP BY count every matching joined row, while grouped queries count the resulting groups.
+     * The separate COUNT does not acquire row locks and does not apply SKIP LOCKED.
      */
     public <T, R> Page<R> selectPage(SelectSpec<T, R> spec, JPageable<T> pageable) {
         if (pageable.isUnpaged()) {
@@ -599,15 +609,18 @@ public final class JdbcDslExecutor {
         }
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
 
-        RenderedSql countSql = SqlRenderer.renderCount(effectiveSpec, metadata);
+        RenderedSql selectSql = renderSelect(effectiveSpec);
+        RenderedSql countSql = SqlRenderer.renderCountForPage(effectiveSpec, metadata);
+        Map<String, Object> paginatedParams = new LinkedHashMap<>(selectSql.getParams());
+        String paginatedSql = dialect.applyPagination(
+                selectSql.getSql(),
+                pageable.offset(),
+                pageable.getSize(),
+                paginatedParams,
+                effectiveSpec.getLockMode());
+
         Long total = jdbc.queryForObject(countSql.getSql(), countSql.getParams(), Long.class);
         long totalCount = total != null ? total : 0L;
-
-        RenderedSql selectSql = SqlRenderer.renderSelect(effectiveSpec, metadata);
-        Map<String, Object> paginatedParams = new LinkedHashMap<>(selectSql.getParams());
-        String paginatedSql =
-                dialect.applyPagination(selectSql.getSql(), pageable.offset(), pageable.getSize(), paginatedParams);
-
         RowMapper<R> mapper = buildBeanRowMapper(effectiveSpec.getDtoClass());
         List<R> content = jdbc.query(paginatedSql, paginatedParams, mapper);
 
@@ -618,6 +631,7 @@ public final class JdbcDslExecutor {
      * Executes a paginated SELECT without a COUNT query. One extra row is fetched
      * to determine whether another slice exists; no total count is available.
      * Ordering and logical-delete filtering match {@link #select(SelectSpec, JPageable)}.
+     * When a row lock is requested, the extra row may also be locked until transaction completion.
      *
      * @throws IllegalArgumentException if the pageable is unpaged or its size cannot be incremented
      */
@@ -630,9 +644,10 @@ public final class JdbcDslExecutor {
             throw new IllegalArgumentException("slice() requires a page size smaller than Integer.MAX_VALUE");
         }
         SelectSpec<T, R> effectiveSpec = applyLogicalDeleteFilter(mergeSort(spec, pageable));
-        RenderedSql rendered = SqlRenderer.renderSelect(effectiveSpec, metadata);
+        RenderedSql rendered = renderSelect(effectiveSpec);
         Map<String, Object> params = new LinkedHashMap<>(rendered.getParams());
-        String sql = dialect.applyPagination(rendered.getSql(), pageable.offset(), size + 1, params);
+        String sql = dialect.applyPagination(
+                rendered.getSql(), pageable.offset(), size + 1, params, effectiveSpec.getLockMode());
         List<R> rows = jdbc.query(sql, params, buildBeanRowMapper(effectiveSpec.getDtoClass()));
         boolean hasNext = rows.size() > size;
         List<R> content = hasNext ? new ArrayList<>(rows.subList(0, size)) : rows;

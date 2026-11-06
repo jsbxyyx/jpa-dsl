@@ -130,12 +130,13 @@ For the cross-database correctness suite, run with a dedicated PostgreSQL or
 MySQL database configured:
 
 ```bash
-./mvnw -Pbenchmarks -pl jdbc-benchmarks -am -Dtest=ExternalDatabaseCorrectnessIT,ExternalBatchConcurrencyIT -Dsurefire.failIfNoSpecifiedTests=false test
+./mvnw -Pbenchmarks -pl jdbc-benchmarks -am -Dtest=ExternalDatabaseCorrectnessIT,ExternalBatchConcurrencyIT,ExternalLockingIT -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
 It exercises NULL and exact numeric mapping, logical-delete pagination,
 transaction rollback across chunks, callback cleanup, concurrent record
-mapping, and 32-thread batch fixture isolation. For additional PostgreSQL
+mapping, 32-thread batch fixture isolation, and transactional row locking across
+pagination APIs. For additional PostgreSQL
 cursor, batch, slice and numeric tests:
 
 ```bash

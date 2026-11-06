@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
@@ -30,6 +31,18 @@ public interface Dialect {
      * @return the SQL string with pagination appended
      */
     String applyPagination(String sql, long offset, int limit, Map<String, Object> params);
+
+    /**
+     * Applies pagination to a rendered SELECT whose optional lock clause is known.
+     * The default delegates to the legacy overload; implementations must override this
+     * method if their database requires different handling of locked queries.
+     */
+    default String applyPagination(String sql, long offset, int limit, Map<String, Object> params, LockMode lockMode) {
+        return applyPagination(sql, offset, limit, params);
+    }
+
+    /** Rejects a lock mode that the dialect cannot safely render. */
+    default void validateLockMode(LockMode lockMode) {}
 
     /**
      * Allocates a pagination parameter name without colliding with parameters already used by

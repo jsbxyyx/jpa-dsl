@@ -1,5 +1,6 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -31,6 +32,55 @@ class DialectPaginationValidationTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("offset");
         }
+    }
+
+    @Test
+    void mysqlPaginatesBeforeEveryKnownLockWithoutLosingParameters() {
+        MySqlDialect dialect = new MySqlDialect();
+        for (LockMode mode : LockMode.values()) {
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("_limit", 7);
+            String sql =
+                    dialect.applyPagination("SELECT * FROM t WHERE id = :_offset" + mode.sql(), 4, 2, params, mode);
+            assertThat(sql)
+                    .isEqualTo("SELECT * FROM t WHERE id = :_offset LIMIT :_limit_1 OFFSET :_offset_1" + mode.sql());
+            assertThat(params)
+                    .containsEntry("_limit", 7)
+                    .containsEntry("_limit_1", 2)
+                    .containsEntry("_offset_1", 4L);
+        }
+    }
+
+    @Test
+    void mysqlRejectsMismatchedLockInsteadOfRewritingSql() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        assertThatThrownBy(() -> new MySqlDialect().applyPagination("SELECT 1", 0, 1, params, LockMode.UPDATE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("lock clause");
+        assertThat(params).isEmpty();
+    }
+
+    @Test
+    void oracleRejectsLockedPaginationBeforeChangingParameters() {
+        for (Dialect dialect : List.of(new OracleDialect(), new Oracle11gDialect())) {
+            for (LockMode mode : LockMode.values()) {
+                Map<String, Object> params = new LinkedHashMap<>();
+                assertThatThrownBy(() -> dialect.applyPagination("SELECT 1" + mode.sql(), 0, 1, params, mode))
+                        .as(dialect.getClass().getSimpleName() + " " + mode)
+                        .isInstanceOf(UnsupportedOperationException.class)
+                        .hasMessageContaining("row locks");
+                assertThat(params).isEmpty();
+            }
+            assertThat(dialect.applyPagination("SELECT 1", 0, 1, new LinkedHashMap<>(), null))
+                    .isEqualTo(dialect.applyPagination("SELECT 1", 0, 1, new LinkedHashMap<>()));
+        }
+    }
+
+    @Test
+    void legacyDialectPaginationStillWorksWithLockAwareEntryPoint() {
+        Dialect legacy = (sql, offset, limit, params) -> sql + " LEGACY";
+        assertThat(legacy.applyPagination("SELECT 1 FOR UPDATE", 0, 1, new LinkedHashMap<>(), LockMode.UPDATE))
+                .isEqualTo("SELECT 1 FOR UPDATE LEGACY");
     }
 
     @Test

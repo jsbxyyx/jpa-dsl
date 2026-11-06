@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
@@ -33,6 +34,14 @@ import java.util.Map;
  * is the same for all Oracle versions.
  */
 public final class Oracle11gDialect implements Dialect {
+
+    @Override
+    public String applyPagination(String sql, long offset, int limit, Map<String, Object> params, LockMode lockMode) {
+        if (lockMode != null) {
+            throw new UnsupportedOperationException("Oracle 11g nested pagination cannot safely apply row locks");
+        }
+        return applyPagination(sql, offset, limit, params);
+    }
 
     @Override
     public String applyPagination(String sql, long offset, int limit, Map<String, Object> params) {

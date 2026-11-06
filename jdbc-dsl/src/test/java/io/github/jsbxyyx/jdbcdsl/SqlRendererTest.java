@@ -11,6 +11,7 @@ import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.param;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.subquery;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.upper;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for {@link SqlRenderer} — verifies SQL string generation and parameter binding.
@@ -675,14 +676,13 @@ class SqlRendererTest {
     }
 
     @Test
-    void forUpdate_notInSubquery() {
-        // FOR UPDATE must not appear inside a subquery rendered via buildSelectSql
+    void forUpdate_rejectedInSubquery() {
         SelectSpec<TUser, UserDto> inner =
                 SelectBuilder.from(TUser.class).forUpdate().mapTo(UserDto.class);
-        // render as subquery (includeOrderBy=false path)
         RenderContext ctx = new RenderContext();
-        String sql = SqlRenderer.buildSelectSql(inner, ctx, false);
-        assertThat(sql).doesNotContain("FOR UPDATE");
+        assertThatThrownBy(() -> SqlRenderer.buildSelectSql(inner, ctx, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Row locks");
     }
 
     // ------------------------------------------------------------------ //

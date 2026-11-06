@@ -304,8 +304,7 @@ class NewFeaturesRendererTest {
     }
 
     @Test
-    void forUpdate_notEmittedInsideSubquery() {
-        // FOR UPDATE must not appear in the inner SELECT when used as a subquery
+    void forUpdate_insideSubqueryIsRejected() {
         SelectSpec<TUser, UserDto> inner = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
                 .forUpdate(LockMode.UPDATE_NOWAIT)
@@ -315,10 +314,9 @@ class NewFeaturesRendererTest {
                 .select(TUser::getId, TUser::getUsername)
                 .mapTo(UserDto.class);
 
-        String sql = SqlRenderer.renderSelect(outer).getSql();
-        // The outer query wraps inner as a derived table; locking only on the inner which
-        // is rendered without includeOrderBy (and thus without the lock clause)
-        assertThat(sql).doesNotContain("FOR UPDATE NOWAIT");
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(outer))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Row locks");
     }
 
     // ===================================================================== //
