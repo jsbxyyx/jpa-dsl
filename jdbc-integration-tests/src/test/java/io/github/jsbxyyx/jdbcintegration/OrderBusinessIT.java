@@ -421,6 +421,26 @@ class OrderBusinessIT {
     }
 
     @Test
+    void mysqlDoNothingRejectsDuplicatesAndInvalidValuesWithoutWriting() {
+        var spec = UpsertBuilder.into(Inventory.class)
+                .onConflict(Inventory::getSku)
+                .doNothing()
+                .build();
+        Inventory duplicate = new Inventory(inventory.getSku(), "Changed", new BigDecimal("1.00"), 1L);
+        Inventory invalid = new Inventory("SKU-INVALID", "x".repeat(121), new BigDecimal("1.00"), 1L);
+
+        assertThrows(UnsupportedOperationException.class, () -> executor.upsert(spec, duplicate));
+        assertThrows(UnsupportedOperationException.class, () -> executor.upsert(spec, invalid));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM jpa_dsl_it_inventory", Integer.class));
+        assertEquals(
+                inventory.getProductName(),
+                jdbc.queryForObject(
+                        "SELECT product_name FROM jpa_dsl_it_inventory WHERE sku = ?",
+                        String.class,
+                        inventory.getSku()));
+    }
+
+    @Test
     void inventoryReservation_decrementsAtomicallyAndRejectsInsufficientStock() {
         int reserved = executor.executeUpdate(UpdateBuilder.from(Inventory.class)
                 .subtract(Inventory::getQuantity, 2L)

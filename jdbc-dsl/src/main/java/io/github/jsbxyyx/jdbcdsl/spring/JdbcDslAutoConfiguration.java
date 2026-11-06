@@ -44,8 +44,8 @@ import javax.sql.DataSource;
  *   <li>PostgreSQL → {@link io.github.jsbxyyx.jdbcdsl.dialect.PostgresDialect}</li>
  *   <li>Microsoft SQL Server → {@link io.github.jsbxyyx.jdbcdsl.dialect.SqlServerDialect}</li>
  *   <li>H2 → {@link io.github.jsbxyyx.jdbcdsl.dialect.H2Dialect}</li>
- *   <li>unrecognised → {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect} (with a {@code WARN} log)</li>
  * </ul>
+ * Detection failure stops context startup; provide a {@link Dialect} bean when detection is unavailable.
  *
  * <p>A user-provided {@link Dialect} bean always takes priority over auto-detection.
  * Similarly, a user-provided {@link JdbcDslExecutor} bean suppresses this auto-config executor.

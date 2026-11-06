@@ -60,8 +60,8 @@ import java.util.stream.Collectors;
  * <p>JavaBean DTOs and entities must provide an accessible no-arg constructor.
  * Record projections are constructed using their canonical constructor.
  *
- * <p>The default {@link Dialect} is {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect}.
- * Pass a custom dialect (e.g., {@link io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect}) as needed.
+ * <p>The default constructor detects the {@link Dialect} from the DataSource.
+ * Pass an explicit dialect (e.g., {@link io.github.jsbxyyx.jdbcdsl.dialect.MySqlDialect}) as needed.
  */
 public final class JdbcDslExecutor {
 
@@ -86,11 +86,11 @@ public final class JdbcDslExecutor {
      * DataSource associated with {@code jdbc}.
      *
      * <p>The detection probes {@link java.sql.DatabaseMetaData#getDatabaseProductName()} and
-     * selects the matching dialect (MySQL/MariaDB, PostgreSQL, SQL Server, H2). Falls back to
-     * {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect} when the DataSource is
-     * unavailable or the product name is not recognised.
+     * selects the matching dialect. If detection fails, construction fails rather than using
+     * an incompatible fallback; pass an explicit dialect when detection is unavailable.
      *
      * @param jdbc the template whose DataSource is used for dialect detection
+     * @throws IllegalStateException if the dialect cannot be detected
      */
     public JdbcDslExecutor(NamedParameterJdbcTemplate jdbc) {
         this(
@@ -770,6 +770,8 @@ public final class JdbcDslExecutor {
      *   <li>SQL Server: {@code MERGE INTO … USING (SELECT …) AS s(…) … ;}</li>
      *   <li>Default (Sql2008): throws {@link UnsupportedOperationException}</li>
      * </ul>
+     * MySQL {@link UpsertBuilder#doNothing()} is unsupported because {@code INSERT IGNORE}
+     * can suppress errors other than duplicate keys.
      *
      * <p>Fields annotated with {@link org.springframework.data.annotation.CreatedDate} and
      * {@link org.springframework.data.annotation.LastModifiedDate} are injected with the

@@ -42,7 +42,7 @@ public interface DialectProvider {
      * Returns {@code true} if this provider can supply a {@link Dialect} for the given database
      * product name (as reported by {@link java.sql.DatabaseMetaData#getDatabaseProductName()}).
      *
-     * @param databaseProductName the product name string from JDBC metadata; may be {@code null}
+     * @param databaseProductName the non-blank product name string from JDBC metadata
      * @return {@code true} if this provider handles the given product name
      */
     boolean supports(String databaseProductName);

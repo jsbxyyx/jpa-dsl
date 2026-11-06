@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the five new DSL features (no database required):
@@ -179,12 +180,12 @@ class NewFeaturesRendererTest {
     }
 
     @Test
-    void doNothing_mysql_rendersInsertIgnore() {
+    void doNothing_mysql_rejectsUnsafeInsertIgnore() {
         UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class).doNothing().build();
 
-        RenderedSql rendered = new MySqlDialect().renderUpsert(spec, userMeta, colValues());
-        assertThat(rendered.getSql()).startsWith("INSERT IGNORE INTO t_user");
-        assertThat(rendered.getSql()).doesNotContain("ON DUPLICATE KEY UPDATE");
+        assertThatThrownBy(() -> new MySqlDialect().renderUpsert(spec, userMeta, colValues()))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("INSERT IGNORE");
     }
 
     @Test

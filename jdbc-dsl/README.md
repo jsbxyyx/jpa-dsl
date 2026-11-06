@@ -500,6 +500,8 @@ jdbcdsl:
 
 显式声明的 `@Table` / `@Column` 映射优先于命名策略。`logical-delete-auto-filter` 只为 DSL SELECT 的根实体追加正常态条件，不会自动过滤 JOIN 关联实体；`query` / `queryOne` 执行的 Raw SQL 也不会自动追加逻辑删除条件。自定义 `NamingStrategy` Spring Bean 优先于 `jdbcdsl.naming-strategy` 属性。若不使用 Spring Boot 自动配置，请自行创建 `NamedParameterJdbcTemplate` 和 `JdbcDslExecutor`；执行器可自动检测常见数据库方言，也可通过构造器显式传入 `Dialect`。
 
+方言自动检测需要在初始化时连接数据库。连接失败、元数据不可用或数据库产品未知时会明确失败，不会回退到可能不兼容的 SQL 语法。需要离线启动或使用自定义数据库时，请显式提供 `Dialect` Bean 或构造器参数；需要 SQL:2008 方言时可显式传入 `Sql2008Dialect`。
+
 ## 条件查询与参数绑定
 
 条件值应通过 DSL 条件方法传入，不要将用户输入拼接进 SQL 字符串。`WhereBuilder` 支持组合条件；需要分组表达式时，可使用 lambda 组合 AND/OR 条件。对于列表过滤，应优先使用库提供的集合条件 API，并明确空集合在业务上的含义。
@@ -793,7 +795,9 @@ UpsertSpec<User> spec = UpsertBuilder.into(User.class)
 executor.upsert(spec, user);
 ```
 
-`onConflict(...)` 应对应数据库中实际存在的唯一键或唯一索引。`doUpdate(...)` 指定冲突时更新的列；不指定更新列时，默认更新所有非冲突列。`doNothing()` 可用于冲突时跳过更新。执行 Upsert 时，`@CreatedDate` 和 `@LastModifiedDate` 字段会在渲染前自动填充；默认更新列策略会排除 `@CreatedDate`，避免冲突更新时覆盖创建时间。各数据库的 Upsert 语法和唯一键推断方式不同：MySQL 根据表上的唯一索引判断冲突，PostgreSQL/H2 等需要明确冲突目标；当前默认 `Sql2008Dialect` 不支持 Upsert。请确认配置的方言支持该操作，并在目标数据库验证行为。
+`onConflict(...)` 应对应数据库中实际存在的唯一键或唯一索引。`doUpdate(...)` 指定冲突时更新的列；不指定更新列时，默认更新所有非冲突列。`doNothing()` 可用于冲突时跳过更新。执行 Upsert 时，`@CreatedDate` 和 `@LastModifiedDate` 字段会在渲染前自动填充；默认更新列策略会排除 `@CreatedDate`，避免冲突更新时覆盖创建时间。各数据库的 Upsert 语法和唯一键推断方式不同：MySQL 根据表上的唯一索引判断冲突，PostgreSQL/H2 等需要明确冲突目标；`Sql2008Dialect` 不支持 Upsert。请确认配置的方言支持该操作，并在目标数据库验证行为。
+
+**MySQL 不支持 `doNothing()`**：该操作会在执行 SQL 前抛出 `UnsupportedOperationException`。此前使用的 `INSERT IGNORE` 还可能将截断等非重复键错误降级为警告并写入错误数据；空更新也会触发更新触发器，因此不能安全替代。MySQL 的 `doUpdate(...)` 不受此限制。
 
 ## 事务边界
 

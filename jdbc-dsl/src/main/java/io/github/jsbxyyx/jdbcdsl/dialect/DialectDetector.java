@@ -7,6 +7,8 @@ import javax.sql.DataSource;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
+import java.util.Locale;
 import java.util.ServiceLoader;
 
 /**
@@ -28,8 +30,8 @@ import java.util.ServiceLoader;
  *       <li>KingbaseES (人大金仓) → {@link KingbaseDialect}</li>
  *     </ul>
  *   </li>
- *   <li>Fallback: {@link Sql2008Dialect} (with a {@code WARN} log).</li>
  * </ol>
+ * If detection fails, callers must explicitly configure a dialect.
  */
 public final class DialectDetector {
 
@@ -40,21 +42,26 @@ public final class DialectDetector {
     /**
      * Detects the {@link Dialect} from the given {@link DataSource}.
      *
-     * <p>Falls back to {@link Sql2008Dialect} when the DataSource is {@code null}, when the
-     * database product name is unrecognised, or when an exception occurs while obtaining a
-     * connection.
-     *
-     * @param dataSource the DataSource to probe (may be {@code null})
+     * @param dataSource the DataSource to probe
      * @return a non-null {@link Dialect} appropriate for the database
+     * @throws IllegalStateException if the database cannot be reached or its dialect is unknown
      */
     public static Dialect detect(DataSource dataSource) {
         if (dataSource == null) {
-            log.warn("jdbc-dsl: DataSource is null, falling back to Sql2008Dialect");
-            return new Sql2008Dialect();
+            throw new IllegalStateException(
+                    "Cannot detect SQL dialect without a DataSource; configure a Dialect explicitly");
         }
         try (Connection conn = dataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
+            if (meta == null) {
+                throw new IllegalStateException(
+                        "Cannot detect SQL dialect: database metadata is null; configure a Dialect explicitly");
+            }
             String productName = meta.getDatabaseProductName();
+            if (productName == null || productName.isBlank()) {
+                throw new IllegalStateException(
+                        "Cannot detect SQL dialect: database product name is empty; configure a Dialect explicitly");
+            }
 
             // 1. User SPI providers (highest priority)
             for (DialectProvider provider : ServiceLoader.load(DialectProvider.class)) {
@@ -63,42 +70,42 @@ public final class DialectDetector {
                             "jdbc-dsl: using SPI dialect provider {} for '{}'",
                             provider.getClass().getName(),
                             productName);
-                    return provider.create();
+                    Dialect dialect = provider.create();
+                    if (dialect == null) {
+                        throw new IllegalStateException(
+                                "Dialect provider " + provider.getClass().getName() + " returned null");
+                    }
+                    return dialect;
                 }
             }
 
             // 2. Built-in detection
-            if (productName != null) {
-                String lower = productName.toLowerCase();
-                if (lower.contains("mysql") || lower.contains("mariadb")) {
-                    return new MySqlDialect();
-                }
-                if (lower.contains("postgres")) {
-                    return new PostgresDialect();
-                }
-                if (lower.contains("sql server")) {
-                    return new SqlServerDialect();
-                }
-                if (lower.contains("h2")) {
-                    return new H2Dialect();
-                }
-                if (lower.contains("oracle")) {
-                    return new OracleDialect();
-                }
-                if (lower.contains("dm dbms") || lower.startsWith("dm")) {
-                    return new DmDialect();
-                }
-                if (lower.contains("kingbase")) {
-                    return new KingbaseDialect();
-                }
-                log.warn("jdbc-dsl: unrecognized database product '{}', falling back to Sql2008Dialect", productName);
-            } else {
-                log.warn("jdbc-dsl: database product name is null, falling back to Sql2008Dialect");
+            String lower = productName.toLowerCase(Locale.ROOT);
+            if (lower.contains("mysql") || lower.contains("mariadb")) {
+                return new MySqlDialect();
             }
-        } catch (Exception e) {
-            log.warn(
-                    "jdbc-dsl: failed to detect database dialect ({}), falling back to Sql2008Dialect", e.getMessage());
+            if (lower.contains("postgres")) {
+                return new PostgresDialect();
+            }
+            if (lower.contains("sql server")) {
+                return new SqlServerDialect();
+            }
+            if (lower.contains("h2")) {
+                return new H2Dialect();
+            }
+            if (lower.contains("oracle")) {
+                return new OracleDialect();
+            }
+            if (lower.contains("dm dbms") || lower.startsWith("dm")) {
+                return new DmDialect();
+            }
+            if (lower.contains("kingbase")) {
+                return new KingbaseDialect();
+            }
+            throw new IllegalStateException(
+                    "Unrecognized database product '" + productName + "'; configure a Dialect explicitly");
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to detect SQL dialect; configure a Dialect explicitly", e);
         }
-        return new Sql2008Dialect();
     }
 }
