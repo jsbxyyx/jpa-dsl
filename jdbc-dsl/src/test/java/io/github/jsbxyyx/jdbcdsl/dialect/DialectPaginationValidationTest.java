@@ -52,6 +52,32 @@ class DialectPaginationValidationTest {
     }
 
     @Test
+    void postgresPaginatesBeforeEveryKnownLockWithoutLosingParameters() {
+        PostgresDialect dialect = new PostgresDialect();
+        for (LockMode mode : LockMode.values()) {
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("_limit", 7);
+            String sql =
+                    dialect.applyPagination("SELECT * FROM t WHERE id = :_offset" + mode.sql(), 4, 2, params, mode);
+            assertThat(sql)
+                    .isEqualTo("SELECT * FROM t WHERE id = :_offset LIMIT :_limit_1 OFFSET :_offset_1" + mode.sql());
+            assertThat(params)
+                    .containsEntry("_limit", 7)
+                    .containsEntry("_limit_1", 2)
+                    .containsEntry("_offset_1", 4L);
+        }
+    }
+
+    @Test
+    void postgresRejectsMismatchedLockInsteadOfRewritingSql() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        assertThatThrownBy(() -> new PostgresDialect().applyPagination("SELECT 1", 0, 1, params, LockMode.UPDATE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("lock clause");
+        assertThat(params).isEmpty();
+    }
+
+    @Test
     void mysqlRejectsMismatchedLockInsteadOfRewritingSql() {
         Map<String, Object> params = new LinkedHashMap<>();
         assertThatThrownBy(() -> new MySqlDialect().applyPagination("SELECT 1", 0, 1, params, LockMode.UPDATE))
