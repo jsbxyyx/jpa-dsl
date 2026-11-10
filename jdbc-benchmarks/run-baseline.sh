@@ -52,10 +52,10 @@ for mode in sample thrpt; do
     for threads in 1 8 32; do
         for workload in query batch; do
             if [[ "$workload" == query ]]; then
-                selector='.*QueryBenchmark\.(jdbcBean|springBean|dslRawBean|dslSelectBean)'
+                selector='.*QueryBenchmark\.(jdbcBean|springBean|mybatisBean|dslRawBean|dslSelectBean)'
                 parameter='rowCount=1,100,10000'
             else
-                selector='.*BatchBenchmark\.(jdbcBatch|springBatch|dslBatch|dslChunkedBatch)'
+                selector='.*BatchBenchmark\.(jdbcBatch|springBatch|mybatisBatch|dslBatch|dslChunkedBatch)'
                 parameter='batchSize=1,100,1000'
             fi
             name="${workload}-${mode}-${threads}"

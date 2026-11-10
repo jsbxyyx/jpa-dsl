@@ -83,12 +83,18 @@ not peak heap: measure peak heap separately with a profiler. Each operation is
 one query or one complete batch, **not one row**; compare like `rowCount` or
 `batchSize` values. Record the full JMH output and confidence intervals.
 
-* `MappingBenchmark` uses a detached `CachedRowSet` and a precompiled mapper to
-  isolate mapping and list construction from database round trips. The cold
-  variant creates a mapper cache per operation; it is not JVM cold start.
-* `QueryBenchmark` compares JDBC, JdbcTemplate with handwritten row mappers,
-  raw executor mapping, and the typed DSL. Each performs a prepared, ordered
-  query against the same indexed, non-null dataset. The typed spec is built
+* `MappingBenchmark` uses a detached `CachedRowSet` and compares direct
+  ResultSet mapping, Spring `BeanPropertyRowMapper`, cached JavaBeans setter
+  reflection, and the DSL mapper. It isolates mapping and list construction
+  from database round trips. The cold variant creates a mapper cache per
+  operation; it is not JVM cold start.
+* `QueryBenchmark` compares direct JDBC, JdbcTemplate with
+  `BeanPropertyRowMapper`, JdbcTemplate with a handwritten `RowMapper`,
+  MyBatis 3 (`SIMPLE` executor with annotation-based result mapping), raw
+  executor mapping, and the typed DSL. Each performs a prepared, ordered query
+  against the same indexed, non-null dataset and uses the same HikariDataSource.
+  MyBatis configuration and mapper metadata are created during trial setup;
+  each timed operation opens and closes its own SqlSession. The typed spec is built
   outside timing except in `dslBuildAndSelectBean`; SQL rendering remains
   inside both typed variants. The handwritten implementations
   do not implement every strict conversion and NULL check, so they are useful
@@ -98,13 +104,27 @@ one query or one complete batch, **not one row**; compare like `rowCount` or
   buffering is unchanged by the callback. `dslPageBean` and `dslSliceBean`
   return the same content; Page executes a count query whereas Slice fetches
   one additional row to determine whether there is a next slice.
-* `BatchBenchmark` compares prepared JDBC, JdbcTemplate and a prebuilt DSL batch.
-  The chunked DSL variant uses at most 100 rows per batch. Each inserts the same
-  rows. Each thread's ID range has a permanent boundary row to separate InnoDB
-  index gaps during concurrent cleanup. Deletion occurs outside the timed operation, but
+* `BatchBenchmark` compares prepared JDBC, JdbcTemplate, MyBatis 3 (`BATCH`
+  executor with one mapped INSERT per row), and a prebuilt DSL batch. MyBatis
+  opens and closes a SqlSession per timed operation and flushes the queued batch
+  once. The chunked DSL variant uses at most 100 rows per batch. Each inserts
+  the same rows. MyBatis uses JDBC batch execution, not multi-row INSERT SQL.
+  Each thread's ID range has a permanent boundary row to separate InnoDB index
+  gaps during concurrent cleanup. Deletion occurs outside the timed operation, but
   still affects database caches and transaction/log activity; `Level.Invocation`
   setup also adds harness overhead, especially for small batches. GC allocation
   metrics include the cleanup/setup allocations, so they are not insert-only.
+  Methods with the `Transactional` suffix run the complete batch in one explicit
+  transaction and commit once: JDBC manages its connection directly, MyBatis
+  uses a non-autocommit BATCH SqlSession, and Spring/DSL use the same
+  DataSourceTransactionManager-backed TransactionTemplate. Unsuffixed methods
+  retain their original autocommit behavior. Compare only methods with the same
+  transaction mode. Chunked DSL still splits the batch into chunks inside the
+  same outer transaction in its transactional variant; it does not commit once
+  per chunk. The two modes help separate transaction-boundary costs from
+  statement preparation/execution, but database latency and Level.Invocation
+  cleanup can still dominate. Use multiple forks and inspect per-iteration
+  distributions; do not infer a ranking from one short run.
 * `BatchPreparationBenchmark` replaces JDBC execution with a recording template
   and compares DSL SQL rendering and parameter preparation with an explicit
   Spring named-parameter baseline for the same SQL and values, without a database,
@@ -119,7 +139,16 @@ one query or one complete batch, **not one row**; compare like `rowCount` or
 
 H2 is the default and is useful for local repeatability, not for estimating
 production network or database behavior. To test MySQL or PostgreSQL, supply a
-**dedicated empty benchmark database**:
+**dedicated empty benchmark database**. When `JDBC_BENCH_URL` is unset, the
+harness can reuse the integration-test connection settings (`MYSQL_IT_URL`, or
+`MYSQL_IT_HOST`/`MYSQL_IT_PORT`/`MYSQL_IT_DATABASE`, plus `MYSQL_IT_USERNAME` and
+`MYSQL_IT_PASSWORD). The defaults match `jdbc-integration-tests` (`mysql-svc:3306`,
+`test`, `root`/`root`); external database access still requires the explicit
+`JDBC_BENCH_ALLOW_EXTERNAL=true` opt-in. Each benchmark JVM creates uniquely
+suffixed tables (for example, `jpa_dsl_bench_rows_<run-id>` and
+`jpa_dsl_bench_writes_<run-id>`), and drops only the exact tables it created
+when the trial shuts down. `JDBC_BENCH_TABLE_PREFIX` can override the prefix; it
+must be a simple SQL identifier prefix of at most 31 characters:
 
 ```bash
 export JDBC_BENCH_URL='jdbc:postgresql://localhost:5432/benchmark'
@@ -152,11 +181,14 @@ exercise Slice pagination and exact numeric mapping. The performance workloads
 do not automatically configure cursor fetching; configure and measure
 driver/transaction behavior separately.
 
-The harness creates `jpa_dsl_bench_rows` and `jpa_dsl_bench_writes` and drops
-only tables it successfully created. It fails if either table already exists;
-do not use a production database. A crash may leave tables behind. Do not run
-multiple benchmark processes concurrently against the same database. The normal
-correctness tests use a separate in-memory database. The pool
+The harness creates per-run tables using a random 12-character suffix and drops
+only those exact tables it successfully created. A forcibly terminated process
+may leave orphaned tables; inspect and remove only tables with the configured
+benchmark prefix and a confirmed stale run ID. The harness never automatically
+drops pre-existing tables. Separate suffixes allow independent benchmark JVMs
+to coexist, although they still share database CPU, I/O and connection limits.
+Do not use a production database. The normal correctness tests use a separate
+in-memory database. The pool
 allows up to 32 connections; transaction/autocommit, durability, driver batch
 rewrite settings and database configuration affect results and must be recorded.
 Never commit credentials or environment-specific result files.

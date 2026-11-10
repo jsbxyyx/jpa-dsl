@@ -25,11 +25,26 @@ class BenchmarkCorrectnessTest {
     }
 
     @Test
+    void benchmarkInstancesUseDistinctTablesAndIndependentMyBatisMappings() throws Exception {
+        BenchmarkDatabase second = new BenchmarkDatabase();
+        try {
+            second.setupLocal();
+            assertNotEquals(db.rowsTable, second.rowsTable);
+            assertNotEquals(db.writesTable, second.writesTable);
+            assertEquals(1, db.mybatis.selectRows(1).size());
+            assertEquals(1, second.mybatis.selectRows(1).size());
+        } finally {
+            second.tearDown();
+        }
+        assertEquals(1, db.mybatis.selectRows(1).size());
+    }
+
+    @Test
     void queryVariantsReturnIdenticalRows() throws Exception {
         for (int count : List.of(1, 100, 10_000)) {
             QueryBenchmark benchmark = new QueryBenchmark();
             benchmark.rowCount = count;
-            benchmark.setup();
+            benchmark.setup(db);
             List<BenchmarkRecord> expected = benchmark.jdbcRecord(db);
             assertEquals(count, expected.size());
             assertEquals(new BenchmarkRecord(1L, "name-1", 1), expected.get(0));
@@ -37,6 +52,8 @@ class BenchmarkCorrectnessTest {
             assertEquals(expected, benchmark.dslRawRecord(db));
             assertEquals(expected, records(benchmark.jdbcBean(db)));
             assertEquals(expected, records(benchmark.springBean(db)));
+            assertEquals(expected, records(benchmark.springHandwrittenBean(db)));
+            assertEquals(expected, records(benchmark.mybatisBean(db)));
             assertEquals(expected, records(benchmark.dslRawBean(db)));
             assertEquals(expected, records(benchmark.dslSelectBean(db)));
             assertEquals(expected, records(benchmark.dslBuildAndSelectBean(db)));
@@ -63,6 +80,8 @@ class BenchmarkCorrectnessTest {
         List<BenchmarkRecord> expected = benchmark.directRecord();
         assertEquals(100, expected.size());
         assertEquals(records(benchmark.directBean()), expected);
+        assertEquals(expected, records(benchmark.springBeanProperty()));
+        assertEquals(expected, records(benchmark.cachedJavaBeansSetter()));
         assertEquals(expected, recordsObjects(benchmark.dslBean()));
         assertEquals(expected, recordsObjects(benchmark.dslColdBean()));
         assertEquals(expected, benchmark.dslRecord());
@@ -82,6 +101,9 @@ class BenchmarkCorrectnessTest {
         assertEquals(201, expected.size());
         assertEquals(new BenchmarkRecord(0L, "name-0", 0), expected.get(0));
         benchmark.clearWrites(db);
+        assertEquals(201, benchmark.mybatisBatch(db).length);
+        assertEquals(expected, writes());
+        benchmark.clearWrites(db);
         assertEquals(201, benchmark.springBatch(db).length);
         assertEquals(expected, writes());
         benchmark.clearWrites(db);
@@ -91,10 +113,24 @@ class BenchmarkCorrectnessTest {
         assertEquals(201, benchmark.dslChunkedBatch(db).length);
         assertEquals(expected, writes());
         benchmark.clearWrites(db);
+        assertEquals(201, benchmark.jdbcBatchTransactional(db).length);
+        assertEquals(expected, writes());
+        benchmark.clearWrites(db);
+        assertEquals(201, benchmark.mybatisBatchTransactional(db).length);
+        assertEquals(expected, writes());
+        benchmark.clearWrites(db);
+        assertEquals(201, benchmark.springBatchTransactional(db).length);
+        assertEquals(expected, writes());
+        benchmark.clearWrites(db);
+        assertEquals(201, benchmark.dslBatchTransactional(db).length);
+        assertEquals(expected, writes());
+        benchmark.clearWrites(db);
+        assertEquals(201, benchmark.dslChunkedBatchTransactional(db).length);
+        assertEquals(expected, writes());
+        benchmark.clearWrites(db);
         assertEquals(
                 1,
-                db.jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM " + BenchmarkDatabase.WRITES + " WHERE amount = -1", Integer.class));
+                db.jdbc.queryForObject("SELECT COUNT(*) FROM " + db.writesTable + " WHERE amount = -1", Integer.class));
     }
 
     @Test
@@ -153,7 +189,7 @@ class BenchmarkCorrectnessTest {
 
     private static List<BenchmarkRecord> writes() {
         return db.jdbc.query(
-                "SELECT id, name, amount FROM " + BenchmarkDatabase.WRITES + " WHERE amount >= 0 ORDER BY id",
+                "SELECT id, name, amount FROM " + db.writesTable + " WHERE amount >= 0 ORDER BY id",
                 (rs, rowNum) -> QueryBenchmark.readRecord(rs));
     }
 

@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 WORKLOADS = {
-    "query": ("rowCount", ("1", "100", "10000"), ("jdbcBean", "springBean", "dslRawBean", "dslSelectBean")),
-    "batch": ("batchSize", ("1", "100", "1000"), ("jdbcBatch", "springBatch", "dslBatch", "dslChunkedBatch")),
+    "query": ("rowCount", ("1", "100", "10000"), ("jdbcBean", "springBean", "mybatisBean", "dslRawBean", "dslSelectBean")),
+    "batch": ("batchSize", ("1", "100", "1000"), ("jdbcBatch", "springBatch", "mybatisBatch", "dslBatch", "dslChunkedBatch")),
 }
 
 

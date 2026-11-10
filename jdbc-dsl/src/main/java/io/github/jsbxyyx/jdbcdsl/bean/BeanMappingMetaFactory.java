@@ -51,11 +51,12 @@ public final class BeanMappingMetaFactory {
         try {
             Constructor<?> constructor = type.getDeclaredConstructor();
             constructor.setAccessible(true);
-            MethodHandle constructorHandle = LOOKUP.unreflectConstructor(constructor);
+            MethodHandle constructorHandle =
+                    LOOKUP.unreflectConstructor(constructor).asType(MethodType.methodType(Object.class));
 
             return () -> {
                 try {
-                    return constructorHandle.invoke();
+                    return (Object) constructorHandle.invokeExact();
                 } catch (Throwable e) {
                     throw new RuntimeException("Failed to create instance of " + type, e);
                 }

@@ -9,8 +9,8 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("summarize-baseline.py")
 WORKLOADS = {
-    "query": ("rowCount", ("1", "100", "10000"), ("jdbcBean", "springBean", "dslRawBean", "dslSelectBean")),
-    "batch": ("batchSize", ("1", "100", "1000"), ("jdbcBatch", "springBatch", "dslBatch", "dslChunkedBatch")),
+    "query": ("rowCount", ("1", "100", "10000"), ("jdbcBean", "springBean", "mybatisBean", "dslRawBean", "dslSelectBean")),
+    "batch": ("batchSize", ("1", "100", "1000"), ("jdbcBatch", "springBatch", "mybatisBatch", "dslBatch", "dslChunkedBatch")),
 }
 
 
@@ -50,7 +50,7 @@ class SummaryTest(unittest.TestCase):
         result = self.run_summary()
         self.assertEqual(result.returncode, 0, result.stderr)
         rows = list(csv.DictReader(result.stdout.splitlines()))
-        self.assertEqual(len(rows), 144)
+        self.assertEqual(len(rows), 180)
         first = rows[0]
         self.assertEqual((first["method"], first["score_vs_jdbc"], first["p99"]), ("jdbcBean", "1.0", "5"))
         self.assertEqual(rows[1]["score_vs_jdbc"], "2.0")

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.convert.support.DefaultConversionService;
 
+import java.math.BigInteger;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -91,6 +92,8 @@ class MapperCacheTest {
         when(row.getObject(1)).thenReturn(123L);
         when(row.getObject(2)).thenReturn("alice");
         when(row.getObject(3)).thenReturn("alice@example.test");
+        when(row.getString(2)).thenReturn("alice");
+        when(row.getString(3)).thenReturn("alice@example.test");
         TestEntity twoColumns = (TestEntity) cache.getMapper(rs2Again, meta).mapRow(row);
         TestEntity threeColumns = (TestEntity) cache.getMapper(rs3, meta).mapRow(row);
         assertEquals(123L, twoColumns.getId());
@@ -139,6 +142,32 @@ class MapperCacheTest {
     }
 
     @Test
+    void signedMetadataIsPartOfCacheKey() throws SQLException {
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
+        BeanMappingMeta meta = metaFactory.create(LongEntity.class);
+
+        ResultSet signed = createMockResultSet("id", Types.BIGINT, true);
+        ResultSet unsigned = createMockResultSet("id", Types.BIGINT, false);
+        ResultSetMapper signedMapper = cache.getMapper(signed, meta);
+        ResultSetMapper unsignedMapper = cache.getMapper(unsigned, meta);
+
+        assertNotSame(
+                signedMapper,
+                unsignedMapper,
+                "Signed and unsigned columns must not share a mapper with different read strategies");
+        assertEquals(2, cache.size());
+
+        ResultSet signedRow = mock(ResultSet.class);
+        when(signedRow.getLong(1)).thenReturn(42L);
+        when(signedRow.wasNull()).thenReturn(false);
+        assertEquals(42L, ((LongEntity) signedMapper.mapRow(signedRow)).getId());
+
+        ResultSet unsignedRow = mock(ResultSet.class);
+        when(unsignedRow.getObject(1)).thenReturn(43L);
+        assertEquals(43L, ((LongEntity) unsignedMapper.mapRow(unsignedRow)).getId());
+    }
+
+    @Test
     void testDifferentColumnStructures() throws SQLException {
         MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
         BeanMappingMeta meta = metaFactory.create(TestEntity.class);
@@ -179,9 +208,30 @@ class MapperCacheTest {
         BeanMappingMeta meta = metaFactory.create(TestEntity.class);
         ResultSet rs = createMockResultSet("name", Types.VARCHAR);
         when(rs.getObject(1)).thenReturn("original");
+        when(rs.getString(1)).thenReturn("original");
         assertEquals("original", ((TestEntity) first.getMapper(rs, meta).mapRow(rs)).getName());
         assertEquals("custom", ((TestEntity) second.getMapper(rs, meta).mapRow(rs)).getName());
         assertNotSame(first.getMapper(rs, meta), first.getMapper(rs, metaFactory.create(TestEntity.class)));
+    }
+
+    @Test
+    void customConverterRegistryReceivesOriginalJdbcValueEvenForSignedIntegerColumns() throws SQLException {
+        ConverterRegistry customRegistry = mock(ConverterRegistry.class);
+        when(customRegistry.getConverter(Types.BIGINT, Long.class))
+                .thenReturn(value -> ((BigInteger) value).longValueExact());
+        MapperCache cache = new MapperCache(new JdbcDslCacheManager(), customRegistry);
+        BeanMappingMeta meta = metaFactory.create(LongEntity.class);
+        ResultSet metadataSource = createMockResultSet("id", Types.BIGINT, true);
+        ResultSetMapper mapper = cache.getMapper(metadataSource, meta);
+
+        ResultSet row = mock(ResultSet.class);
+        when(row.getObject(1)).thenReturn(BigInteger.valueOf(9876543210L));
+
+        LongEntity entity = (LongEntity) mapper.mapRow(row);
+
+        assertEquals(9876543210L, entity.getId());
+        verify(row).getObject(1);
+        verify(row, never()).getLong(1);
     }
 
     @Test
@@ -285,6 +335,12 @@ class MapperCacheTest {
         assertNull(entity.getTimeIndex());
     }
 
+    private ResultSet createMockResultSet(String columnName, int columnType, boolean signed) throws SQLException {
+        ResultSet rs = createMockResultSet(columnName, columnType);
+        when(rs.getMetaData().isSigned(1)).thenReturn(signed);
+        return rs;
+    }
+
     private ResultSet createMockResultSet(Object... columnDefs) throws SQLException {
         if (columnDefs.length % 2 != 0) {
             throw new IllegalArgumentException("Column definitions must be in pairs (name, type)");
@@ -308,6 +364,18 @@ class MapperCacheTest {
 
         when(rs.getMetaData()).thenReturn(metaData);
         return rs;
+    }
+
+    static class LongEntity {
+        private Long id;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
     }
 
     static class ShortEntity {

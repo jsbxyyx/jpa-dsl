@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
 
 /**
  * PropertyAccessor implementation using MethodHandle for efficient property access.
@@ -8,8 +9,8 @@ import java.lang.invoke.MethodHandle;
  * <p>MethodHandle provides better performance than reflection (Method.invoke)
  * while maintaining flexibility for dynamic property access.
  *
- * <p>This implementation uses {@code invoke()} rather than {@code invokeExact()}
- * to allow automatic type conversions and boxing/unboxing.
+ * <p>Handles are adapted once to a stable {@code (Object)Object} getter and
+ * {@code (Object,Object)void} setter signature, allowing exact invocation in the hot path.
  */
 public final class MethodHandleAccessor implements PropertyAccessor {
 
@@ -29,8 +30,9 @@ public final class MethodHandleAccessor implements PropertyAccessor {
     public MethodHandleAccessor(String name, Class<?> type, MethodHandle getter, MethodHandle setter) {
         this.name = name;
         this.type = type;
-        this.getter = getter;
-        this.setter = setter;
+        this.getter = getter == null ? null : getter.asType(MethodType.methodType(Object.class, Object.class));
+        this.setter =
+                setter == null ? null : setter.asType(MethodType.methodType(void.class, Object.class, Object.class));
     }
 
     @Override
@@ -49,7 +51,7 @@ public final class MethodHandleAccessor implements PropertyAccessor {
             throw new UnsupportedOperationException("Property '" + name + "' is write-only");
         }
         try {
-            return getter.invoke(target);
+            return (Object) getter.invokeExact(target);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to get property '" + name + "' from " + target.getClass(), e);
         }
@@ -66,7 +68,7 @@ public final class MethodHandleAccessor implements PropertyAccessor {
             throw new UnsupportedOperationException("Property '" + name + "' is read-only");
         }
         try {
-            setter.invoke(target, value);
+            setter.invokeExact(target, value);
         } catch (Throwable e) {
             throw new RuntimeException(
                     "Failed to write property '" + name + "' on " + target.getClass() + " with value: " + value, e);

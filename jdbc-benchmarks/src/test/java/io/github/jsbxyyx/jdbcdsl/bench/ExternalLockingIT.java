@@ -13,6 +13,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,7 @@ class ExternalLockingIT {
         JPageable<BenchmarkRow> page = JPageable.of(0, 1, JSort.byAsc(BenchmarkRow::getId));
         for (LockMode mode : LockMode.values()) {
             transaction.executeWithoutResult(status -> {
-                var spec = SelectBuilder.from(BenchmarkRow.class)
+                var spec = SelectBuilder.fromCte(db.rowsTable, BenchmarkRow.class)
                         .where(w -> w.eq(BenchmarkRow::getId, 1L))
                         .forUpdate(mode)
                         .mapToEntity();
@@ -77,11 +78,15 @@ class ExternalLockingIT {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
             transaction.executeWithoutResult(status -> {
-                var spec = SelectBuilder.from(BenchmarkRow.class)
+                var spec = SelectBuilder.fromCte(db.rowsTable, BenchmarkRow.class)
                         .where(w -> w.eq(BenchmarkRow::getId, 1L))
                         .forUpdate()
                         .mapToEntity();
-                assertEquals(1L, db.dsl.findOne(spec).getId());
+                assertEquals(
+                        1L,
+                        db.dsl
+                                .findOne(spec, JPageable.of(0, 1, JSort.byAsc(BenchmarkRow::getId)))
+                                .getId());
                 assertLocked(worker, 1L);
             });
             Future<Boolean> afterCommit = worker.submit(() -> tryLock(1L));
@@ -97,7 +102,7 @@ class ExternalLockingIT {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
             transaction.executeWithoutResult(status -> {
-                var spec = SelectBuilder.from(BenchmarkRow.class)
+                var spec = SelectBuilder.fromCte(db.rowsTable, BenchmarkRow.class)
                         .where(w -> w.lte(BenchmarkRow::getId, 3L))
                         .forUpdate(LockMode.UPDATE_SKIP_LOCKED)
                         .mapToEntity();
@@ -123,13 +128,13 @@ class ExternalLockingIT {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
             transaction.executeWithoutResult(status -> {
-                var first = SelectBuilder.from(BenchmarkRow.class)
+                var first = SelectBuilder.fromCte(db.rowsTable, BenchmarkRow.class)
                         .where(w -> w.eq(BenchmarkRow::getId, 1L))
                         .forUpdate()
                         .mapToEntity();
                 assertEquals(1L, db.dsl.findOne(first).getId());
                 Future<?> result = worker.submit(() -> transaction.executeWithoutResult(other -> {
-                    var spec = SelectBuilder.from(BenchmarkRow.class)
+                    var spec = SelectBuilder.fromCte(db.rowsTable, BenchmarkRow.class)
                             .where(w -> w.lte(BenchmarkRow::getId, 2L))
                             .forUpdate(LockMode.UPDATE_SKIP_LOCKED)
                             .mapToEntity();
@@ -160,12 +165,12 @@ class ExternalLockingIT {
     private static boolean tryLock(long id) throws SQLException {
         try (Connection connection = db.dataSource.getConnection()) {
             connection.setAutoCommit(false);
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id FROM " + BenchmarkDatabase.ROWS + " WHERE id = ? FOR UPDATE NOWAIT")) {
+            try (PreparedStatement statement =
+                    connection.prepareStatement("SELECT id FROM " + db.rowsTable + " WHERE id = ? FOR UPDATE NOWAIT")) {
                 statement.setLong(1, id);
-                try {
-                    statement.executeQuery().close();
-                    return true;
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    // Force the driver to fetch the row: some drivers defer row locking until fetch.
+                    return resultSet.next();
                 } catch (SQLException failure) {
                     if (mysql) {
                         assertEquals(3572, failure.getErrorCode());

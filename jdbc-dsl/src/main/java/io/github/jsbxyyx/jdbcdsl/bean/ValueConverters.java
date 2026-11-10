@@ -86,6 +86,9 @@ public final class ValueConverters {
             }
             return null;
         }
+        if (isExactNumericType(value, targetType)) {
+            return value;
+        }
         if (!(value instanceof Number number)) {
             return value;
         }
@@ -112,6 +115,14 @@ public final class ValueConverters {
             return exactValue;
         }
         return value;
+    }
+
+    private static boolean isExactNumericType(Object value, Class<?> targetType) {
+        Class<?> valueType = value.getClass();
+        return (targetType == Byte.class || targetType == byte.class) && valueType == Byte.class
+                || (targetType == Short.class || targetType == short.class) && valueType == Short.class
+                || (targetType == Integer.class || targetType == int.class) && valueType == Integer.class
+                || (targetType == Long.class || targetType == long.class) && valueType == Long.class;
     }
 
     private static long exactLongValue(Number number, Class<?> targetType) {

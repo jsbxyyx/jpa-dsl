@@ -20,6 +20,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Slice;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.Connection;
@@ -38,12 +39,21 @@ import java.util.concurrent.TimeUnit;
 @Fork(2)
 @State(Scope.Thread)
 public class QueryBenchmark {
-    static final String BEAN_SQL =
-            "SELECT id, name, amount FROM " + BenchmarkDatabase.ROWS + " WHERE id <= ? ORDER BY id";
-    static final String SCALAR_SQL = "SELECT id FROM " + BenchmarkDatabase.ROWS + " WHERE id <= ? ORDER BY id";
-    static final String NAMED_BEAN_SQL =
-            "SELECT id, name, amount FROM " + BenchmarkDatabase.ROWS + " WHERE id <= :max ORDER BY id";
-    static final String NAMED_SCALAR_SQL = "SELECT id FROM " + BenchmarkDatabase.ROWS + " WHERE id <= :max ORDER BY id";
+    static String beanSql(BenchmarkDatabase db) {
+        return "SELECT id, name, amount FROM " + db.rowsTable + " WHERE id <= ? ORDER BY id";
+    }
+
+    static String scalarSql(BenchmarkDatabase db) {
+        return "SELECT id FROM " + db.rowsTable + " WHERE id <= ? ORDER BY id";
+    }
+
+    static String namedBeanSql(BenchmarkDatabase db) {
+        return "SELECT id, name, amount FROM " + db.rowsTable + " WHERE id <= :max ORDER BY id";
+    }
+
+    static String namedScalarSql(BenchmarkDatabase db) {
+        return "SELECT id FROM " + db.rowsTable + " WHERE id <= :max ORDER BY id";
+    }
 
     @Param({"1", "100", "10000"})
     public int rowCount;
@@ -53,26 +63,27 @@ public class QueryBenchmark {
     private JPageable<BenchmarkRow> pageable;
     private Map<String, Object> params;
     private static final RowMapper<BenchmarkRow> BEAN_MAPPER = (rs, rowNum) -> readBean(rs);
+    private static final RowMapper<BenchmarkRow> BEAN_PROPERTY_MAPPER = new BeanPropertyRowMapper<>(BenchmarkRow.class);
     private static final RowMapper<BenchmarkRecord> RECORD_MAPPER = (rs, rowNum) -> readRecord(rs);
     private static final RowMapper<Long> SCALAR_MAPPER = (rs, rowNum) -> rs.getLong(1);
 
     @Setup(Level.Trial)
-    public void setup() {
+    public void setup(BenchmarkDatabase db) {
         if (rowCount < 1 || rowCount > BenchmarkDatabase.DATASET_SIZE) {
             throw new IllegalArgumentException("rowCount must be between 1 and " + BenchmarkDatabase.DATASET_SIZE);
         }
         params = Map.of("max", rowCount);
-        spec = buildSpec();
-        pageSpec = buildSpec(Math.min(rowCount + 1, BenchmarkDatabase.DATASET_SIZE));
+        spec = buildSpec(db);
+        pageSpec = buildSpec(Math.min(rowCount + 1, BenchmarkDatabase.DATASET_SIZE), db);
         pageable = JPageable.ofSize(rowCount);
     }
 
-    private SelectSpec<BenchmarkRow, BenchmarkRow> buildSpec() {
-        return buildSpec(rowCount);
+    private SelectSpec<BenchmarkRow, BenchmarkRow> buildSpec(BenchmarkDatabase db) {
+        return buildSpec(rowCount, db);
     }
 
-    private SelectSpec<BenchmarkRow, BenchmarkRow> buildSpec(int max) {
-        return SelectBuilder.from(BenchmarkRow.class)
+    private SelectSpec<BenchmarkRow, BenchmarkRow> buildSpec(int max, BenchmarkDatabase db) {
+        return SelectBuilder.fromCte(db.rowsTable, BenchmarkRow.class)
                 .where(w -> w.lte(BenchmarkRow::getId, (long) max))
                 .orderBy(JSort.by(JOrder.asc(BenchmarkRow::getId)))
                 .mapToEntity();
@@ -80,47 +91,57 @@ public class QueryBenchmark {
 
     @Benchmark
     public List<BenchmarkRow> jdbcBean(BenchmarkDatabase db) throws SQLException {
-        return jdbc(db, BEAN_SQL, QueryBenchmark::readBean);
+        return jdbc(db, beanSql(db), QueryBenchmark::readBean);
     }
 
     @Benchmark
     public List<BenchmarkRecord> jdbcRecord(BenchmarkDatabase db) throws SQLException {
-        return jdbc(db, BEAN_SQL, QueryBenchmark::readRecord);
+        return jdbc(db, beanSql(db), QueryBenchmark::readRecord);
     }
 
     @Benchmark
     public List<Long> jdbcScalar(BenchmarkDatabase db) throws SQLException {
-        return jdbc(db, SCALAR_SQL, rs -> rs.getLong(1));
+        return jdbc(db, scalarSql(db), rs -> rs.getLong(1));
+    }
+
+    @Benchmark
+    public List<BenchmarkRow> mybatisBean(BenchmarkDatabase db) {
+        return db.mybatis.selectRows(rowCount);
     }
 
     @Benchmark
     public List<BenchmarkRow> springBean(BenchmarkDatabase db) {
-        return db.jdbc.query(BEAN_SQL, BEAN_MAPPER, rowCount);
+        return db.jdbc.query(beanSql(db), BEAN_PROPERTY_MAPPER, rowCount);
+    }
+
+    @Benchmark
+    public List<BenchmarkRow> springHandwrittenBean(BenchmarkDatabase db) {
+        return db.jdbc.query(beanSql(db), BEAN_MAPPER, rowCount);
     }
 
     @Benchmark
     public List<BenchmarkRecord> springRecord(BenchmarkDatabase db) {
-        return db.jdbc.query(BEAN_SQL, RECORD_MAPPER, rowCount);
+        return db.jdbc.query(beanSql(db), RECORD_MAPPER, rowCount);
     }
 
     @Benchmark
     public List<Long> springScalar(BenchmarkDatabase db) {
-        return db.jdbc.query(SCALAR_SQL, SCALAR_MAPPER, rowCount);
+        return db.jdbc.query(scalarSql(db), SCALAR_MAPPER, rowCount);
     }
 
     @Benchmark
     public List<BenchmarkRow> dslRawBean(BenchmarkDatabase db) {
-        return db.dsl.query(NAMED_BEAN_SQL, params, BenchmarkRow.class);
+        return db.dsl.query(namedBeanSql(db), params, BenchmarkRow.class);
     }
 
     @Benchmark
     public List<BenchmarkRecord> dslRawRecord(BenchmarkDatabase db) {
-        return db.dsl.query(NAMED_BEAN_SQL, params, BenchmarkRecord.class);
+        return db.dsl.query(namedBeanSql(db), params, BenchmarkRecord.class);
     }
 
     @Benchmark
     public List<Long> dslRawScalar(BenchmarkDatabase db) {
-        return db.dsl.query(NAMED_SCALAR_SQL, params, Long.class);
+        return db.dsl.query(namedScalarSql(db), params, Long.class);
     }
 
     @Benchmark
@@ -152,7 +173,7 @@ public class QueryBenchmark {
 
     @Benchmark
     public List<BenchmarkRow> dslBuildAndSelectBean(BenchmarkDatabase db) {
-        return db.dsl.select(buildSpec());
+        return db.dsl.select(buildSpec(db));
     }
 
     private <T> List<T> jdbc(BenchmarkDatabase db, String sql, JdbcRowReader<T> reader) throws SQLException {

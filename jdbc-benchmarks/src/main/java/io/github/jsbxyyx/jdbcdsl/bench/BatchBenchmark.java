@@ -44,26 +44,26 @@ public class BatchBenchmark {
         }
         rangeStart = db.reserveRange(batchSize);
         // A permanent boundary row separates adjacent ranges for InnoDB next-key locks.
-        db.jdbc.update(BenchmarkDatabase.INSERT_WRITE, rangeStart + batchSize, "range-guard", -1);
+        db.jdbc.update(db.insertWriteSql, rangeStart + batchSize, "range-guard", -1);
         rows = new ArrayList<>(batchSize);
         for (int i = 0; i < batchSize; i++) {
             rows.add(new BenchmarkWrite(rangeStart + i, "name-" + i, i));
         }
-        spec = BatchInsertBuilder.of(BenchmarkWrite.class, rows).build();
+        spec = BatchInsertBuilder.of(BenchmarkWrite.class, rows)
+                .into(db.writesTable)
+                .build();
     }
 
     @Setup(Level.Invocation)
     public void clearWrites(BenchmarkDatabase db) {
         db.jdbc.update(
-                "DELETE FROM " + BenchmarkDatabase.WRITES + " WHERE id >= ? AND id < ?",
-                rangeStart,
-                rangeStart + batchSize);
+                "DELETE FROM " + db.writesTable + " WHERE id >= ? AND id < ?", rangeStart, rangeStart + batchSize);
     }
 
     @Benchmark
     public int[] jdbcBatch(BenchmarkDatabase db) throws SQLException {
         try (Connection connection = db.dataSource.getConnection();
-                PreparedStatement statement = connection.prepareStatement(BenchmarkDatabase.INSERT_WRITE)) {
+                PreparedStatement statement = connection.prepareStatement(db.insertWriteSql)) {
             for (BenchmarkWrite row : rows) {
                 bind(statement, row);
                 statement.addBatch();
@@ -73,8 +73,13 @@ public class BatchBenchmark {
     }
 
     @Benchmark
+    public int[] mybatisBatch(BenchmarkDatabase db) {
+        return db.mybatis.insertBatch(rows);
+    }
+
+    @Benchmark
     public int[] springBatch(BenchmarkDatabase db) {
-        return db.jdbc.batchUpdate(BenchmarkDatabase.INSERT_WRITE, new BatchPreparedStatementSetter() {
+        return db.jdbc.batchUpdate(db.insertWriteSql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement statement, int index) throws SQLException {
                 bind(statement, rows.get(index));
@@ -95,6 +100,45 @@ public class BatchBenchmark {
     @Benchmark
     public int[] dslChunkedBatch(BenchmarkDatabase db) {
         return db.dsl.executeBatchInsert(spec, 100);
+    }
+
+    @Benchmark
+    public int[] jdbcBatchTransactional(BenchmarkDatabase db) throws SQLException {
+        try (Connection connection = db.dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(db.insertWriteSql)) {
+                for (BenchmarkWrite row : rows) {
+                    bind(statement, row);
+                    statement.addBatch();
+                }
+                int[] counts = statement.executeBatch();
+                connection.commit();
+                return counts;
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            }
+        }
+    }
+
+    @Benchmark
+    public int[] mybatisBatchTransactional(BenchmarkDatabase db) {
+        return db.mybatis.insertBatchTransactional(rows);
+    }
+
+    @Benchmark
+    public int[] springBatchTransactional(BenchmarkDatabase db) {
+        return db.transactionTemplate.execute(status -> springBatch(db));
+    }
+
+    @Benchmark
+    public int[] dslBatchTransactional(BenchmarkDatabase db) {
+        return db.transactionTemplate.execute(status -> dslBatch(db));
+    }
+
+    @Benchmark
+    public int[] dslChunkedBatchTransactional(BenchmarkDatabase db) {
+        return db.transactionTemplate.execute(status -> dslChunkedBatch(db));
     }
 
     private static void bind(PreparedStatement statement, BenchmarkWrite row) throws SQLException {

@@ -212,6 +212,16 @@ class ConverterRegistryTest {
     }
 
     @Test
+    void testNumericConvertersPreserveValuesAlreadyAtTargetType() {
+        Integer integer = Integer.valueOf(123);
+        Long longValue = Long.valueOf(456L);
+        assertSame(integer, registry.getConverter(Types.INTEGER, Integer.class).convert(integer));
+        assertSame(integer, registry.getConverter(Types.INTEGER, int.class).convert(integer));
+        assertSame(longValue, registry.getConverter(Types.BIGINT, Long.class).convert(longValue));
+        assertSame(longValue, registry.getConverter(Types.BIGINT, long.class).convert(longValue));
+    }
+
+    @Test
     void testIntegerConversionsCheckAllBoundaries() {
         Class<?>[][] types = {
             {byte.class, Byte.class}, {short.class, Short.class},

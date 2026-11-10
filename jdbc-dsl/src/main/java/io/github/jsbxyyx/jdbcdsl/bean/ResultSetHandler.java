@@ -66,12 +66,24 @@ public final class ResultSetHandler implements ResultSetMapper {
     private static final class ColumnMapping {
         final PropertyAccessor accessor;
         final ValueConverter converter;
+        final Class<?> propertyType;
         final int jdbcType;
+        final boolean numericReadSafe;
+        final boolean stringReadSafe;
 
-        ColumnMapping(PropertyAccessor accessor, ValueConverter converter, int jdbcType) {
+        ColumnMapping(
+                PropertyAccessor accessor,
+                ValueConverter converter,
+                Class<?> propertyType,
+                int jdbcType,
+                boolean numericReadSafe,
+                boolean stringReadSafe) {
             this.accessor = accessor;
             this.converter = converter;
+            this.propertyType = propertyType;
             this.jdbcType = jdbcType;
+            this.numericReadSafe = numericReadSafe;
+            this.stringReadSafe = stringReadSafe;
         }
 
         /**
@@ -150,6 +162,7 @@ public final class ResultSetHandler implements ResultSetMapper {
         this.columnMappings = new ColumnMapping[columnCount];
 
         Set<String> mappedProperties = new HashSet<>();
+        boolean builtInConverterRegistry = converterRegistry instanceof DefaultConverterRegistry;
         // Preprocess: build optimized column mappings
         for (int i = 1; i <= columnCount; i++) {
             String label = rsMetaData.getColumnLabel(i);
@@ -181,8 +194,16 @@ public final class ResultSetHandler implements ResultSetMapper {
             Class<?> propertyType = accessor.getType();
             int jdbcType = rsMetaData.getColumnType(i);
             ValueConverter converter = converterRegistry.getConverter(jdbcType, propertyType);
+            // Typed ResultSet getters can change the runtime value supplied to a custom
+            // ConverterRegistry. Keep the original getObject-based contract for custom
+            // registries; only the built-in registry has converters designed for these reads.
+            boolean numericReadSafe = builtInConverterRegistry
+                    && canReadSignedIntegerDirectly(jdbcType, propertyType, rsMetaData.isSigned(i));
+            boolean stringReadSafe =
+                    builtInConverterRegistry && propertyType == String.class && isCharacterType(jdbcType);
 
-            columnMappings[i - 1] = new ColumnMapping(accessor, converter, jdbcType);
+            columnMappings[i - 1] =
+                    new ColumnMapping(accessor, converter, propertyType, jdbcType, numericReadSafe, stringReadSafe);
         }
     }
 
@@ -213,7 +234,14 @@ public final class ResultSetHandler implements ResultSetMapper {
                 continue; // Column not mapped to any property
             }
 
-            Object value = readValue(rs, i + 1, mapping.accessor.getType(), mapping.jdbcType, mappingMode);
+            Object value = readValue(
+                    rs,
+                    i + 1,
+                    mapping.propertyType,
+                    mapping.jdbcType,
+                    mappingMode,
+                    mapping.numericReadSafe,
+                    mapping.stringReadSafe);
 
             // Optimized conversion and property setting:
             // - Type conversion via pre-selected optimal converter
@@ -222,14 +250,14 @@ public final class ResultSetHandler implements ResultSetMapper {
                 if (value == null && mappingMode == MappingMode.MYBATIS) {
                     continue;
                 }
-                if (value == null && mapping.accessor.getType().isPrimitive()) {
+                if (value == null && mapping.propertyType.isPrimitive()) {
                     if (!allowNullToPrimitiveDefault.getAsBoolean()) {
                         throw new IllegalStateException("SQL NULL cannot be mapped to primitive property "
                                 + mapping.accessor.getName() + " of "
                                 + meta.getType().getName()
                                 + "; enable jdbcdsl.allow-null-to-primitive-default to use the Java default value");
                     }
-                    mapping.accessor.write(instance, PrimitiveDefaults.valueOf(mapping.accessor.getType()));
+                    mapping.accessor.write(instance, PrimitiveDefaults.valueOf(mapping.propertyType));
                     continue;
                 }
                 mapping.set(instance, value);
@@ -253,6 +281,24 @@ public final class ResultSetHandler implements ResultSetMapper {
 
     static Object readValue(ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType, MappingMode mode)
             throws SQLException {
+        return readValue(rs, columnIndex, targetType, jdbcType, mode, false, false);
+    }
+
+    static Object readValue(
+            ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType, MappingMode mode, boolean numericReadSafe)
+            throws SQLException {
+        return readValue(rs, columnIndex, targetType, jdbcType, mode, numericReadSafe, false);
+    }
+
+    static Object readValue(
+            ResultSet rs,
+            int columnIndex,
+            Class<?> targetType,
+            int jdbcType,
+            MappingMode mode,
+            boolean numericReadSafe,
+            boolean stringReadSafe)
+            throws SQLException {
         if (mode == MappingMode.MYBATIS) {
             Object value = null;
             if (targetType == byte.class || targetType == Byte.class) {
@@ -268,10 +314,69 @@ public final class ResultSetHandler implements ResultSetMapper {
                 return rs.wasNull() ? null : value;
             }
         }
+        if (stringReadSafe) {
+            return rs.getString(columnIndex);
+        }
+        if (numericReadSafe) {
+            return readSignedInteger(rs, columnIndex, targetType);
+        }
         if (targetType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
             return rs.getObject(columnIndex, LocalDateTime.class);
         }
         return JdbcUtils.getResultSetValue(rs, columnIndex);
+    }
+
+    private static Object readSignedInteger(ResultSet rs, int columnIndex, Class<?> targetType) throws SQLException {
+        if (targetType == byte.class || targetType == Byte.class) {
+            byte value = rs.getByte(columnIndex);
+            return rs.wasNull() ? null : value;
+        }
+        if (targetType == short.class || targetType == Short.class) {
+            short value = rs.getShort(columnIndex);
+            return rs.wasNull() ? null : value;
+        }
+        if (targetType == int.class || targetType == Integer.class) {
+            int value = rs.getInt(columnIndex);
+            return rs.wasNull() ? null : value;
+        }
+        long value = rs.getLong(columnIndex);
+        return rs.wasNull() ? null : value;
+    }
+
+    private static boolean isCharacterType(int jdbcType) {
+        return jdbcType == Types.CHAR
+                || jdbcType == Types.VARCHAR
+                || jdbcType == Types.LONGVARCHAR
+                || jdbcType == Types.NCHAR
+                || jdbcType == Types.NVARCHAR
+                || jdbcType == Types.LONGNVARCHAR;
+    }
+
+    private static boolean canReadSignedIntegerDirectly(int jdbcType, Class<?> targetType, boolean signed) {
+        if (!signed) {
+            return false;
+        }
+        int sourceBits =
+                switch (jdbcType) {
+                    case Types.TINYINT -> 8;
+                    case Types.SMALLINT -> 16;
+                    case Types.INTEGER -> 32;
+                    case Types.BIGINT -> 64;
+                    default -> 0;
+                };
+        int targetBits;
+        if (targetType == Byte.class || targetType == byte.class) {
+            targetBits = 8;
+        } else if (targetType == Short.class || targetType == short.class) {
+            targetBits = 16;
+        } else if (targetType == Integer.class || targetType == int.class) {
+            targetBits = 32;
+        } else if (targetType == Long.class || targetType == long.class) {
+            targetBits = 64;
+        } else {
+            targetBits = 0;
+        }
+        return sourceBits > 0 && targetBits >= sourceBits;
     }
 
     @Override

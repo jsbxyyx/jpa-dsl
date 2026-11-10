@@ -39,8 +39,8 @@ class PostgresCursorIT {
 
     @Test
     void processesRawRowsWithAnOpenServerCursorInsideTransaction() {
-        assertOpenCursor(consumer -> db.dsl.queryEach(
-                "SELECT id FROM " + BenchmarkDatabase.ROWS + " ORDER BY id", Map.of(), Long.class, consumer));
+        assertOpenCursor(consumer ->
+                db.dsl.queryEach("SELECT id FROM " + db.rowsTable + " ORDER BY id", Map.of(), Long.class, consumer));
     }
 
     @Test

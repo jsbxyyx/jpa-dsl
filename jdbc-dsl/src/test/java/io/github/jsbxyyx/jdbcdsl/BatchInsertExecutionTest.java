@@ -36,6 +36,28 @@ class BatchInsertExecutionTest {
     }
 
     @Test
+    void tableOverrideIsValidatedAndAppliedOnlyToItsBatchSpec() {
+        assertThatThrownBy(
+                        () -> BatchInsertBuilder.of(TAuditUser.class, users(1)).into("x; DROP TABLE users"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("simple SQL identifier");
+
+        when(jdbc.batchUpdate(anyString(), any(SqlParameterSource[].class))).thenReturn(new int[] {1});
+        BatchInsertSpec<TAuditUser> overridden = BatchInsertBuilder.of(TAuditUser.class, users(1))
+                .into("bench_write_override")
+                .build();
+        executor.executeBatchInsert(overridden);
+        BatchInsertSpec<TAuditUser> mapped =
+                BatchInsertBuilder.of(TAuditUser.class, users(1)).build();
+        executor.executeBatchInsert(mapped);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, times(2)).batchUpdate(sql.capture(), any(SqlParameterSource[].class));
+        assertThat(sql.getAllValues().get(0)).contains("INSERT INTO bench_write_override ");
+        assertThat(sql.getAllValues().get(1)).doesNotContain("bench_write_override");
+    }
+
+    @Test
     void chunksPreserveOrderCountsAndAutofillBeforeExecution() {
         List<TAuditUser> rows = users(5);
         BatchInsertSpec<TAuditUser> spec =

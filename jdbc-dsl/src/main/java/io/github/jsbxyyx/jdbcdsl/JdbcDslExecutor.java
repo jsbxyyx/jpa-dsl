@@ -948,6 +948,9 @@ public final class JdbcDslExecutor {
             return new int[0];
         }
         EntityMeta meta = metadata.apply(spec.getEntityClass());
+        if (spec.getTableNameOverride() != null) {
+            meta = withTableName(meta, spec.getTableNameOverride());
+        }
         boolean excludeIdentityPk = spec.getColumnNames().isEmpty();
 
         // Auto-fill timestamps for each row
@@ -980,6 +983,21 @@ public final class JdbcDslExecutor {
             start = end;
         }
         return counts;
+    }
+
+    private static EntityMeta withTableName(EntityMeta meta, String tableName) {
+        return new EntityMeta(
+                tableName,
+                meta.getPropertyToColumn(),
+                meta.getIdPropertyName(),
+                meta.getIdColumnName(),
+                meta.isIdGeneratedByIdentity(),
+                meta.getLogicalDeletePropertyName(),
+                meta.getLogicalDeleteColumnName(),
+                meta.getLogicalDeletedValue(),
+                meta.getLogicalDeleteNormalValue(),
+                meta.getCreatedDatePropertyNames(),
+                meta.getLastModifiedDatePropertyNames());
     }
 
     private <T> MapSqlParameterSource[] buildBatchInsertParams(

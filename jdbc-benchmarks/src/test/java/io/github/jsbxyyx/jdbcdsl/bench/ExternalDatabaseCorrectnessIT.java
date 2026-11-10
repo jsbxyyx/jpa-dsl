@@ -7,7 +7,6 @@ import io.github.jsbxyyx.jdbcdsl.SelectBuilder;
 import io.github.jsbxyyx.jdbcdsl.SelectSpec;
 import io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete;
 import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -67,7 +66,7 @@ class ExternalDatabaseCorrectnessIT {
     @Test
     void sliceUsesStableSortAndLogicalDeleteFilter() {
         SelectSpec<FilteredRow, FilteredRow> spec =
-                SelectBuilder.from(FilteredRow.class).mapToEntity();
+                SelectBuilder.fromCte(db.rowsTable, FilteredRow.class).mapToEntity();
         JPageable<FilteredRow> page = JPageable.of(0, 1, JSort.byAsc(FilteredRow::getId));
         var result = db.dsl.selectSlice(spec, page);
         assertEquals(
@@ -87,7 +86,7 @@ class ExternalDatabaseCorrectnessIT {
         assertThrows(
                 DataAccessException.class,
                 () -> transaction.executeWithoutResult(status -> db.dsl.executeBatchInsert(spec, 1)));
-        assertEquals(0, db.jdbc.queryForObject("SELECT COUNT(*) FROM " + BenchmarkDatabase.WRITES, Integer.class));
+        assertEquals(0, db.jdbc.queryForObject("SELECT COUNT(*) FROM " + db.writesTable, Integer.class));
         assertEquals(0, db.dataSource.getHikariPoolMXBean().getActiveConnections());
     }
 
@@ -95,10 +94,9 @@ class ExternalDatabaseCorrectnessIT {
     void callbackFailureReleasesConnection() {
         assertThrows(
                 IllegalStateException.class,
-                () -> db.dsl.queryEach(
-                        "SELECT id FROM " + BenchmarkDatabase.ROWS + " ORDER BY id", Map.of(), Long.class, id -> {
-                            throw new IllegalStateException("stop");
-                        }));
+                () -> db.dsl.queryEach("SELECT id FROM " + db.rowsTable + " ORDER BY id", Map.of(), Long.class, id -> {
+                    throw new IllegalStateException("stop");
+                }));
         assertEquals(0, db.dataSource.getHikariPoolMXBean().getActiveConnections());
     }
 
@@ -113,8 +111,8 @@ class ExternalDatabaseCorrectnessIT {
                 results.add(workers.submit(() -> {
                     start.await();
                     String sql = reversed
-                            ? "SELECT amount, name, id FROM " + BenchmarkDatabase.ROWS + " WHERE id = :id"
-                            : "SELECT id, name, amount FROM " + BenchmarkDatabase.ROWS + " WHERE id = :id";
+                            ? "SELECT amount, name, id FROM " + db.rowsTable + " WHERE id = :id"
+                            : "SELECT id, name, amount FROM " + db.rowsTable + " WHERE id = :id";
                     for (int row = 1; row <= 50; row++) {
                         assertEquals(
                                 new BenchmarkRecord((long) row, "name-" + row, row),
@@ -135,7 +133,6 @@ class ExternalDatabaseCorrectnessIT {
 
     private record AmountRecord(int amount) {}
 
-    @Table(name = BenchmarkDatabase.ROWS)
     public static class FilteredRow {
         @Id
         private Long id;

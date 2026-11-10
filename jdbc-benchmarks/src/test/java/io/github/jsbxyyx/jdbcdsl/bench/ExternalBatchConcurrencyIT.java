@@ -74,11 +74,9 @@ class ExternalBatchConcurrencyIT {
         }
         assertEquals(
                 threadCount,
-                db.jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM " + BenchmarkDatabase.WRITES + " WHERE amount = -1", Integer.class));
+                db.jdbc.queryForObject("SELECT COUNT(*) FROM " + db.writesTable + " WHERE amount = -1", Integer.class));
         assertEquals(
                 threadCount * batchSize,
-                db.jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM " + BenchmarkDatabase.WRITES + " WHERE amount >= 0", Integer.class));
+                db.jdbc.queryForObject("SELECT COUNT(*) FROM " + db.writesTable + " WHERE amount >= 0", Integer.class));
     }
 }
