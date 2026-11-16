@@ -135,6 +135,32 @@ class JdbcDslNewFeaturesTest {
     }
 
     @Test
+    void streamingQueryParticipatesInTransactionAndCallbackFailureRollsBack() {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
+                    executor.update(
+                            "INSERT INTO t_user (username, status) VALUES (:username, :status)",
+                            java.util.Map.of("username", "streaming-tx", "status", "TEMP"));
+                    executor.queryEach(
+                            "SELECT status FROM t_user WHERE username = :username",
+                            java.util.Map.of("username", "streaming-tx"),
+                            String.class,
+                            value -> {
+                                assertThat(value).isEqualTo("TEMP");
+                                throw new IllegalStateException("abort streaming transaction");
+                            });
+                }))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("abort streaming transaction");
+
+        Integer remaining = jdbcTemplate
+                .getJdbcTemplate()
+                .queryForObject("SELECT COUNT(*) FROM t_user WHERE username = 'streaming-tx'", Integer.class);
+        assertThat(remaining).isZero();
+    }
+
+    @Test
     void chunkedBatchInsertRollsBackEarlierChunksInTransaction() {
         List<TAuditUser> users = List.of(new TAuditUser("rolled-back", "ACTIVE"), new TAuditUser(null, "ACTIVE"));
         BatchInsertSpec<TAuditUser> spec =

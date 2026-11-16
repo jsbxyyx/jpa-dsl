@@ -15,6 +15,8 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +63,50 @@ class ExternalDatabaseCorrectnessIT {
                     () -> db.dsl.queryOne("SELECT CAST(42.5 AS " + type + ") AS amount", Map.of(), AmountRecord.class));
             assertInstanceOf(ArithmeticException.class, failure.getCause());
         }
+    }
+
+    @Test
+    void mysqlUnsignedBigIntAndDecimalMappingsPreserveExactValues() {
+        assumeTrue(System.getenv("JDBC_BENCH_URL").startsWith("jdbc:mysql:"), "MySQL-specific numeric behavior");
+
+        BigInteger unsignedMaximum = new BigInteger("18446744073709551615");
+        UnsignedBigIntRow unsignedRow = db.dsl.queryOne(
+                "SELECT CAST('18446744073709551615' AS UNSIGNED) AS id", Map.of(), UnsignedBigIntRow.class);
+        assertEquals(unsignedMaximum, unsignedRow.getId());
+
+        IllegalStateException overflow = assertThrows(
+                IllegalStateException.class,
+                () -> db.dsl.queryOne(
+                        "SELECT CAST('18446744073709551615' AS UNSIGNED) AS id", Map.of(), SignedLongRow.class));
+        assertInstanceOf(ArithmeticException.class, overflow.getCause());
+
+        BigDecimal exactDecimal = new BigDecimal("12345678901234567890.12345678");
+        DecimalRow decimalRow = db.dsl.queryOne(
+                "SELECT CAST('12345678901234567890.12345678' AS DECIMAL(30,8)) AS amount", Map.of(), DecimalRow.class);
+        assertEquals(exactDecimal, decimalRow.getAmount());
+
+        IllegalStateException fractional = assertThrows(
+                IllegalStateException.class,
+                () -> db.dsl.queryOne("SELECT CAST('12.9' AS DECIMAL(10,1)) AS amount", Map.of(), BigIntegerRow.class));
+        assertInstanceOf(ArithmeticException.class, fractional.getCause());
+
+        // Repeat after the mapper cache has been populated; values and conversion failures must remain stable.
+        assertEquals(
+                unsignedMaximum,
+                db.dsl
+                        .queryOne(
+                                "SELECT CAST('18446744073709551615' AS UNSIGNED) AS id",
+                                Map.of(),
+                                UnsignedBigIntRow.class)
+                        .getId());
+        assertEquals(
+                exactDecimal,
+                db.dsl
+                        .queryOne(
+                                "SELECT CAST('12345678901234567890.12345678' AS DECIMAL(30,8)) AS amount",
+                                Map.of(),
+                                DecimalRow.class)
+                        .getAmount());
     }
 
     @Test
@@ -132,6 +178,54 @@ class ExternalDatabaseCorrectnessIT {
     }
 
     private record AmountRecord(int amount) {}
+
+    public static class UnsignedBigIntRow {
+        private BigInteger id;
+
+        public BigInteger getId() {
+            return id;
+        }
+
+        public void setId(BigInteger id) {
+            this.id = id;
+        }
+    }
+
+    public static class SignedLongRow {
+        private Long id;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+    }
+
+    public static class DecimalRow {
+        private BigDecimal amount;
+
+        public BigDecimal getAmount() {
+            return amount;
+        }
+
+        public void setAmount(BigDecimal amount) {
+            this.amount = amount;
+        }
+    }
+
+    public static class BigIntegerRow {
+        private BigInteger amount;
+
+        public BigInteger getAmount() {
+            return amount;
+        }
+
+        public void setAmount(BigInteger amount) {
+            this.amount = amount;
+        }
+    }
 
     public static class FilteredRow {
         @Id

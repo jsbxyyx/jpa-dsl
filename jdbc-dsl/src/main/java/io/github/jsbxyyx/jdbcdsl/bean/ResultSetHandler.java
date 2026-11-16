@@ -55,6 +55,7 @@ public final class ResultSetHandler implements ResultSetMapper {
     private final ConverterRegistry converterRegistry;
     private final MappingMode mappingMode;
     private final BooleanSupplier allowNullToPrimitiveDefault;
+    private final boolean strictFullyMappedReferenceProperties;
 
     /**
      * Internal structure that caches optimized converter for each column.
@@ -93,8 +94,13 @@ public final class ResultSetHandler implements ResultSetMapper {
          * accessor.write() to set the value without re-conversion.
          */
         void set(Object target, Object value) {
-            Object converted = converter.convert(value);
-            accessor.write(target, converted);
+            if (numericReadSafe || stringReadSafe) {
+                // The typed JDBC getter already returns the exact property type.
+                // Skip the identity-converter dispatch on this hot path.
+                accessor.write(target, value);
+                return;
+            }
+            accessor.write(target, converter.convert(value));
         }
     }
 
@@ -163,6 +169,8 @@ public final class ResultSetHandler implements ResultSetMapper {
 
         Set<String> mappedProperties = new HashSet<>();
         boolean builtInConverterRegistry = converterRegistry instanceof DefaultConverterRegistry;
+        boolean fullyMapped = true;
+        boolean hasPrimitiveProperty = false;
         // Preprocess: build optimized column mappings
         for (int i = 1; i <= columnCount; i++) {
             String label = rsMetaData.getColumnLabel(i);
@@ -170,6 +178,7 @@ public final class ResultSetHandler implements ResultSetMapper {
                 label = rsMetaData.getColumnName(i);
             }
             if (label == null || label.isBlank()) {
+                fullyMapped = false;
                 continue;
             }
 
@@ -179,6 +188,7 @@ public final class ResultSetHandler implements ResultSetMapper {
             // Get PropertyAccessor
             PropertyAccessor accessor = meta.getPropertyAccessor(propertyName);
             if (accessor == null) {
+                fullyMapped = false;
                 unknownColumns.handle(label, meta.getType());
                 continue;
             }
@@ -192,8 +202,8 @@ public final class ResultSetHandler implements ResultSetMapper {
             // (for example SMALLINT may be returned as Integer), therefore the
             // entity property type is the source of truth for conversion.
             Class<?> propertyType = accessor.getType();
+            hasPrimitiveProperty |= propertyType.isPrimitive();
             int jdbcType = rsMetaData.getColumnType(i);
-            ValueConverter converter = converterRegistry.getConverter(jdbcType, propertyType);
             // Typed ResultSet getters can change the runtime value supplied to a custom
             // ConverterRegistry. Keep the original getObject-based contract for custom
             // registries; only the built-in registry has converters designed for these reads.
@@ -202,9 +212,17 @@ public final class ResultSetHandler implements ResultSetMapper {
             boolean stringReadSafe =
                     builtInConverterRegistry && propertyType == String.class && isCharacterType(jdbcType);
 
+            // Safe typed getters already produce the exact target Java type. Avoid running
+            // the numeric converter's repeated runtime type/range checks for every row.
+            ValueConverter converter = numericReadSafe || stringReadSafe
+                    ? ValueConverters.identity()
+                    : converterRegistry.getConverter(jdbcType, propertyType);
+
             columnMappings[i - 1] =
                     new ColumnMapping(accessor, converter, propertyType, jdbcType, numericReadSafe, stringReadSafe);
         }
+        this.strictFullyMappedReferenceProperties =
+                mappingMode == MappingMode.STRICT && fullyMapped && !hasPrimitiveProperty;
     }
 
     /**
@@ -226,6 +244,32 @@ public final class ResultSetHandler implements ResultSetMapper {
      */
     public Object mapRow(ResultSet rs) throws SQLException {
         Object instance = meta.newInstance();
+
+        if (strictFullyMappedReferenceProperties) {
+            for (int i = 0; i < columnCount; i++) {
+                ColumnMapping mapping = columnMappings[i];
+                Object value = readValue(
+                        rs,
+                        i + 1,
+                        mapping.propertyType,
+                        mapping.jdbcType,
+                        mappingMode,
+                        mapping.numericReadSafe,
+                        mapping.stringReadSafe);
+                try {
+                    mapping.set(instance, value);
+                } catch (RuntimeException e) {
+                    throw new IllegalStateException(
+                            "Failed to map ResultSet column " + (i + 1)
+                                    + " to property " + mapping.accessor.getName()
+                                    + " of " + meta.getType().getName()
+                                    + ", value type="
+                                    + (value == null ? "null" : value.getClass().getName()),
+                            e);
+                }
+            }
+            return instance;
+        }
 
         // Optimized path: direct calls with pre-selected converters
         for (int i = 0; i < columnCount; i++) {

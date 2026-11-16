@@ -105,7 +105,7 @@ public final class SqlRenderer {
             sb.append(orderJoiner);
         }
 
-        return new RenderedSql(sb.toString(), ctx.getParams());
+        return RenderedSql.takeOwnership(sb.toString(), ctx.getParams());
     }
 
     /**
@@ -144,7 +144,7 @@ public final class SqlRenderer {
 
     static <T, R> RenderedSql renderSelect(SelectSpec<T, R> spec, Function<Class<?>, EntityMeta> metadata) {
         RenderContext ctx = new RenderContext(metadata);
-        return new RenderedSql(buildSelectSql(spec, ctx, true), ctx.getParams());
+        return RenderedSql.takeOwnership(buildSelectSql(spec, ctx, true), ctx.getParams());
     }
 
     /**
@@ -306,7 +306,7 @@ public final class SqlRenderer {
         // applies to the actual projection, including multi-column and expression selects.
         if (spec.isDistinct()) {
             String innerSql = buildSelectSql(spec, ctx, false, true);
-            return new RenderedSql("SELECT COUNT(*) FROM (" + innerSql + ") _count_t", ctx.getParams());
+            return RenderedSql.takeOwnership("SELECT COUNT(*) FROM (" + innerSql + ") _count_t", ctx.getParams());
         }
 
         EntityMeta rootMeta = ctx.entityMeta(spec.getEntityClass());
@@ -339,7 +339,8 @@ public final class SqlRenderer {
             appendWhereClause(inner, spec, ctx);
             appendGroupByClause(inner, spec, ctx);
             appendHavingClause(inner, spec, ctx);
-            return new RenderedSql(ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", ctx.getParams());
+            return RenderedSql.takeOwnership(
+                    ctePrefix + "SELECT COUNT(*) FROM (" + inner + ") _count_t", ctx.getParams());
         }
 
         if (hasJoins) {
@@ -352,7 +353,7 @@ public final class SqlRenderer {
                     .append(alias);
             appendJoinClauses(sb, spec, ctx);
             appendWhereClause(sb, spec, ctx);
-            return new RenderedSql(ctePrefix + sb, ctx.getParams());
+            return RenderedSql.takeOwnership(ctePrefix + sb, ctx.getParams());
         }
 
         // Simple case: no JOINs, no GROUP BY.
@@ -362,7 +363,7 @@ public final class SqlRenderer {
                 .append(" ")
                 .append(alias);
         appendWhereClause(sb, spec, ctx);
-        return new RenderedSql(ctePrefix + sb, ctx.getParams());
+        return RenderedSql.takeOwnership(ctePrefix + sb, ctx.getParams());
     }
 
     /** Builds the {@code WITH cte1 AS (...), cte2 AS (...) } prefix string (empty string when no CTEs). */
@@ -935,7 +936,7 @@ public final class SqlRenderer {
             sb.append(renderPredicateStandalone(spec.getWhere(), meta, ctx));
         }
 
-        return new RenderedSql(sb.toString(), ctx.getParams());
+        return RenderedSql.takeOwnership(sb.toString(), ctx.getParams());
     }
 
     /**
@@ -957,7 +958,7 @@ public final class SqlRenderer {
             sb.append(renderPredicateStandalone(spec.getWhere(), meta, ctx));
         }
 
-        return new RenderedSql(sb.toString(), ctx.getParams());
+        return RenderedSql.takeOwnership(sb.toString(), ctx.getParams());
     }
 
     /**

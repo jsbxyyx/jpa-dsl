@@ -4,6 +4,8 @@ import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMeta;
 import io.github.jsbxyyx.jdbcdsl.bean.BeanMappingMetaFactory;
 import io.github.jsbxyyx.jdbcdsl.bean.DefaultConverterRegistry;
 import io.github.jsbxyyx.jdbcdsl.bean.MapperCache;
+import io.github.jsbxyyx.jdbcdsl.bean.MethodHandleAccessor;
+import io.github.jsbxyyx.jdbcdsl.bean.PropertyAccessor;
 import io.github.jsbxyyx.jdbcdsl.bean.ResultSetMapper;
 import io.github.jsbxyyx.jdbcdsl.bean.ScalarRowMapper;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
@@ -26,6 +28,8 @@ import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import javax.sql.rowset.CachedRowSet;
 import javax.sql.rowset.RowSetProvider;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -57,9 +61,12 @@ public class MappingBenchmark {
     private Method setId;
     private Method setName;
     private Method setAmount;
+    private PropertyAccessor methodHandleId;
+    private PropertyAccessor methodHandleName;
+    private PropertyAccessor methodHandleAmount;
 
     @Setup(Level.Trial)
-    public void setup(BenchmarkDatabase db) throws SQLException {
+    public void setup(BenchmarkDatabase db) throws Exception {
         if (rowCount < 1 || rowCount > BenchmarkDatabase.DATASET_SIZE) {
             throw new IllegalArgumentException("rowCount must be between 1 and " + BenchmarkDatabase.DATASET_SIZE);
         }
@@ -77,6 +84,23 @@ public class MappingBenchmark {
             setId = BenchmarkRow.class.getMethod("setId", Long.class);
             setName = BenchmarkRow.class.getMethod("setName", String.class);
             setAmount = BenchmarkRow.class.getMethod("setAmount", Integer.class);
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            methodHandleId = new MethodHandleAccessor(
+                    "id",
+                    Long.class,
+                    null,
+                    lookup.findVirtual(BenchmarkRow.class, "setId", MethodType.methodType(void.class, Long.class)));
+            methodHandleName = new MethodHandleAccessor(
+                    "name",
+                    String.class,
+                    null,
+                    lookup.findVirtual(BenchmarkRow.class, "setName", MethodType.methodType(void.class, String.class)));
+            methodHandleAmount = new MethodHandleAccessor(
+                    "amount",
+                    Integer.class,
+                    null,
+                    lookup.findVirtual(
+                            BenchmarkRow.class, "setAmount", MethodType.methodType(void.class, Integer.class)));
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("BenchmarkRow setter metadata is incomplete", e);
         }
@@ -163,6 +187,20 @@ public class MappingBenchmark {
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException("Unable to populate BenchmarkRow", e);
             }
+            result.add(row);
+        }
+        return result;
+    }
+
+    @Benchmark
+    public List<BenchmarkRow> methodHandleBeanSetter() throws SQLException {
+        beans.beforeFirst();
+        List<BenchmarkRow> result = new ArrayList<>(rowCount);
+        while (beans.next()) {
+            BenchmarkRow row = new BenchmarkRow();
+            methodHandleId.write(row, beans.getLong(1));
+            methodHandleName.write(row, beans.getString(2));
+            methodHandleAmount.write(row, beans.getInt(3));
             result.add(row);
         }
         return result;

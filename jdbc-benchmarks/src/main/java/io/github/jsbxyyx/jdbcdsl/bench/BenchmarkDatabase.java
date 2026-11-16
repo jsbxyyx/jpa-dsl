@@ -89,6 +89,9 @@ public class BenchmarkDatabase {
         }
         config.setUsername(local ? "sa" : username == null ? "" : username);
         config.setPassword(local ? "" : password == null ? "" : password);
+        if ("true".equalsIgnoreCase(System.getenv("JDBC_BENCH_USE_CURSOR_FETCH"))) {
+            config.addDataSourceProperty("useCursorFetch", "true");
+        }
         config.setMaximumPoolSize(32);
         dataSource = new HikariDataSource(config);
         jdbc = new JdbcTemplate(dataSource);

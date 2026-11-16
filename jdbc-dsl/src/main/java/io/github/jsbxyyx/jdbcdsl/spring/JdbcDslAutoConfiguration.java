@@ -49,6 +49,11 @@ import javax.sql.DataSource;
  *
  * <p>A user-provided {@link Dialect} bean always takes priority over auto-detection.
  * Similarly, a user-provided {@link JdbcDslExecutor} bean suppresses this auto-config executor.
+ *
+ * <p>In applications with multiple data sources, ensure the selected
+ * {@link NamedParameterJdbcTemplate}, {@link Dialect}, and transaction manager all correspond
+ * to the intended data source. This auto-configuration does not select or reconcile transaction
+ * managers, and a primary template is not guaranteed to use the primary {@link DataSource}.
  */
 @AutoConfiguration(after = {DataSourceAutoConfiguration.class, JdbcTemplateAutoConfiguration.class})
 @ConditionalOnClass({NamedParameterJdbcTemplate.class, JdbcDslExecutor.class})

@@ -222,6 +222,29 @@ class ConverterRegistryTest {
     }
 
     @Test
+    void bigIntegerConversionsRejectFractionalAndPreserveUnsignedBigIntRange() {
+        ValueConverter converter = registry.getConverter(Types.DECIMAL, BigInteger.class);
+        BigInteger unsignedBigIntMax = new BigInteger("18446744073709551615");
+
+        assertEquals(unsignedBigIntMax, converter.convert(unsignedBigIntMax));
+        assertEquals(
+                BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
+                converter.convert(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE)));
+        assertEquals(BigInteger.valueOf(12), converter.convert(new BigDecimal("12.000")));
+        assertThrows(ArithmeticException.class, () -> converter.convert(new BigDecimal("12.9")));
+        assertThrows(ArithmeticException.class, () -> converter.convert(12.5d));
+        assertThrows(ArithmeticException.class, () -> converter.convert(Double.NaN));
+    }
+
+    @Test
+    void bigDecimalConversionsPreserveDecimalValueWithoutBinaryFloatingPointExpansion() {
+        ValueConverter converter = registry.getConverter(Types.BIGINT, BigDecimal.class);
+
+        assertEquals(new BigDecimal("0.1"), converter.convert(0.1d));
+        assertEquals(new BigDecimal("12345678901234567890"), converter.convert(new BigInteger("12345678901234567890")));
+    }
+
+    @Test
     void testIntegerConversionsCheckAllBoundaries() {
         Class<?>[][] types = {
             {byte.class, Byte.class}, {short.class, Short.class},

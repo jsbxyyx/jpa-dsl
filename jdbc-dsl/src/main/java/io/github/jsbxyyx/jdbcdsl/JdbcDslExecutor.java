@@ -688,7 +688,9 @@ public final class JdbcDslExecutor {
      * Executes a batch of UPDATE statements described by the given {@link UpdateSpec} list.
      *
      * <p>Consecutive specs that produce the same SQL are executed together in a single
-     * {@link NamedParameterJdbcTemplate#batchUpdate} call. Groups execute in input order.
+     * {@link NamedParameterJdbcTemplate#batchUpdate} call. Groups execute in input order. If a
+     * later group fails, earlier groups may already have executed. Use an external transaction
+     * when the entire operation must be atomic.
      *
      * <p>{@link org.springframework.data.annotation.LastModifiedDate} auto-fill is applied to
      * each spec before rendering, exactly as in {@link #executeUpdate(UpdateSpec)}.
@@ -718,7 +720,8 @@ public final class JdbcDslExecutor {
      * Executes a batch of DELETE statements described by the given {@link DeleteSpec} list.
      *
      * <p>Like {@link #executeBatchUpdate}, only consecutive specs producing the same SQL
-     * are batched together, preserving input order.
+     * are batched together, preserving input order. If a later group fails, earlier groups may
+     * already have executed. Use an external transaction when the entire operation must be atomic.
      *
      * <p>If {@code specs} is empty an empty {@code int[]} is returned immediately.
      *

@@ -67,6 +67,12 @@ public final class ValueConverters {
         if (targetType == long.class) {
             return LONG_PRIMITIVE_CONVERTER;
         }
+        if (targetType == BigInteger.class) {
+            return BIG_INTEGER_CONVERTER;
+        }
+        if (targetType == BigDecimal.class) {
+            return BIG_DECIMAL_CONVERTER;
+        }
         return null;
     }
 
@@ -115,6 +121,44 @@ public final class ValueConverters {
             return exactValue;
         }
         return value;
+    }
+
+    private static BigInteger convertBigInteger(Object value) {
+        if (value == null || value instanceof BigInteger) {
+            return (BigInteger) value;
+        }
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException(
+                    "Cannot convert " + value.getClass().getName() + " to BigInteger");
+        }
+        try {
+            if (number instanceof BigDecimal decimal) {
+                return decimal.toBigIntegerExact();
+            }
+            if (number instanceof Byte
+                    || number instanceof Short
+                    || number instanceof Integer
+                    || number instanceof Long) {
+                return BigInteger.valueOf(number.longValue());
+            }
+            return new BigDecimal(number.toString()).toBigIntegerExact();
+        } catch (ArithmeticException | NumberFormatException e) {
+            ArithmeticException failure = new ArithmeticException(
+                    "Cannot convert " + number.getClass().getName() + " exactly to " + BigInteger.class.getTypeName());
+            failure.initCause(e);
+            throw failure;
+        }
+    }
+
+    private static BigDecimal convertBigDecimal(Object value) {
+        if (value == null || value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        }
+        if (!(value instanceof Number number)) {
+            throw new IllegalArgumentException(
+                    "Cannot convert " + value.getClass().getName() + " to BigDecimal");
+        }
+        return new BigDecimal(number.toString());
     }
 
     private static boolean isExactNumericType(Object value, Class<?> targetType) {
@@ -168,6 +212,8 @@ public final class ValueConverters {
     private static final ValueConverter INTEGER_PRIMITIVE_CONVERTER = value -> convertNumber(value, int.class);
     private static final ValueConverter LONG_WRAPPER_CONVERTER = value -> convertNumber(value, Long.class);
     private static final ValueConverter LONG_PRIMITIVE_CONVERTER = value -> convertNumber(value, long.class);
+    private static final ValueConverter BIG_INTEGER_CONVERTER = value -> convertBigInteger(value);
+    private static final ValueConverter BIG_DECIMAL_CONVERTER = value -> convertBigDecimal(value);
 
     /**
      * Creates a Timestamp to LocalDateTime converter.

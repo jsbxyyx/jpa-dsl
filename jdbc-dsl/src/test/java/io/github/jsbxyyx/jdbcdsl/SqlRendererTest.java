@@ -5,6 +5,10 @@ import io.github.jsbxyyx.jdbcdsl.entity.TOrder;
 import io.github.jsbxyyx.jdbcdsl.entity.TUser;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.lit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.max;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.param;
@@ -17,6 +21,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Unit tests for {@link SqlRenderer} — verifies SQL string generation and parameter binding.
  */
 class SqlRendererTest {
+
+    @Test
+    void renderedSql_publicConstructorDefensivelyCopiesParameters() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("p1", 1L);
+        params.put("p2", null);
+
+        RenderedSql rendered = new RenderedSql("SELECT 1", params);
+        params.put("p1", 2L);
+        params.put("p3", 3L);
+
+        assertThat(rendered.getParams()).containsEntry("p1", 1L).containsEntry("p2", null);
+        assertThat(rendered.getParams()).doesNotContainKey("p3");
+        assertThat(new ArrayList<>(rendered.getParams().keySet())).containsExactly("p1", "p2");
+        assertThatThrownBy(() -> rendered.getParams().put("p4", 4L)).isInstanceOf(UnsupportedOperationException.class);
+    }
 
     @Test
     void renderSelect_basicEq() {

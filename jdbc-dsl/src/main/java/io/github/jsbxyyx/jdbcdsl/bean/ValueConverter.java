@@ -3,8 +3,10 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 /**
  * Converts a value from one type to another.
  *
- * <p>Implementations are cached per property to avoid repeated type checking
- * and conversion service lookups during result set mapping.
+ * <p>Implementations are cached in mapping metadata and may be invoked concurrently
+ * by multiple threads when a mapper is shared. Implementations must therefore be
+ * thread-safe and must not keep per-row or per-invocation mutable state in instance
+ * fields. Store invocation-specific data in local variables instead.
  *
  * <p>This interface is designed for high-performance scenarios where the same
  * conversion is applied millions of times (e.g., mapping 100k rows × 20 columns).
