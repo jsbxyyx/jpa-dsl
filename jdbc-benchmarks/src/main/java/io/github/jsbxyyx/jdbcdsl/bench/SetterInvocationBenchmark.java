@@ -18,7 +18,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
  * Isolates setter invocation cost from ResultSet access, row creation and collection allocation.
@@ -47,9 +49,15 @@ public class SetterInvocationBenchmark {
     private PropertyAccessor accessorId;
     private PropertyAccessor accessorName;
     private PropertyAccessor accessorAmount;
+    private Method reflectionId;
+    private Method reflectionName;
+    private Method reflectionAmount;
+    private BiConsumer<Object, Object> lambdaId;
+    private BiConsumer<Object, Object> lambdaName;
+    private BiConsumer<Object, Object> lambdaAmount;
 
     @Setup(Level.Trial)
-    public void setup() throws Exception {
+    public void setup() throws Throwable {
         rows = new BenchmarkRow[rowCount];
         ids = new Long[rowCount];
         amounts = new Integer[rowCount];
@@ -74,6 +82,34 @@ public class SetterInvocationBenchmark {
         accessorId = new MethodHandleAccessor("id", Long.class, null, typedId);
         accessorName = new MethodHandleAccessor("name", String.class, null, typedName);
         accessorAmount = new MethodHandleAccessor("amount", Integer.class, null, typedAmount);
+        reflectionId = BenchmarkRow.class.getMethod("setId", Long.class);
+        reflectionName = BenchmarkRow.class.getMethod("setName", String.class);
+        reflectionAmount = BenchmarkRow.class.getMethod("setAmount", Integer.class);
+        lambdaId = createLambdaWriter(lookup, "setId", Long.class);
+        lambdaName = createLambdaWriter(lookup, "setName", String.class);
+        lambdaAmount = createLambdaWriter(lookup, "setAmount", Integer.class);
+    }
+
+    @Benchmark
+    public BenchmarkRow directSetter() {
+        for (int i = 0; i < rowCount; i++) {
+            BenchmarkRow row = rows[i];
+            row.setId(ids[i]);
+            row.setName(names[i]);
+            row.setAmount(amounts[i]);
+        }
+        return rows[rowCount - 1];
+    }
+
+    @Benchmark
+    public BenchmarkRow cachedReflection() throws ReflectiveOperationException {
+        for (int i = 0; i < rowCount; i++) {
+            BenchmarkRow row = rows[i];
+            reflectionId.invoke(row, ids[i]);
+            reflectionName.invoke(row, names[i]);
+            reflectionAmount.invoke(row, amounts[i]);
+        }
+        return rows[rowCount - 1];
     }
 
     @Benchmark
@@ -96,6 +132,34 @@ public class SetterInvocationBenchmark {
             genericAmount.invokeExact(row, (Object) amounts[i]);
         }
         return rows[rowCount - 1];
+    }
+
+    @Benchmark
+    public BenchmarkRow lambdaMetafactoryWriter() {
+        for (int i = 0; i < rowCount; i++) {
+            Object row = rows[i];
+            lambdaId.accept(row, ids[i]);
+            lambdaName.accept(row, names[i]);
+            lambdaAmount.accept(row, amounts[i]);
+        }
+        return rows[rowCount - 1];
+    }
+
+    private static BiConsumer<Object, Object> createLambdaWriter(
+            MethodHandles.Lookup lookup, String methodName, Class<?> valueType) throws Throwable {
+        MethodHandle setter =
+                lookup.findVirtual(BenchmarkRow.class, methodName, MethodType.methodType(void.class, valueType));
+        MethodType erasedSignature = MethodType.methodType(void.class, Object.class, Object.class);
+        MethodType instantiatedSignature = MethodType.methodType(void.class, BenchmarkRow.class, valueType);
+        return (BiConsumer<Object, Object>) java.lang.invoke.LambdaMetafactory.metafactory(
+                        lookup,
+                        "accept",
+                        MethodType.methodType(BiConsumer.class),
+                        erasedSignature,
+                        setter,
+                        instantiatedSignature)
+                .getTarget()
+                .invokeExact();
     }
 
     @Benchmark

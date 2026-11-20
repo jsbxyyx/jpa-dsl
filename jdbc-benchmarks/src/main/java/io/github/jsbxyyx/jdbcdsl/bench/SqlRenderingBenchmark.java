@@ -6,6 +6,11 @@ import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.SelectBuilder;
 import io.github.jsbxyyx.jdbcdsl.SelectSpec;
 import io.github.jsbxyyx.jdbcdsl.SqlRenderer;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.Query;
+import org.jooq.SQLDialect;
+import org.jooq.Table;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -20,6 +25,11 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.jooq.conf.ParamType.INDEXED;
+import static org.jooq.impl.DSL.field;
+import static org.jooq.impl.DSL.table;
+import static org.jooq.impl.DSL.using;
+
 /** Separates query-spec construction from SQL rendering cost. */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -30,10 +40,22 @@ import java.util.concurrent.TimeUnit;
 public class SqlRenderingBenchmark {
 
     private SelectSpec<BenchmarkRow, BenchmarkRow> spec;
+    private DSLContext jooq;
+    private Table<?> jooqTable;
+    private Field<Long> jooqId;
+    private Field<String> jooqName;
+    private Field<Integer> jooqAmount;
+    private Query jooqQuery;
 
     @Setup(Level.Trial)
     public void setup() {
         spec = buildSpec();
+        jooq = using(SQLDialect.H2);
+        jooqTable = table("jpa_dsl_bench_rows");
+        jooqId = field("id", Long.class);
+        jooqName = field("name", String.class);
+        jooqAmount = field("amount", Integer.class);
+        jooqQuery = buildJooqQuery();
     }
 
     @Benchmark
@@ -49,6 +71,28 @@ public class SqlRenderingBenchmark {
     @Benchmark
     public RenderedSql buildAndRender() {
         return SqlRenderer.renderSelect(buildSpec());
+    }
+
+    @Benchmark
+    public String renderJooqPrebuiltQuery() {
+        return jooqQuery.getSQL(INDEXED);
+    }
+
+    @Benchmark
+    public Query buildJooqQueryOnly() {
+        return buildJooqQuery();
+    }
+
+    @Benchmark
+    public String buildAndRenderJooq() {
+        return buildJooqQuery().getSQL(INDEXED);
+    }
+
+    private Query buildJooqQuery() {
+        return jooq.select(jooqId, jooqName, jooqAmount)
+                .from(jooqTable)
+                .where(jooqId.eq(42L))
+                .orderBy(jooqId.asc());
     }
 
     private SelectSpec<BenchmarkRow, BenchmarkRow> buildSpec() {

@@ -13,6 +13,7 @@
     <properties>
         <jmh.version>1.37</jmh.version>
         <mybatis.version>3.5.19</mybatis.version>
+        <jooq.version>3.20.20</jooq.version>
     </properties>
     <dependencies>
         <dependency>
@@ -35,6 +36,11 @@
             <groupId>org.mybatis</groupId>
             <artifactId>mybatis</artifactId>
             <version>${mybatis.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+            <version>${jooq.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>

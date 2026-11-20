@@ -28,6 +28,7 @@ public class BenchmarkDatabase {
     String insertWriteSql;
     HikariDataSource dataSource;
     JdbcTemplate jdbc;
+    NamedParameterJdbcTemplate namedJdbc;
     JdbcDslExecutor dsl;
     MyBatisBenchmarkSupport mybatis;
     TransactionTemplate transactionTemplate;
@@ -95,6 +96,7 @@ public class BenchmarkDatabase {
         config.setMaximumPoolSize(32);
         dataSource = new HikariDataSource(config);
         jdbc = new JdbcTemplate(dataSource);
+        namedJdbc = new NamedParameterJdbcTemplate(jdbc);
         try {
             jdbc.execute("CREATE TABLE " + rowsTable + " (id BIGINT PRIMARY KEY, name VARCHAR(100), amount INTEGER)");
             rowsCreated = true;
@@ -113,7 +115,7 @@ public class BenchmarkDatabase {
                 statement.executeBatch();
                 connection.commit();
             }
-            dsl = new JdbcDslExecutor(new NamedParameterJdbcTemplate(jdbc));
+            dsl = new JdbcDslExecutor(namedJdbc);
             mybatis = new MyBatisBenchmarkSupport(dataSource, rowsTable, writesTable);
             transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         } catch (Exception e) {

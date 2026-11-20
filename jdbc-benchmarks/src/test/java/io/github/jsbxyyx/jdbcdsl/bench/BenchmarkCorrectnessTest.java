@@ -53,6 +53,8 @@ class BenchmarkCorrectnessTest {
             assertEquals(expected, records(benchmark.jdbcBean(db)));
             assertEquals(expected, records(benchmark.springBean(db)));
             assertEquals(expected, records(benchmark.springHandwrittenBean(db)));
+            assertEquals(expected, records(benchmark.springNamedHandwrittenBean(db)));
+            assertEquals(expected, records(benchmark.dslMappedBean(db)));
             assertEquals(expected, records(benchmark.mybatisBean(db)));
             assertEquals(expected, records(benchmark.dslRawBean(db)));
             assertEquals(expected, records(benchmark.dslSelectBean(db)));
@@ -70,6 +72,154 @@ class BenchmarkCorrectnessTest {
             assertEquals(ids, benchmark.springScalar(db));
             assertEquals(ids, benchmark.dslRawScalar(db));
         }
+    }
+
+    @Test
+    void isolatedFrameworkExecutionVariantsReturnIdenticalRows() throws Exception {
+        FrameworkExecutionBenchmark benchmark = new FrameworkExecutionBenchmark();
+        benchmark.rowCount = 100;
+        benchmark.setup();
+        try {
+            List<BenchmarkRecord> expected = benchmark.jdbcHandwritten().stream()
+                    .map(row -> new BenchmarkRecord(row.getId(), row.getName(), row.getAmount()))
+                    .toList();
+            assertEquals(100, expected.size());
+            assertEquals(expected, toRecords(benchmark.springJdbcHandwritten()));
+            assertEquals(expected, toRecords(benchmark.springJdbcBeanProperty()));
+            assertEquals(expected, toRecords(benchmark.springNamedJdbcHandwritten()));
+            assertEquals(expected, toRecords(benchmark.jpaDslMapped()));
+            assertEquals(expected, toRecords(benchmark.myBatisResultMap()));
+            assertEquals(expected, jooqRecords(benchmark.jooqDsl()));
+            assertEquals(expected, jooqRecords(benchmark.jooqDslPrebuilt()));
+            assertEquals(expected, toRecords(benchmark.jpaDslBuildAndSelect()));
+            assertEquals(expected, toRecords(benchmark.jpaDsl()));
+            assertEquals(expected, toRecords(benchmark.jpaDslRawSql()));
+        } finally {
+            benchmark.tearDown();
+        }
+    }
+
+    @Test
+    void jdbcResultSetMappingVariantsReturnIdenticalRows() throws Exception {
+        JdbcMappingPhaseBenchmark benchmark = new JdbcMappingPhaseBenchmark();
+        JdbcMappingPhaseBenchmark.MappingState state = new JdbcMappingPhaseBenchmark.MappingState();
+        state.setupTrial();
+        QueryBenchmark query = new QueryBenchmark();
+        query.rowCount = 100;
+        query.setup(db);
+
+        List<BenchmarkRecord> expected = runMapping(state, query, benchmark::jdbcGetterMapping);
+        assertEquals(expected, runMapping(state, query, benchmark::jdbcNullSafeMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::jdbcUtilsMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::jdbcGetObjectMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::jdbcGetObjectWithIdentityConversionMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::jpaDslMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::fusedRowMapperMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::composedMethodHandleMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::lambdaMetafactoryMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::columnMapperDispatchMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::columnMapperDispatchWithCatchMapping));
+        assertEquals(expected, runMapping(state, query, benchmark::springHandwrittenRowMapper));
+        assertEquals(expected, runMapping(state, query, benchmark::springBeanPropertyRowMapper));
+    }
+
+    @Test
+    void typedJdbcAndConverterMappingsPreserveDecimalAndTemporalValues() throws Exception {
+        JdbcMappingPhaseBenchmark benchmark = new JdbcMappingPhaseBenchmark();
+        JdbcMappingPhaseBenchmark.TypedValueState state = new JdbcMappingPhaseBenchmark.TypedValueState();
+        QueryBenchmark query = new QueryBenchmark();
+        query.rowCount = 100;
+        state.setupTrial(db, query);
+        try {
+            JdbcMappingPhaseBenchmark.TypedValueRow[] expected =
+                    runTypedMapping(state, db, benchmark::typedValueGetters);
+            assertEquals(100, expected.length);
+            assertEquals(new java.math.BigDecimal("123456789.12345678"), expected[0].amount());
+            assertEquals(java.time.LocalDateTime.of(2024, 3, 15, 10, 30, 46), expected[0].createdAt());
+            assertEquals(java.time.LocalDate.of(2024, 3, 16), expected[0].businessDate());
+            assertNull(expected[9].amount());
+            assertNull(expected[9].createdAt());
+            assertNull(expected[9].businessDate());
+            assertArrayEquals(expected, runTypedMapping(state, db, benchmark::jdbcObjectWithConverters));
+            assertArrayEquals(expected, runTypedMapping(state, db, benchmark::jdbcLegacyTemporalGetters));
+            assertArrayEquals(
+                    runTypedMapping(state, db, benchmark::dateTypedGetter),
+                    runTypedMapping(state, db, benchmark::dateObjectWithConverter));
+            assertArrayEquals(
+                    runTypedMapping(state, db, benchmark::dateTypedGetter),
+                    runTypedMapping(state, db, benchmark::dateJdbcUtilsWithConverter));
+            assertArrayEquals(
+                    runTypedMapping(state, db, benchmark::timestampTypedGetter),
+                    runTypedMapping(state, db, benchmark::timestampObjectWithConverter));
+            assertArrayEquals(
+                    runTypedMapping(state, db, benchmark::timestampTypedGetter),
+                    runTypedMapping(state, db, benchmark::timestampJdbcUtilsWithConverter));
+            assertArrayEquals(
+                    runTypedMapping(state, db, benchmark::decimalTypedGetter),
+                    runTypedMapping(state, db, benchmark::decimalObjectGetter));
+            assertArrayEquals(
+                    runTypedMapping(state, db, benchmark::decimalTypedGetter),
+                    runTypedMapping(state, db, benchmark::decimalJdbcUtilsGetter));
+        } finally {
+            state.tearDownTrial(db);
+        }
+    }
+
+    private <T> T[] runTypedMapping(
+            JdbcMappingPhaseBenchmark.TypedValueState state,
+            BenchmarkDatabase database,
+            TypedMappingFunction<T> mappingFunction)
+            throws Exception {
+        state.setupInvocation(database);
+        try {
+            return mappingFunction.map(state);
+        } finally {
+            state.tearDownInvocation();
+        }
+    }
+
+    @FunctionalInterface
+    private interface TypedMappingFunction<T> {
+        T[] map(JdbcMappingPhaseBenchmark.TypedValueState state) throws Exception;
+    }
+
+    @Test
+    void composedMethodHandleMappingPreservesSqlNulls() throws Exception {
+        db.jdbc.update("UPDATE " + db.rowsTable + " SET name = NULL, amount = NULL WHERE id = 1");
+        try {
+            JdbcMappingPhaseBenchmark benchmark = new JdbcMappingPhaseBenchmark();
+            JdbcMappingPhaseBenchmark.MappingState state = new JdbcMappingPhaseBenchmark.MappingState();
+            state.setupTrial();
+            QueryBenchmark query = new QueryBenchmark();
+            query.rowCount = 1;
+            query.setup(db);
+
+            List<BenchmarkRecord> expected = runMapping(state, query, benchmark::jdbcNullSafeMapping);
+            assertEquals(List.of(new BenchmarkRecord(1L, null, null)), expected);
+            assertEquals(expected, runMapping(state, query, benchmark::composedMethodHandleMapping));
+            assertEquals(expected, runMapping(state, query, benchmark::jdbcUtilsMapping));
+            assertEquals(expected, runMapping(state, query, benchmark::jdbcGetObjectMapping));
+            assertEquals(expected, runMapping(state, query, benchmark::jdbcGetObjectWithIdentityConversionMapping));
+            assertEquals(expected, runMapping(state, query, benchmark::jpaDslMapping));
+        } finally {
+            db.jdbc.update("UPDATE " + db.rowsTable + " SET name = ?, amount = ? WHERE id = 1", "name-1", 1);
+        }
+    }
+
+    private List<BenchmarkRecord> runMapping(
+            JdbcMappingPhaseBenchmark.MappingState state, QueryBenchmark query, MappingFunction mappingFunction)
+            throws Exception {
+        state.setupInvocation(db, query);
+        try {
+            return records(List.of(mappingFunction.map(state)));
+        } finally {
+            state.tearDownInvocation();
+        }
+    }
+
+    @FunctionalInterface
+    private interface MappingFunction {
+        BenchmarkRow[] map(JdbcMappingPhaseBenchmark.MappingState state) throws Exception;
     }
 
     @Test
@@ -161,6 +311,16 @@ class BenchmarkCorrectnessTest {
     }
 
     @Test
+    void jooqAndJpaDslRenderingKeepValuesAsBindParameters() {
+        SqlRenderingBenchmark benchmark = new SqlRenderingBenchmark();
+        benchmark.setup();
+        assertTrue(benchmark.renderPrebuiltSpec().getSql().contains(":"));
+        assertFalse(benchmark.renderPrebuiltSpec().getSql().contains("42"));
+        assertTrue(benchmark.renderJooqPrebuiltQuery().contains("?"));
+        assertFalse(benchmark.renderJooqPrebuiltQuery().contains("42"));
+    }
+
+    @Test
     void paginationRenderingScenariosPreserveParameterNames() {
         PaginationRenderingBenchmark benchmark = new PaginationRenderingBenchmark();
         benchmark.scenario = "normal";
@@ -191,6 +351,18 @@ class BenchmarkCorrectnessTest {
         return db.jdbc.query(
                 "SELECT id, name, amount FROM " + db.writesTable + " WHERE amount >= 0 ORDER BY id",
                 (rs, rowNum) -> QueryBenchmark.readRecord(rs));
+    }
+
+    private static List<BenchmarkRecord> jooqRecords(List<JooqBenchmarkRow> rows) {
+        return rows.stream()
+                .map(row -> new BenchmarkRecord(row.getId(), row.getName(), row.getAmount()))
+                .toList();
+    }
+
+    private static List<BenchmarkRecord> toRecords(List<BenchmarkRow> rows) {
+        return rows.stream()
+                .map(row -> new BenchmarkRecord(row.getId(), row.getName(), row.getAmount()))
+                .toList();
     }
 
     private static List<BenchmarkRecord> records(List<BenchmarkRow> rows) {

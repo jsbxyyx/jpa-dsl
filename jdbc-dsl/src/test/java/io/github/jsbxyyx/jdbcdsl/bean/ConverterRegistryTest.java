@@ -11,10 +11,13 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -119,15 +122,16 @@ class ConverterRegistryTest {
     }
 
     @Test
-    void testConcurrentAccess() throws InterruptedException {
+    void testConcurrentAccess() throws Exception {
         int threadCount = 10;
         int iterationsPerThread = 100;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicInteger successCount = new AtomicInteger(0);
+        List<Future<?>> futures = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
-            executor.submit(() -> {
+            futures.add(executor.submit(() -> {
                 try {
                     for (int j = 0; j < iterationsPerThread; j++) {
                         ValueConverter converter = registry.getConverter(Types.VARCHAR, String.class);
@@ -139,11 +143,14 @@ class ConverterRegistryTest {
                 } finally {
                     latch.countDown();
                 }
-            });
+            }));
         }
 
         latch.await();
         executor.shutdown();
+        for (Future<?> future : futures) {
+            future.get();
+        }
 
         assertEquals(threadCount * iterationsPerThread, successCount.get(), "All operations should succeed");
     }

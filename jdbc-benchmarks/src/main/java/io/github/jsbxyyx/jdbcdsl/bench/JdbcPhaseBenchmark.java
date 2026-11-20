@@ -12,6 +12,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -125,12 +126,46 @@ public class JdbcPhaseBenchmark {
     }
 
     @Benchmark
-    public long resultSetFetchAndMap(FetchState state) throws SQLException {
+    public long resultSetFetchAndReadOnly(FetchState state) throws SQLException {
+        long checksum = 0;
+        int rows = 0;
+        while (state.resultSet.next()) {
+            long id = state.resultSet.getLong(1);
+            String name = state.resultSet.getString(2);
+            int amount = state.resultSet.getInt(3);
+            checksum += id + amount + name.length();
+            rows++;
+        }
+        if (rows != state.expectedRows) {
+            throw new IllegalStateException("Expected " + state.expectedRows + " rows but read " + rows);
+        }
+        return checksum;
+    }
+
+    @Benchmark
+    public long resultSetNextAndInstantiate(FetchState state, Blackhole blackhole) throws SQLException {
+        long checksum = 0;
+        int rows = 0;
+        while (state.resultSet.next()) {
+            BenchmarkRow row = new BenchmarkRow(0L, "", 0);
+            blackhole.consume(row);
+            checksum += row.getId() + row.getAmount() + row.getName().length();
+            rows++;
+        }
+        if (rows != state.expectedRows) {
+            throw new IllegalStateException("Expected " + state.expectedRows + " rows but read " + rows);
+        }
+        return checksum;
+    }
+
+    @Benchmark
+    public long resultSetFetchAndMap(FetchState state, Blackhole blackhole) throws SQLException {
         long checksum = 0;
         int rows = 0;
         while (state.resultSet.next()) {
             BenchmarkRow row = new BenchmarkRow(
                     state.resultSet.getLong(1), state.resultSet.getString(2), state.resultSet.getInt(3));
+            blackhole.consume(row);
             checksum += row.getId() + row.getAmount() + row.getName().length();
             rows++;
         }

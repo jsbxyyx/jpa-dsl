@@ -1,5 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.jsbxyyx.jdbcdsl.annotation.LogicalDelete;
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
@@ -15,8 +17,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Reads {@link jakarta.persistence} annotations ({@code @Table}/{@code @Column}/{@code @Id})
@@ -30,12 +30,16 @@ import java.util.concurrent.ConcurrentMap;
  *       (from {@link JdbcDslConfig#getNamingStrategy()}) is applied to derive the column/table name.</li>
  * </ol>
  *
- * <p>Results are cached per class. The cache is automatically cleared when the naming strategy
- * is changed via {@link JdbcDslConfig#setNamingStrategy(NamingStrategy)}.
+ * <p>Results are cached by entity class and naming-strategy identity in a bounded cache. This
+ * keeps metadata derived from different strategies isolated and limits retention of dynamically
+ * loaded entity classes.
  */
 public final class EntityMetaReader {
 
-    private static final ConcurrentMap<Class<?>, EntityMeta> CACHE = new ConcurrentHashMap<>();
+    static final long CACHE_MAX_SIZE = 10_000;
+
+    private static final Cache<CacheKey, EntityMeta> CACHE =
+            Caffeine.newBuilder().maximumSize(CACHE_MAX_SIZE).build();
 
     private EntityMetaReader() {}
 
@@ -46,7 +50,10 @@ public final class EntityMetaReader {
      * @return metadata extracted from JPA annotations
      */
     public static EntityMeta read(Class<?> entityClass) {
-        return CACHE.computeIfAbsent(entityClass, key -> read(key, JdbcDslConfig.getNamingStrategy()));
+        java.util.Objects.requireNonNull(entityClass, "entityClass");
+        NamingStrategy naming = JdbcDslConfig.getNamingStrategy();
+        CacheKey key = new CacheKey(entityClass, naming);
+        return CACHE.get(key, ignored -> read(entityClass, naming));
     }
 
     /**
@@ -61,7 +68,30 @@ public final class EntityMetaReader {
      * can also be used in tests to reset state between test cases.
      */
     static void clearCache() {
-        CACHE.clear();
+        CACHE.invalidateAll();
+    }
+
+    /** Cache key uses strategy identity to isolate distinct runtime configurations. */
+    private static final class CacheKey {
+        private final Class<?> entityClass;
+        private final NamingStrategy namingStrategy;
+
+        private CacheKey(Class<?> entityClass, NamingStrategy namingStrategy) {
+            this.entityClass = entityClass;
+            this.namingStrategy = namingStrategy;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof CacheKey that
+                    && entityClass == that.entityClass
+                    && namingStrategy == that.namingStrategy;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(entityClass) + System.identityHashCode(namingStrategy);
+        }
     }
 
     private static EntityMeta doRead(Class<?> entityClass, NamingStrategy naming) {

@@ -34,6 +34,12 @@ final class MyBatisBenchmarkSupport {
         }
     }
 
+    List<BenchmarkRow> selectRowsResultMap(int max) {
+        try (SqlSession session = sessionFactory.openSession(true)) {
+            return session.getMapper(BenchmarkMapper.class).selectRowsResultMap(rowsTable, max);
+        }
+    }
+
     int[] insertBatch(List<BenchmarkWrite> rows) {
         return insertBatch(rows, true);
     }

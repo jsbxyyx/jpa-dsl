@@ -4,13 +4,17 @@ import io.github.jsbxyyx.jdbcdsl.PropertyRef;
 import io.github.jsbxyyx.jdbcdsl.cache.JdbcDslCacheManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -341,6 +345,77 @@ class MapperCacheTest {
     }
 
     @Test
+    void defaultHandlerUsesTypedDateAndDecimalGettersWithoutChangingValues() throws SQLException {
+        LocalDate expectedDate = LocalDate.of(2026, 11, 20);
+        BigDecimal expectedAmount = new BigDecimal("12345678901234567890.120000");
+
+        ResultSet dateMetadata = createMockResultSet("date", Types.DATE);
+        ResultSetHandler dateHandler = new ResultSetHandler(dateMetadata, metaFactory.create(DateEntity.class));
+        ResultSet dateRow = mock(ResultSet.class);
+        when(dateRow.getObject(1, LocalDate.class)).thenReturn(expectedDate);
+        DateEntity dateEntity = (DateEntity) dateHandler.mapRow(dateRow);
+        assertEquals(expectedDate, dateEntity.getDate());
+        verify(dateRow).getObject(1, LocalDate.class);
+        verify(dateRow, never()).getDate(1);
+
+        ResultSet decimalMetadata = createMockResultSet("amount", Types.DECIMAL);
+        ResultSetHandler decimalHandler =
+                new ResultSetHandler(decimalMetadata, metaFactory.create(BigDecimalEntity.class));
+        ResultSet decimalRow = mock(ResultSet.class);
+        when(decimalRow.getBigDecimal(1)).thenReturn(expectedAmount);
+        BigDecimalEntity decimalEntity = (BigDecimalEntity) decimalHandler.mapRow(decimalRow);
+        assertEquals(expectedAmount, decimalEntity.getAmount());
+        assertEquals(expectedAmount.scale(), decimalEntity.getAmount().scale());
+        verify(decimalRow).getBigDecimal(1);
+        verify(decimalRow, never()).getObject(1);
+    }
+
+    @Test
+    void customRegistryStillReceivesOriginalDateJdbcValue() throws SQLException {
+        ConverterRegistry customRegistry = mock(ConverterRegistry.class);
+        AtomicReference<Object> received = new AtomicReference<>();
+        when(customRegistry.getConverter(Types.DATE, LocalDate.class)).thenReturn(value -> {
+            received.set(value);
+            return ((Date) value).toLocalDate();
+        });
+        ResultSet metadata = createMockResultSet("date", Types.DATE);
+        ResultSetHandler handler = new ResultSetHandler(metadata, metaFactory.create(DateEntity.class), customRegistry);
+        Date jdbcDate = Date.valueOf("2026-11-20");
+        ResultSet row = mock(ResultSet.class);
+        ResultSetMetaData rowMetaData = metadata.getMetaData();
+        when(row.getMetaData()).thenReturn(rowMetaData);
+        when(row.getObject(1)).thenReturn(jdbcDate);
+
+        DateEntity entity = (DateEntity) handler.mapRow(row);
+
+        assertEquals(LocalDate.of(2026, 11, 20), entity.getDate());
+        assertSame(jdbcDate, received.get());
+        verify(row).getObject(1);
+        verify(row, never()).getObject(1, LocalDate.class);
+    }
+
+    @Test
+    void customDefaultRegistryUsesSafeTypedDateReadWithoutConversionServiceOverride() throws SQLException {
+        ConversionService customConversionService = mock(ConversionService.class);
+        LocalDate expected = LocalDate.of(2026, 11, 20);
+        ConverterRegistry customRegistry = new DefaultConverterRegistry(customConversionService);
+
+        ResultSet metadata = createMockResultSet("date", Types.DATE);
+        ResultSetHandler handler = new ResultSetHandler(metadata, metaFactory.create(DateEntity.class), customRegistry);
+        ResultSet row = mock(ResultSet.class);
+        ResultSetMetaData rowMetaData = metadata.getMetaData();
+        when(row.getMetaData()).thenReturn(rowMetaData);
+        when(row.getObject(1, LocalDate.class)).thenReturn(expected);
+
+        DateEntity entity = (DateEntity) handler.mapRow(row);
+
+        assertEquals(expected, entity.getDate());
+        verifyNoInteractions(customConversionService);
+        verify(row).getObject(1, LocalDate.class);
+        verify(row, never()).getObject(1);
+    }
+
+    @Test
     void testClearCache() throws SQLException {
         MapperCache cache = new MapperCache(new JdbcDslCacheManager(), converterRegistry);
         BeanMappingMeta meta = metaFactory.create(TestEntity.class);
@@ -557,6 +632,18 @@ class MapperCacheTest {
 
         when(rs.getMetaData()).thenReturn(metaData);
         return rs;
+    }
+
+    static class DateEntity {
+        private LocalDate date;
+
+        public LocalDate getDate() {
+            return date;
+        }
+
+        public void setDate(LocalDate date) {
+            this.date = date;
+        }
     }
 
     record UnsignedRecord(BigInteger id) {}

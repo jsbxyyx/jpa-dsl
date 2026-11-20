@@ -1,6 +1,8 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
 import java.beans.Introspector;
+import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -51,18 +53,40 @@ public final class BeanMappingMetaFactory {
         try {
             Constructor<?> constructor = type.getDeclaredConstructor();
             constructor.setAccessible(true);
-            MethodHandle constructorHandle =
-                    LOOKUP.unreflectConstructor(constructor).asType(MethodType.methodType(Object.class));
+            MethodHandle constructorHandle = LOOKUP.unreflectConstructor(constructor);
+            ObjectFactory<?> lambdaFactory = createLambdaObjectFactory(type, constructorHandle);
+            if (lambdaFactory != null) {
+                return lambdaFactory;
+            }
 
+            MethodHandle adaptedConstructor = constructorHandle.asType(MethodType.methodType(Object.class));
             return () -> {
                 try {
-                    return (Object) constructorHandle.invokeExact();
+                    return (Object) adaptedConstructor.invokeExact();
                 } catch (Throwable e) {
                     throw new RuntimeException("Failed to create instance of " + type, e);
                 }
             };
         } catch (Exception e) {
             throw new RuntimeException("No accessible no-arg constructor found for " + type, e);
+        }
+    }
+
+    private ObjectFactory<?> createLambdaObjectFactory(Class<?> type, MethodHandle constructorHandle) {
+        try {
+            CallSite callSite = LambdaMetafactory.metafactory(
+                    LOOKUP,
+                    "create",
+                    MethodType.methodType(ObjectFactory.class),
+                    MethodType.methodType(Object.class),
+                    constructorHandle,
+                    MethodType.methodType(type));
+            return (ObjectFactory<?>) callSite.getTarget().invokeExact();
+        } catch (Throwable e) {
+            if (e instanceof Error error) {
+                throw error;
+            }
+            return null;
         }
     }
 
@@ -116,8 +140,7 @@ public final class BeanMappingMetaFactory {
                 }
 
                 setter.setAccessible(true);
-                MethodHandle setterHandle =
-                        LOOKUP.unreflect(setter).asType(MethodType.methodType(void.class, Object.class, Object.class));
+                MethodHandle setterHandle = LOOKUP.unreflect(setter);
 
                 Class<?> propertyType = setter.getParameterTypes()[0];
 

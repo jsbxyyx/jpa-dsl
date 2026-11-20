@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  * Executes jdbc-dsl select queries using {@link NamedParameterJdbcTemplate}.
  *
  * <p>Result mapping uses a JavaBean setter strategy: each column label from
- * {@link ResultSetMetaData#getColumnLabel(int)} is matched <em>case-insensitively</em> to a bean
+ * {@link java.sql.ResultSetMetaData#getColumnLabel(int)} is matched <em>case-insensitively</em> to a bean
  * property setter. If no setter is found for a column, the value is injected directly into the
  * field with the same name (case-insensitive). This supports entities where the primary key field
  * has no setter (e.g. JPA {@code @Id}).
@@ -118,7 +118,7 @@ public final class JdbcDslExecutor {
                 dialect,
                 cacheManager,
                 beanMappingMetaFactory,
-                new DefaultConverterRegistry(DefaultConversionService.getSharedInstance()),
+                DefaultConverterRegistry.defaultInstance(),
                 UnknownColumnBehavior.NONE);
     }
 

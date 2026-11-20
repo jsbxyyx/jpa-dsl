@@ -130,6 +130,16 @@ public class QueryBenchmark {
     }
 
     @Benchmark
+    public List<BenchmarkRow> springNamedHandwrittenBean(BenchmarkDatabase db) {
+        return db.namedJdbc.query(namedBeanSql(db), params, BEAN_MAPPER);
+    }
+
+    @Benchmark
+    public List<BenchmarkRow> dslMappedBean(BenchmarkDatabase db) {
+        return db.dsl.queryMapped(namedBeanSql(db), params, BEAN_MAPPER);
+    }
+
+    @Benchmark
     public List<BenchmarkRow> dslRawBean(BenchmarkDatabase db) {
         return db.dsl.query(namedBeanSql(db), params, BenchmarkRow.class);
     }
