@@ -9,7 +9,6 @@ import org.jooq.Field;
 import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
-import org.jooq.impl.SQLDataType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -76,7 +75,7 @@ public class FrameworkExecutionBenchmark {
         jooqTable = table(db.rowsTable);
         jooqId = field("id", Long.class);
         jooqName = field("name", String.class);
-        jooqAmount = field("amount", SQLDataType.INTEGER);
+        jooqAmount = field("amount", org.jooq.impl.SQLDataType.INTEGER);
         sql = QueryBenchmark.beanSql(db);
         namedParams = Map.of("max", rowCount);
         jooqQuery = buildJooqQuery();
