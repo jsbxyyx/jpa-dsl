@@ -1,0 +1,163 @@
+name: JDBC DSL Cloud Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Benchmark duration
+        required: true
+        type: choice
+        default: smoke
+        options:
+          - smoke
+          - formal
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jdbc-dsl-cloud-benchmark
+  cancel-in-progress: false
+
+jobs:
+  mysql-benchmark:
+    # Public repositories receive the standard GitHub-hosted Linux runner.
+    # MySQL and JMH share this VM; results are CI trend/validation data,
+    # not an isolated database-server performance certification.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: benchmark
+          MYSQL_DATABASE: benchmark
+          MYSQL_USER: benchmark
+          MYSQL_PASSWORD: benchmark
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ubenchmark -pbenchmark --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=20
+    env:
+      JDBC_BENCH_URL: jdbc:mysql://127.0.0.1:3306/benchmark?useSSL=false&allowPublicKeyRetrieval=true
+      JDBC_BENCH_USER: benchmark
+      JDBC_BENCH_PASSWORD: benchmark
+      JDBC_BENCH_ALLOW_EXTERNAL: 'true'
+      BENCH_DATABASE_LABEL: github-actions-mysql-8.0-colocated
+    steps:
+      # The workflow lives on main, while benchmark sources remain isolated on the performance branch.
+      - uses: actions/checkout@v4
+        with:
+          ref: dev/jdbc-dsl-performance
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Record benchmark environment
+        run: |
+          mkdir -p benchmark-results
+          {
+            echo "UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Runner: ${RUNNER_OS} / ${RUNNER_ARCH}"
+            echo "CPU count: $(nproc)"
+            echo "Memory:"
+            free -h
+            echo "OS:"
+            uname -a
+            echo "Java:"
+            java -version 2>&1
+            echo "Maven:"
+            ./mvnw -version
+            echo "MySQL:"
+            docker exec "$(docker ps --filter ancestor=mysql:8.0 --format '{{.ID}}' | head -n1)" mysql --version
+            echo "Profile: ${{ inputs.profile }}"
+            echo "Database placement: MySQL service shares the GitHub Actions runner VM with JMH"
+          } > benchmark-results/environment.txt
+
+      - name: Run MySQL correctness gates
+        run: >-
+          ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am
+          -Dtest=ExternalDatabaseCorrectnessIT,ExternalBatchConcurrencyIT,ExternalLockingIT
+          -Dsurefire.failIfNoSpecifiedTests=false test
+
+      - name: Verify correctness tests actually ran
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          names = ("ExternalDatabaseCorrectnessIT", "ExternalBatchConcurrencyIT", "ExternalLockingIT")
+          for name in names:
+              path = Path("jdbc-benchmarks/target/surefire-reports") / f"TEST-io.github.jsbxyyx.jdbcdsl.bench.{name}.xml"
+              suite = ET.parse(path).getroot()
+              assert int(suite.get("tests", 0)) > 0 and int(suite.get("skipped", 0)) == 0, name
+              assert int(suite.get("failures", 0)) == 0 and int(suite.get("errors", 0)) == 0, name
+          PY
+
+      - name: Build JMH benchmarks
+        run: ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am -DskipTests package
+
+      - name: Run JMH benchmark matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=jdbc-benchmarks/target/benchmarks.jar
+          test -f "$JAR"
+          SELECTOR='.*FrameworkExecutionBenchmark\.(jpaDslRawSql|myBatisDefaultMapping|myBatisResultMap|springJdbcBeanProperty)'
+          if [[ "${{ inputs.profile }}" == "formal" ]]; then
+            FORKS=3
+            WARMUPS=5
+            MEASUREMENTS=5
+            ITER_SECONDS=3
+          else
+            FORKS=1
+            WARMUPS=1
+            MEASUREMENTS=2
+            ITER_SECONDS=1
+          fi
+          {
+            echo "JMH forks=$FORKS warmups=$WARMUPS measurements=$MEASUREMENTS seconds=$ITER_SECONDS"
+            echo "Rows: 100,10000"
+            echo "Methods: jdbc-dsl, MyBatis automatic, MyBatis ResultMap, Spring BeanPropertyRowMapper"
+          } >> benchmark-results/environment.txt
+
+          run_benchmark() {
+            local label="$1"; shift
+            echo "Running $label"
+            java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" \
+              -p rowCount=100,10000 "$@" \
+              -wi "$WARMUPS" -i "$MEASUREMENTS" \
+              -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+              -foe true -rf json -rff "benchmark-results/$label.json" \
+              > "benchmark-results/$label.log" 2>&1
+          }
+
+          run_benchmark mysql-avgt -bm avgt
+          run_benchmark mysql-throughput-1t -bm thrpt -t 1
+          run_benchmark mysql-throughput-4t -bm thrpt -t 4
+          run_benchmark mysql-sample-4t -bm sample -t 4
+
+          # GC profiling is deliberately separate from latency/throughput runs.
+          # It reports allocation/GC characteristics; its timing is not compared.
+          java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" \
+            -p rowCount=10000 -bm avgt -t 1 \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" \
+            -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -prof gc -foe true -rf json \
+            -rff benchmark-results/mysql-gc-10000.json \
+            > benchmark-results/mysql-gc-10000.log 2>&1
+
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdbc-dsl-mysql-benchmark-${{ inputs.profile }}-${{ github.run_id }}
+          path: |
+            benchmark-results/
+            jdbc-benchmarks/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 30
