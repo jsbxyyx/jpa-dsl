@@ -46,7 +46,10 @@ jobs:
       JDBC_BENCH_ALLOW_EXTERNAL: 'true'
       BENCH_DATABASE_LABEL: github-actions-mysql-8.0-colocated
     steps:
+      # The workflow lives on main, while benchmark sources remain isolated on the performance branch.
       - uses: actions/checkout@v4
+        with:
+          ref: dev/jdbc-dsl-performance
 
       - uses: actions/setup-java@v4
         with:
