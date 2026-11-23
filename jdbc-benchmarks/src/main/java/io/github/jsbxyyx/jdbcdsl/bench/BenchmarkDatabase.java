@@ -38,20 +38,10 @@ public class BenchmarkDatabase {
 
     @Setup(Level.Trial)
     public void setup() throws Exception {
+        // Benchmarks must be isolated by default. External databases require an
+        // explicit JDBC_BENCH_URL and JDBC_BENCH_ALLOW_EXTERNAL=true.
         String url = System.getenv("JDBC_BENCH_URL");
-        boolean integrationDefaults =
-                url == null || url.isBlank() || (url.startsWith("jdbc:mysql:") && url.contains("mysql-svc"));
-        if (url == null || url.isBlank()) {
-            url = System.getenv("MYSQL_IT_URL");
-            if (url == null || url.isBlank()) {
-                String host = System.getenv().getOrDefault("MYSQL_IT_HOST", "mysql-svc");
-                String port = System.getenv().getOrDefault("MYSQL_IT_PORT", "3306");
-                String database = System.getenv().getOrDefault("MYSQL_IT_DATABASE", "test");
-                url = "jdbc:mysql://" + host + ":" + port + "/" + database
-                        + "?useSSL=false&allowPublicKeyRetrieval=true";
-            }
-        }
-        setupDatabase(url, integrationDefaults);
+        setupDatabase(url, true);
     }
 
     void setupLocal() throws Exception {

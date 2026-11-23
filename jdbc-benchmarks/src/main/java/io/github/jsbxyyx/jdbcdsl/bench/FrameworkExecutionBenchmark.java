@@ -38,8 +38,9 @@ import static org.jooq.impl.DSL.field;
 import static org.jooq.impl.DSL.table;
 
 /**
- * Compares framework query and mapping overhead on one shared H2 in-memory JDBC driver.
- * No external database server or network is involved in measured operations.
+ * Compares framework query and mapping overhead on one shared JDBC database.
+ * Defaults to isolated H2; an explicitly enabled external benchmark database may be used
+ * for a second-stage driver/server compatibility and end-to-end comparison.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -68,8 +69,9 @@ public class FrameworkExecutionBenchmark {
     @Setup(Level.Trial)
     public void setup() throws Exception {
         db = new BenchmarkDatabase();
-        db.setupLocal();
-        jooq = org.jooq.impl.DSL.using(db.dataSource, SQLDialect.H2);
+        db.setup();
+        SQLDialect dialect = db.dataSource.getJdbcUrl().startsWith("jdbc:mysql:") ? SQLDialect.MYSQL : SQLDialect.H2;
+        jooq = org.jooq.impl.DSL.using(db.dataSource, dialect);
         jooqTable = table(db.rowsTable);
         jooqId = field("id", Long.class);
         jooqName = field("name", String.class);
@@ -122,6 +124,12 @@ public class FrameworkExecutionBenchmark {
     @Benchmark
     public List<BenchmarkRow> jpaDslMapped() {
         return db.dsl.queryMapped(QueryBenchmark.namedBeanSql(db), namedParams, HANDWRITTEN_MAPPER);
+    }
+
+    /** Uses MyBatis automatic result mapping without an explicit @Results mapping. */
+    @Benchmark
+    public List<BenchmarkRow> myBatisDefaultMapping() {
+        return db.mybatis.selectRows(rowCount);
     }
 
     @Benchmark

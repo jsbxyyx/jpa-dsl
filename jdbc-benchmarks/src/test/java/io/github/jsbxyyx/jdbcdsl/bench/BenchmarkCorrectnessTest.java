@@ -76,26 +76,29 @@ class BenchmarkCorrectnessTest {
 
     @Test
     void isolatedFrameworkExecutionVariantsReturnIdenticalRows() throws Exception {
-        FrameworkExecutionBenchmark benchmark = new FrameworkExecutionBenchmark();
-        benchmark.rowCount = 100;
-        benchmark.setup();
-        try {
-            List<BenchmarkRecord> expected = benchmark.jdbcHandwritten().stream()
-                    .map(row -> new BenchmarkRecord(row.getId(), row.getName(), row.getAmount()))
-                    .toList();
-            assertEquals(100, expected.size());
-            assertEquals(expected, toRecords(benchmark.springJdbcHandwritten()));
-            assertEquals(expected, toRecords(benchmark.springJdbcBeanProperty()));
-            assertEquals(expected, toRecords(benchmark.springNamedJdbcHandwritten()));
-            assertEquals(expected, toRecords(benchmark.jpaDslMapped()));
-            assertEquals(expected, toRecords(benchmark.myBatisResultMap()));
-            assertEquals(expected, jooqRecords(benchmark.jooqDsl()));
-            assertEquals(expected, jooqRecords(benchmark.jooqDslPrebuilt()));
-            assertEquals(expected, toRecords(benchmark.jpaDslBuildAndSelect()));
-            assertEquals(expected, toRecords(benchmark.jpaDsl()));
-            assertEquals(expected, toRecords(benchmark.jpaDslRawSql()));
-        } finally {
-            benchmark.tearDown();
+        for (int count : List.of(1, 100, 10_000)) {
+            FrameworkExecutionBenchmark benchmark = new FrameworkExecutionBenchmark();
+            benchmark.rowCount = count;
+            benchmark.setup();
+            try {
+                List<BenchmarkRecord> expected = benchmark.jdbcHandwritten().stream()
+                        .map(row -> new BenchmarkRecord(row.getId(), row.getName(), row.getAmount()))
+                        .toList();
+                assertEquals(count, expected.size());
+                assertEquals(expected, toRecords(benchmark.springJdbcHandwritten()));
+                assertEquals(expected, toRecords(benchmark.springJdbcBeanProperty()));
+                assertEquals(expected, toRecords(benchmark.springNamedJdbcHandwritten()));
+                assertEquals(expected, toRecords(benchmark.jpaDslMapped()));
+                assertEquals(expected, toRecords(benchmark.myBatisDefaultMapping()));
+                assertEquals(expected, toRecords(benchmark.myBatisResultMap()));
+                assertEquals(expected, jooqRecords(benchmark.jooqDsl()));
+                assertEquals(expected, jooqRecords(benchmark.jooqDslPrebuilt()));
+                assertEquals(expected, toRecords(benchmark.jpaDslBuildAndSelect()));
+                assertEquals(expected, toRecords(benchmark.jpaDsl()));
+                assertEquals(expected, toRecords(benchmark.jpaDslRawSql()));
+            } finally {
+                benchmark.tearDown();
+            }
         }
     }
 
