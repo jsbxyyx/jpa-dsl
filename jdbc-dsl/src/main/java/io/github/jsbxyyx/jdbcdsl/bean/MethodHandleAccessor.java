@@ -71,6 +71,10 @@ public final class MethodHandleAccessor implements PropertyAccessor {
         return setterInvoker;
     }
 
+    MethodHandle setterHandle() {
+        return setter;
+    }
+
     @Override
     public void set(Object target, Object value) {
         write(target, value);

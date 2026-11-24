@@ -3,6 +3,7 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 import io.github.jsbxyyx.jdbcdsl.JdbcDslConfig;
 import org.springframework.jdbc.support.JdbcUtils;
 
+import java.lang.invoke.MethodHandle;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -57,18 +58,18 @@ public final class ResultSetHandler implements ResultSetMapper {
     private final BooleanSupplier allowNullToPrimitiveDefault;
     private final boolean strictFullyMappedReferenceProperties;
 
-    /**
-     * Internal structure that caches optimized converter for each column.
-     *
-     * <p>The converter is selected based on JDBC type and property type,
-     * avoiding runtime type checks in most cases. Uses PropertyAccessor.write()
-     * to bypass double conversion.
-     */
     @FunctionalInterface
     private interface ColumnMapper {
         void map(ResultSet rs, Object target) throws SQLException;
     }
 
+    /**
+     * Internal structure that caches optimized converter for each column.
+     *
+     * <p>The converter is selected based on JDBC type and property type,
+     * avoiding runtime type checks in most cases. JavaBean setters use their
+     * pre-adapted MethodHandle directly on the strict mapping path.
+     */
     private static final class ColumnMapping {
         final PropertyAccessor accessor;
         final ValueConverter converter;
@@ -272,48 +273,101 @@ public final class ResultSetHandler implements ResultSetMapper {
             boolean stringReadSafe,
             boolean dateReadSafe,
             boolean decimalReadSafe) {
-        BiConsumer<Object, Object> writer = accessor instanceof MethodHandleAccessor methodHandleAccessor
-                        && methodHandleAccessor.setterInvoker() != null
-                ? methodHandleAccessor.setterInvoker()
-                : accessor::write;
+        MethodHandle setter = accessor instanceof MethodHandleAccessor methodHandleAccessor
+                ? methodHandleAccessor.setterHandle()
+                : null;
+        if (setter == null) {
+            BiConsumer<Object, Object> writer = accessor::write;
+            if (numericReadSafe) {
+                if (propertyType == byte.class || propertyType == Byte.class) {
+                    return (rs, target) -> {
+                        byte value = rs.getByte(columnIndex);
+                        writer.accept(target, rs.wasNull() ? null : value);
+                    };
+                }
+                if (propertyType == short.class || propertyType == Short.class) {
+                    return (rs, target) -> {
+                        short value = rs.getShort(columnIndex);
+                        writer.accept(target, rs.wasNull() ? null : value);
+                    };
+                }
+                if (propertyType == int.class || propertyType == Integer.class) {
+                    return (rs, target) -> {
+                        int value = rs.getInt(columnIndex);
+                        writer.accept(target, rs.wasNull() ? null : value);
+                    };
+                }
+                return (rs, target) -> {
+                    long value = rs.getLong(columnIndex);
+                    writer.accept(target, rs.wasNull() ? null : value);
+                };
+            }
+            if (stringReadSafe) {
+                return (rs, target) -> writer.accept(target, rs.getString(columnIndex));
+            }
+            if (dateReadSafe) {
+                return (rs, target) -> writer.accept(target, rs.getObject(columnIndex, LocalDate.class));
+            }
+            if (decimalReadSafe) {
+                return (rs, target) -> writer.accept(target, rs.getBigDecimal(columnIndex));
+            }
+            if (propertyType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
+                return (rs, target) ->
+                        writer.accept(target, converter.convert(rs.getObject(columnIndex, LocalDateTime.class)));
+            }
+            return (rs, target) ->
+                    writer.accept(target, converter.convert(JdbcUtils.getResultSetValue(rs, columnIndex)));
+        }
+
         if (numericReadSafe) {
             if (propertyType == byte.class || propertyType == Byte.class) {
                 return (rs, target) -> {
                     byte value = rs.getByte(columnIndex);
-                    writer.accept(target, rs.wasNull() ? null : value);
+                    invokeSetter(setter, target, rs.wasNull() ? null : value);
                 };
             }
             if (propertyType == short.class || propertyType == Short.class) {
                 return (rs, target) -> {
                     short value = rs.getShort(columnIndex);
-                    writer.accept(target, rs.wasNull() ? null : value);
+                    invokeSetter(setter, target, rs.wasNull() ? null : value);
                 };
             }
             if (propertyType == int.class || propertyType == Integer.class) {
                 return (rs, target) -> {
                     int value = rs.getInt(columnIndex);
-                    writer.accept(target, rs.wasNull() ? null : value);
+                    invokeSetter(setter, target, rs.wasNull() ? null : value);
                 };
             }
             return (rs, target) -> {
                 long value = rs.getLong(columnIndex);
-                writer.accept(target, rs.wasNull() ? null : value);
+                invokeSetter(setter, target, rs.wasNull() ? null : value);
             };
         }
         if (stringReadSafe) {
-            return (rs, target) -> writer.accept(target, rs.getString(columnIndex));
+            return (rs, target) -> invokeSetter(setter, target, rs.getString(columnIndex));
         }
         if (dateReadSafe) {
-            return (rs, target) -> writer.accept(target, rs.getObject(columnIndex, LocalDate.class));
+            return (rs, target) -> invokeSetter(setter, target, rs.getObject(columnIndex, LocalDate.class));
         }
         if (decimalReadSafe) {
-            return (rs, target) -> writer.accept(target, rs.getBigDecimal(columnIndex));
+            return (rs, target) -> invokeSetter(setter, target, rs.getBigDecimal(columnIndex));
         }
         if (propertyType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
             return (rs, target) ->
-                    writer.accept(target, converter.convert(rs.getObject(columnIndex, LocalDateTime.class)));
+                    invokeSetter(setter, target, converter.convert(rs.getObject(columnIndex, LocalDateTime.class)));
         }
-        return (rs, target) -> writer.accept(target, converter.convert(JdbcUtils.getResultSetValue(rs, columnIndex)));
+        return (rs, target) ->
+                invokeSetter(setter, target, converter.convert(JdbcUtils.getResultSetValue(rs, columnIndex)));
+    }
+
+    private static void invokeSetter(MethodHandle setter, Object target, Object value) {
+        try {
+            setter.invokeExact(target, value);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new IllegalStateException("Failed to invoke property setter", e);
+        }
     }
 
     /**
