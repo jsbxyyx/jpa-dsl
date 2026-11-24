@@ -20,12 +20,127 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  h2-benchmark:
+    # H2 runs in-process to isolate framework/JDBC overhead from database-server
+    # and network variability. This is complementary to the MySQL end-to-end job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      BENCH_DATABASE_LABEL: github-actions-h2-in-process
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev/jdbc-dsl-performance
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Record H2 benchmark environment
+        run: |
+          mkdir -p benchmark-results
+          {
+            echo "UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Runner: ${RUNNER_OS} / ${RUNNER_ARCH}"
+            echo "CPU count: $(nproc)"
+            echo "Memory:"
+            free -h
+            echo "OS:"
+            uname -a
+            echo "Java:"
+            java -version 2>&1
+            echo "Maven:"
+            ./mvnw -version
+            echo "Database: in-process H2; no external JDBC_BENCH_URL configured"
+            echo "Profile: ${{ inputs.profile || 'formal' }}"
+          } > benchmark-results/environment.txt
+
+      - name: Build JMH benchmarks
+        run: ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am -DskipTests package
+
+      - name: Run H2 JMH benchmark matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=jdbc-benchmarks/target/benchmarks.jar
+          test -f "$JAR"
+          SELECTOR='.*FrameworkExecutionBenchmark\.(jdbcHandwritten|springJdbcHandwritten|springJdbcBeanProperty|springNamedJdbcHandwritten|jpaDslMapped|myBatisDefaultMapping|myBatisResultMap|jooqDsl|jooqDslPrebuilt|jpaDslBuildAndSelect|jpaDsl|jpaDslRawSql)'
+          if [[ "${{ inputs.profile || 'formal' }}" == "formal" ]]; then
+            FORKS=3
+            WARMUPS=5
+            MEASUREMENTS=5
+            ITER_SECONDS=3
+          else
+            FORKS=1
+            WARMUPS=1
+            MEASUREMENTS=2
+            ITER_SECONDS=1
+          fi
+          {
+            echo "JMH forks=$FORKS warmups=$WARMUPS measurements=$MEASUREMENTS seconds=$ITER_SECONDS"
+            echo "Rows: 100,10000"
+            echo "Database: in-process H2"
+          } >> benchmark-results/environment.txt
+
+          run_benchmark() {
+            local label="$1"; shift
+            echo "Running $label"
+            java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" \
+              -p rowCount=100,10000 "$@" \
+              -wi "$WARMUPS" -i "$MEASUREMENTS" \
+              -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+              -foe true -rf json -rff "benchmark-results/$label.json" \
+              > "benchmark-results/$label.log" 2>&1
+          }
+
+          run_benchmark h2-avgt -bm avgt
+          run_benchmark h2-throughput-1t -bm thrpt -t 1
+          run_benchmark h2-throughput-4t -bm thrpt -t 4
+          run_benchmark h2-sample-4t -bm sample -t 4
+
+          # Isolate ResultSet-to-object mapping from connection, statement and query execution.
+          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springBeanPropertyRowMapper)'
+          java -Xms256m -Xmx2g -jar "$JAR" "$MAPPING_SELECTOR" \
+            -p rowCount=100,10000 -bm avgt -t 1 \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" \
+            -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -foe true -rf json -rff benchmark-results/h2-mapping-phase.json \
+            > benchmark-results/h2-mapping-phase.log 2>&1
+
+          RENDERING_SELECTOR='.*SqlRenderingBenchmark\.(buildSpecOnly|renderPrebuiltSpec|buildAndRender|buildJooqQueryOnly|renderJooqPrebuiltQuery|buildAndRenderJooq)'
+          java -Xms256m -Xmx2g -jar "$JAR" "$RENDERING_SELECTOR" \
+            -bm avgt -wi "$WARMUPS" -i "$MEASUREMENTS" \
+            -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -foe true -rf json -rff benchmark-results/h2-sql-rendering.json \
+            > benchmark-results/h2-sql-rendering.log 2>&1
+
+          java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" \
+            -p rowCount=10000 -bm avgt -t 1 \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" \
+            -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -prof gc -foe true -rf json \
+            -rff benchmark-results/h2-gc-10000.json \
+            > benchmark-results/h2-gc-10000.log 2>&1
+
+      - name: Upload H2 benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdbc-dsl-h2-benchmark-${{ inputs.profile || 'formal' }}-${{ github.run_id }}
+          path: |
+            benchmark-results/
+          if-no-files-found: warn
+          retention-days: 30
+
   mysql-benchmark:
     # Public repositories receive the standard GitHub-hosted Linux runner.
     # MySQL and JMH share this VM; results are CI trend/validation data,
     # not an isolated database-server performance certification.
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     services:
       mysql:
         image: mysql:8.0
@@ -75,7 +190,7 @@ jobs:
             ./mvnw -version
             echo "MySQL:"
             docker exec "$(docker ps --filter ancestor=mysql:8.0 --format '{{.ID}}' | head -n1)" mysql --version
-            echo "Profile: ${{ inputs.profile }}"
+            echo "Profile: ${{ inputs.profile || 'formal' }}"
             echo "Database placement: MySQL service shares the GitHub Actions runner VM with JMH"
           } > benchmark-results/environment.txt
 
@@ -107,8 +222,8 @@ jobs:
           set -euo pipefail
           JAR=jdbc-benchmarks/target/benchmarks.jar
           test -f "$JAR"
-          SELECTOR='.*FrameworkExecutionBenchmark\.(jpaDslRawSql|myBatisDefaultMapping|myBatisResultMap|springJdbcBeanProperty)'
-          if [[ "${{ inputs.profile }}" == "formal" ]]; then
+          SELECTOR='.*FrameworkExecutionBenchmark\.(jdbcHandwritten|springJdbcHandwritten|springJdbcBeanProperty|springNamedJdbcHandwritten|jpaDslMapped|myBatisDefaultMapping|myBatisResultMap|jooqDsl|jooqDslPrebuilt|jpaDslBuildAndSelect|jpaDsl|jpaDslRawSql)'
+          if [[ "${{ inputs.profile || 'formal' }}" == "formal" ]]; then
             FORKS=3
             WARMUPS=5
             MEASUREMENTS=5
@@ -122,7 +237,8 @@ jobs:
           {
             echo "JMH forks=$FORKS warmups=$WARMUPS measurements=$MEASUREMENTS seconds=$ITER_SECONDS"
             echo "Rows: 100,10000"
-            echo "Methods: jdbc-dsl, MyBatis automatic, MyBatis ResultMap, Spring BeanPropertyRowMapper"
+            echo "Methods: raw JDBC handwritten, Spring JDBC handwritten/BeanProperty/NamedParameter, jdbc-dsl mapped/raw/spec/prebuilt, MyBatis automatic/ResultMap, jOOQ build/prebuilt"
+            echo "SQL rendering: jdbc-dsl build/render/prebuilt render; jOOQ build/render/prebuilt render"
           } >> benchmark-results/environment.txt
 
           run_benchmark() {
@@ -141,6 +257,23 @@ jobs:
           run_benchmark mysql-throughput-4t -bm thrpt -t 4
           run_benchmark mysql-sample-4t -bm sample -t 4
 
+          # Isolate ResultSet-to-object mapping from connection, statement and query execution.
+          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springBeanPropertyRowMapper)'
+          java -Xms256m -Xmx2g -jar "$JAR" "$MAPPING_SELECTOR" \
+            -p rowCount=100,10000 -bm avgt -t 1 \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" \
+            -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -foe true -rf json -rff benchmark-results/mysql-mapping-phase.json \
+            > benchmark-results/mysql-mapping-phase.log 2>&1
+
+          # Query construction and SQL rendering are measured separately from database execution.
+          RENDERING_SELECTOR='.*SqlRenderingBenchmark\.(buildSpecOnly|renderPrebuiltSpec|buildAndRender|buildJooqQueryOnly|renderJooqPrebuiltQuery|buildAndRenderJooq)'
+          java -Xms256m -Xmx2g -jar "$JAR" "$RENDERING_SELECTOR" \
+            -bm avgt -wi "$WARMUPS" -i "$MEASUREMENTS" \
+            -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -foe true -rf json -rff benchmark-results/mysql-sql-rendering.json \
+            > benchmark-results/mysql-sql-rendering.log 2>&1
+
           # GC profiling is deliberately separate from latency/throughput runs.
           # It reports allocation/GC characteristics; its timing is not compared.
           java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" \
@@ -155,7 +288,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jdbc-dsl-mysql-benchmark-${{ inputs.profile }}-${{ github.run_id }}
+          name: jdbc-dsl-mysql-benchmark-${{ inputs.profile || 'formal' }}-${{ github.run_id }}
           path: |
             benchmark-results/
             jdbc-benchmarks/target/surefire-reports/
