@@ -61,7 +61,7 @@ public class FrameworkExecutionBenchmark {
     private Field<Long> jooqId;
     private Field<String> jooqName;
     private Field<Integer> jooqAmount;
-    private ResultQuery<?> jooqQuery;
+    private ThreadLocal<ResultQuery<?>> jooqQuery;
     private SelectSpec<BenchmarkRow, BenchmarkRow> dslSpec;
     private String sql;
     private Map<String, Object> namedParams;
@@ -78,7 +78,9 @@ public class FrameworkExecutionBenchmark {
         jooqAmount = field("amount", org.jooq.impl.SQLDataType.INTEGER);
         sql = QueryBenchmark.beanSql(db);
         namedParams = Map.of("max", rowCount);
-        jooqQuery = buildJooqQuery();
+        // jOOQ query models are mutable and must not be shared across JMH worker threads.
+        // Build one query per worker outside the timed benchmark invocation.
+        jooqQuery = ThreadLocal.withInitial(this::buildJooqQuery);
         dslSpec = buildDslSpec();
     }
 
@@ -146,7 +148,7 @@ public class FrameworkExecutionBenchmark {
     /** Excludes jOOQ query-model construction but retains rendering, execution, and mapping. */
     @Benchmark
     public List<JooqBenchmarkRow> jooqDslPrebuilt() {
-        return jooqQuery.fetchInto(JooqBenchmarkRow.class);
+        return jooqQuery.get().fetchInto(JooqBenchmarkRow.class);
     }
 
     /** Includes jpa-dsl query-spec construction, SQL rendering, JDBC execution, and mapping. */
