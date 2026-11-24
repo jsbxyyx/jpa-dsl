@@ -122,7 +122,7 @@ public class FrameworkExecutionBenchmark {
         return db.namedJdbc.query(QueryBenchmark.namedBeanSql(db), namedParams, HANDWRITTEN_MAPPER);
     }
 
-    /** Isolates jpa-dsl executor overhead from its built-in bean mapper. */
+    /** Isolates jpa-dsl executor overhead using the same handwritten mapper as Spring JDBC. */
     @Benchmark
     public List<BenchmarkRow> jpaDslMapped() {
         return db.dsl.queryMapped(QueryBenchmark.namedBeanSql(db), namedParams, HANDWRITTEN_MAPPER);

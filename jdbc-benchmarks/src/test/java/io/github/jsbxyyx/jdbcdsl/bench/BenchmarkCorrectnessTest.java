@@ -123,6 +123,7 @@ class BenchmarkCorrectnessTest {
         assertEquals(expected, runMapping(state, query, benchmark::columnMapperDispatchMapping));
         assertEquals(expected, runMapping(state, query, benchmark::columnMapperDispatchWithCatchMapping));
         assertEquals(expected, runMapping(state, query, benchmark::springHandwrittenRowMapper));
+        assertEquals(expected, runMapping(state, query, benchmark::springHandwrittenSetterRowMapper));
         assertEquals(expected, runMapping(state, query, benchmark::springBeanPropertyRowMapper));
     }
 
@@ -204,6 +205,9 @@ class BenchmarkCorrectnessTest {
             assertEquals(expected, runMapping(state, query, benchmark::jdbcGetObjectMapping));
             assertEquals(expected, runMapping(state, query, benchmark::jdbcGetObjectWithIdentityConversionMapping));
             assertEquals(expected, runMapping(state, query, benchmark::jpaDslMapping));
+            assertEquals(expected, runMapping(state, query, benchmark::jdbcGetterMapping));
+            assertEquals(expected, runMapping(state, query, benchmark::springHandwrittenRowMapper));
+            assertEquals(expected, runMapping(state, query, benchmark::springHandwrittenSetterRowMapper));
         } finally {
             db.jdbc.update("UPDATE " + db.rowsTable + " SET name = ?, amount = ? WHERE id = 1", "name-1", 1);
         }

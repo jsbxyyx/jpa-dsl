@@ -88,6 +88,14 @@ one query or one complete batch, **not one row**; compare like `rowCount` or
   reflection, and the DSL mapper. It isolates mapping and list construction
   from database round trips. The cold variant creates a mapper cache per
   operation; it is not JVM cold start.
+* `JdbcMappingPhaseBenchmark` isolates ResultSet-to-object mapping with
+  connection acquisition, statement execution, and mapper initialization
+  outside the timed method. It compares the DSL mapper with JDBC getters,
+  Spring handwritten constructor mapping, Spring handwritten setter mapping,
+  and `BeanPropertyRowMapper`. The setter-based Spring baseline uses the same
+  no-argument construction, property writes, and SQL NULL handling as the DSL
+  mapper; the constructor baseline is retained as a separate practical lower-
+  overhead reference. All handwritten bean baselines preserve SQL NULL values.
 * `QueryBenchmark` compares direct JDBC, JdbcTemplate with
   `BeanPropertyRowMapper`, JdbcTemplate with a handwritten `RowMapper`,
   MyBatis 3 (`SIMPLE` executor with annotation-based result mapping), raw

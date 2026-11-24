@@ -102,7 +102,7 @@ jobs:
           run_benchmark h2-sample-4t -bm sample -t 4
 
           # Isolate ResultSet-to-object mapping from connection, statement and query execution.
-          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springBeanPropertyRowMapper)'
+          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springHandwrittenSetterRowMapper|springBeanPropertyRowMapper)'
           java -Xms256m -Xmx2g -jar "$JAR" "$MAPPING_SELECTOR" \
             -p rowCount=100,10000 -bm avgt -t 1 \
             -wi "$WARMUPS" -i "$MEASUREMENTS" \
@@ -258,7 +258,7 @@ jobs:
           run_benchmark mysql-sample-4t -bm sample -t 4
 
           # Isolate ResultSet-to-object mapping from connection, statement and query execution.
-          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springBeanPropertyRowMapper)'
+          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springHandwrittenSetterRowMapper|springBeanPropertyRowMapper)'
           java -Xms256m -Xmx2g -jar "$JAR" "$MAPPING_SELECTOR" \
             -p rowCount=100,10000 -bm avgt -t 1 \
             -wi "$WARMUPS" -i "$MEASUREMENTS" \

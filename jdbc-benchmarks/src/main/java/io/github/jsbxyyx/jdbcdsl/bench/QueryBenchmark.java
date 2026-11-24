@@ -201,7 +201,22 @@ public class QueryBenchmark {
     }
 
     static BenchmarkRow readBean(ResultSet rs) throws SQLException {
-        return new BenchmarkRow(rs.getLong(1), rs.getString(2), rs.getInt(3));
+        long idValue = rs.getLong(1);
+        Long id = rs.wasNull() ? null : idValue;
+        String name = rs.getString(2);
+        int amountValue = rs.getInt(3);
+        Integer amount = rs.wasNull() ? null : amountValue;
+        return new BenchmarkRow(id, name, amount);
+    }
+
+    static BenchmarkRow readBeanWithSetters(ResultSet rs) throws SQLException {
+        BenchmarkRow row = new BenchmarkRow();
+        long idValue = rs.getLong(1);
+        row.setId(rs.wasNull() ? null : idValue);
+        row.setName(rs.getString(2));
+        int amountValue = rs.getInt(3);
+        row.setAmount(rs.wasNull() ? null : amountValue);
+        return row;
     }
 
     static BenchmarkRecord readRecord(ResultSet rs) throws SQLException {

@@ -55,6 +55,8 @@ import java.util.function.BiConsumer;
 public class JdbcMappingPhaseBenchmark {
     private static final int FETCH_SIZE = 500;
     private static final RowMapper<BenchmarkRow> HANDWRITTEN_SPRING = (rs, rowNum) -> QueryBenchmark.readBean(rs);
+    private static final RowMapper<BenchmarkRow> HANDWRITTEN_SETTER_SPRING =
+            (rs, rowNum) -> QueryBenchmark.readBeanWithSetters(rs);
     private static final BeanPropertyRowMapper<BenchmarkRow> BEAN_PROPERTY_SPRING =
             new BeanPropertyRowMapper<>(BenchmarkRow.class);
     private static final ValueConverter IDENTITY_CONVERTER = ValueConverters.identity();
@@ -598,6 +600,18 @@ public class JdbcMappingPhaseBenchmark {
         int rows = 0;
         while (state.resultSet.next()) {
             mappedRows[rows] = HANDWRITTEN_SPRING.mapRow(state.resultSet, rows);
+            rows++;
+        }
+        verifyRows(rows, state.expectedRows);
+        return mappedRows;
+    }
+
+    @Benchmark
+    public BenchmarkRow[] springHandwrittenSetterRowMapper(MappingState state) throws SQLException {
+        BenchmarkRow[] mappedRows = new BenchmarkRow[state.expectedRows];
+        int rows = 0;
+        while (state.resultSet.next()) {
+            mappedRows[rows] = HANDWRITTEN_SETTER_SPRING.mapRow(state.resultSet, rows);
             rows++;
         }
         verifyRows(rows, state.expectedRows);
