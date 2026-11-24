@@ -152,6 +152,17 @@ class ResultMappingIntegrationTest {
     }
 
     @Test
+    void strictBeanMappingReportsTheFailingColumnAfterEarlierColumnsWereMapped() {
+        assertThatThrownBy(() -> executor.queryOne(
+                        "SELECT 'Alice' AS name, 'invalid' AS count", Map.of(), NameAndCountDto.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("column 2")
+                .hasMessageContaining("count")
+                .hasMessageContaining("property type=java.lang.Integer")
+                .hasCauseInstanceOf(RuntimeException.class);
+    }
+
+    @Test
     void numericOverflowAndFractionalValuesAbortBeanAndRecordMapping() {
         String overflow = "SELECT CAST(2147483648 AS BIGINT) AS count";
         String fractional = "SELECT CAST(42.5 AS DECIMAL(4, 1)) AS count";
@@ -466,6 +477,19 @@ class ResultMappingIntegrationTest {
         private Short converted;
         private Integer nullable;
         private int primitiveValue;
+    }
+
+    static class NameAndCountDto {
+        private String name;
+        private Integer count;
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public void setCount(Integer count) {
+            this.count = count;
+        }
     }
 
     static class IntegerDto {

@@ -262,34 +262,6 @@ public final class ResultSetHandler implements ResultSetMapper {
                 mappingMode == MappingMode.STRICT && fullyMapped && !hasPrimitiveProperty;
     }
 
-    private static final class ColumnMappingException extends RuntimeException {
-        private final Object value;
-
-        private ColumnMappingException(Object value, RuntimeException cause) {
-            super(cause);
-            this.value = value;
-        }
-    }
-
-    private static void writeStrictValue(BiConsumer<Object, Object> writer, Object target, Object value) {
-        try {
-            writer.accept(target, value);
-        } catch (RuntimeException e) {
-            throw new ColumnMappingException(value, e);
-        }
-    }
-
-    private static void convertAndWriteStrictValue(
-            BiConsumer<Object, Object> writer, ValueConverter converter, Object target, Object value) {
-        try {
-            writeStrictValue(writer, target, converter.convert(value));
-        } catch (ColumnMappingException e) {
-            throw e;
-        } catch (RuntimeException e) {
-            throw new ColumnMappingException(value, e);
-        }
-    }
-
     private static ColumnMapper createStrictMapper(
             int columnIndex,
             PropertyAccessor accessor,
@@ -308,41 +280,40 @@ public final class ResultSetHandler implements ResultSetMapper {
             if (propertyType == byte.class || propertyType == Byte.class) {
                 return (rs, target) -> {
                     byte value = rs.getByte(columnIndex);
-                    writeStrictValue(writer, target, rs.wasNull() ? null : value);
+                    writer.accept(target, rs.wasNull() ? null : value);
                 };
             }
             if (propertyType == short.class || propertyType == Short.class) {
                 return (rs, target) -> {
                     short value = rs.getShort(columnIndex);
-                    writeStrictValue(writer, target, rs.wasNull() ? null : value);
+                    writer.accept(target, rs.wasNull() ? null : value);
                 };
             }
             if (propertyType == int.class || propertyType == Integer.class) {
                 return (rs, target) -> {
                     int value = rs.getInt(columnIndex);
-                    writeStrictValue(writer, target, rs.wasNull() ? null : value);
+                    writer.accept(target, rs.wasNull() ? null : value);
                 };
             }
             return (rs, target) -> {
                 long value = rs.getLong(columnIndex);
-                writeStrictValue(writer, target, rs.wasNull() ? null : value);
+                writer.accept(target, rs.wasNull() ? null : value);
             };
         }
         if (stringReadSafe) {
-            return (rs, target) -> writeStrictValue(writer, target, rs.getString(columnIndex));
+            return (rs, target) -> writer.accept(target, rs.getString(columnIndex));
         }
         if (dateReadSafe) {
-            return (rs, target) -> writeStrictValue(writer, target, rs.getObject(columnIndex, LocalDate.class));
+            return (rs, target) -> writer.accept(target, rs.getObject(columnIndex, LocalDate.class));
         }
         if (decimalReadSafe) {
-            return (rs, target) -> writeStrictValue(writer, target, rs.getBigDecimal(columnIndex));
+            return (rs, target) -> writer.accept(target, rs.getBigDecimal(columnIndex));
         }
         if (propertyType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
-            return (rs, target) -> convertAndWriteStrictValue(
-                    writer, converter, target, rs.getObject(columnIndex, LocalDateTime.class));
+            return (rs, target) ->
+                    writer.accept(target, converter.convert(rs.getObject(columnIndex, LocalDateTime.class)));
         }
-        return (rs, target) ->
-                convertAndWriteStrictValue(writer, converter, target, JdbcUtils.getResultSetValue(rs, columnIndex));
+        return (rs, target) -> writer.accept(target, converter.convert(JdbcUtils.getResultSetValue(rs, columnIndex)));
     }
 
     /**
@@ -366,20 +337,20 @@ public final class ResultSetHandler implements ResultSetMapper {
         Object instance = meta.newInstance();
 
         if (strictFullyMappedReferenceProperties) {
-            for (int i = 0; i < columnCount; i++) {
-                ColumnMapping mapping = columnMappings[i];
-                try {
-                    mapping.strictMapper.map(rs, instance);
-                } catch (ColumnMappingException e) {
-                    Object value = e.value;
-                    throw new IllegalStateException(
-                            "Failed to map ResultSet column " + (i + 1)
-                                    + " to property " + mapping.accessor.getName()
-                                    + " of " + meta.getType().getName()
-                                    + ", value type="
-                                    + (value == null ? "null" : value.getClass().getName()),
-                            e.getCause());
+            int currentColumnIndex = 0;
+            try {
+                for (int i = 0; i < columnCount; i++) {
+                    currentColumnIndex = i;
+                    columnMappings[i].strictMapper.map(rs, instance);
                 }
+            } catch (RuntimeException e) {
+                ColumnMapping mapping = columnMappings[currentColumnIndex];
+                throw new IllegalStateException(
+                        "Failed to map ResultSet column " + (currentColumnIndex + 1)
+                                + " to property " + mapping.accessor.getName()
+                                + " of " + meta.getType().getName()
+                                + ", property type=" + mapping.propertyType.getName(),
+                        e);
             }
             return instance;
         }
