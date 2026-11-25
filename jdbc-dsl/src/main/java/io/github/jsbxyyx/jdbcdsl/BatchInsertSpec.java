@@ -22,13 +22,19 @@ public final class BatchInsertSpec<T> {
     private final List<T> rows;
     private final List<String> columnNames;
     private final List<ColumnSelection> selections;
+    private final String tableNameOverride;
 
-    BatchInsertSpec(Class<T> entityClass, List<T> rows, List<ColumnSelection> selections) {
+    BatchInsertSpec(Class<T> entityClass, List<T> rows, List<ColumnSelection> selections, String tableNameOverride) {
         this.entityClass = entityClass;
         this.rows = List.copyOf(rows);
         this.selections = List.copyOf(selections);
+        this.tableNameOverride = tableNameOverride;
         this.columnNames =
                 this.selections.stream().map(ColumnSelection::columnName).toList();
+    }
+
+    String getTableNameOverride() {
+        return tableNameOverride;
     }
 
     InsertSpec<T> insertSpec(EntityMeta meta) {

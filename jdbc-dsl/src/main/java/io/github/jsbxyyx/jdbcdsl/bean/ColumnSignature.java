@@ -13,6 +13,7 @@ import java.util.Locale;
  * <ul>
  *   <li>Column name (case-insensitive, normalized to lowercase)</li>
  *   <li>JDBC type code (from {@link java.sql.Types})</li>
+ *   <li>Whether the JDBC column is signed</li>
  * </ul>
  *
  * <p>Example usage:
@@ -24,7 +25,14 @@ import java.util.Locale;
  * @param jdbcType the JDBC type code
  * @since 2.1.0
  */
-public record ColumnSignature(String columnName, int jdbcType) {
+public record ColumnSignature(String columnName, int jdbcType, boolean signed) {
+
+    /**
+     * Backward-compatible constructor for callers without JDBC metadata.
+     */
+    public ColumnSignature(String columnName, int jdbcType) {
+        this(columnName, jdbcType, false);
+    }
 
     /**
      * Creates a new ColumnSignature with normalized column name.

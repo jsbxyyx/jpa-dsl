@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
@@ -27,6 +28,18 @@ public final class PostgresDialect implements Dialect {
         params.put(limitParam, limit);
         params.put(offsetParam, offset);
         return sql + " LIMIT :" + limitParam + " OFFSET :" + offsetParam;
+    }
+
+    @Override
+    public String applyPagination(String sql, long offset, int limit, Map<String, Object> params, LockMode lockMode) {
+        if (lockMode == null) {
+            return applyPagination(sql, offset, limit, params);
+        }
+        String lockSql = lockMode.sql();
+        if (!sql.endsWith(lockSql)) {
+            throw new IllegalArgumentException("Expected SQL to end with the specified lock clause: " + lockMode);
+        }
+        return applyPagination(sql.substring(0, sql.length() - lockSql.length()), offset, limit, params) + lockSql;
     }
 
     @Override

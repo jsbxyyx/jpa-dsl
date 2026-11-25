@@ -15,6 +15,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import javax.sql.DataSource;
+
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -25,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.col;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 /**
  * Tests for {@link io.github.jsbxyyx.jdbcdsl.spring.JdbcDslAutoConfiguration}: enabled/disabled switches and Dialect auto-detection.
@@ -389,6 +393,34 @@ class JdbcDslAutoConfigurationTest {
             Dialect detected = (Dialect) dialectField.get(executorUnderTest);
             assertThat(detected).isInstanceOf(H2Dialect.class);
         });
+    }
+
+    @Test
+    void unavailableDatabaseFailsConstructionAndAutoConfiguration() throws SQLException {
+        DataSource dataSource = mock(DataSource.class);
+        SQLException failure = new SQLException("database unavailable");
+        when(dataSource.getConnection()).thenThrow(failure);
+
+        assertThatThrownBy(() -> new JdbcDslExecutor(new NamedParameterJdbcTemplate(dataSource)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasCause(failure);
+        contextRunner
+                .withBean(DataSource.class, () -> dataSource)
+                .run(context -> assertThat(context.getStartupFailure()).hasRootCause(failure));
+    }
+
+    @Test
+    void explicitlyConfiguredDialectDoesNotProbeUnavailableDatabase() throws SQLException {
+        DataSource dataSource = mock(DataSource.class);
+        new JdbcDslExecutor(new NamedParameterJdbcTemplate(dataSource), new MySqlDialect());
+        contextRunner
+                .withBean(DataSource.class, () -> dataSource)
+                .withUserConfiguration(CustomDialectConfig.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(JdbcDslExecutor.class);
+                });
+        verify(dataSource, never()).getConnection();
     }
 
     // ------------------------------------------------------------------ //

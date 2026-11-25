@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
@@ -27,6 +28,14 @@ import java.util.StringJoiner;
  * <p>UPSERT: {@code MERGE INTO t USING (SELECT :u_col col,… FROM DUAL) s ON (…) WHEN MATCHED … WHEN NOT MATCHED …}
  */
 public final class OracleDialect implements Dialect {
+
+    @Override
+    public String applyPagination(String sql, long offset, int limit, Map<String, Object> params, LockMode lockMode) {
+        if (lockMode != null) {
+            throw new UnsupportedOperationException("Oracle pagination cannot be combined with row locks");
+        }
+        return applyPagination(sql, offset, limit, params);
+    }
 
     @Override
     public String applyPagination(String sql, long offset, int limit, Map<String, Object> params) {

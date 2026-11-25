@@ -115,6 +115,43 @@ class NamingStrategyTest {
     }
 
     @Test
+    void cacheSeparatesDistinctNamingStrategyInstances() {
+        NamingStrategy first = new NamingStrategy() {
+            @Override
+            public String propertyToColumn(String propertyName) {
+                return "first_" + propertyName;
+            }
+
+            @Override
+            public String classToTable(String className) {
+                return "first_" + className;
+            }
+        };
+        NamingStrategy second = new NamingStrategy() {
+            @Override
+            public String propertyToColumn(String propertyName) {
+                return "second_" + propertyName;
+            }
+
+            @Override
+            public String classToTable(String className) {
+                return "second_" + className;
+            }
+        };
+
+        JdbcDslConfig.setNamingStrategy(first);
+        EntityMeta firstMeta = EntityMetaReader.read(TProductNoAnnotation.class);
+        JdbcDslConfig.setNamingStrategy(second);
+        EntityMeta secondMeta = EntityMetaReader.read(TProductNoAnnotation.class);
+        JdbcDslConfig.setNamingStrategy(first);
+        EntityMeta firstMetaAgain = EntityMetaReader.read(TProductNoAnnotation.class);
+
+        assertThat(firstMeta.getColumnName("productName")).isEqualTo("first_productName");
+        assertThat(secondMeta.getColumnName("productName")).isEqualTo("second_productName");
+        assertThat(firstMetaAgain.getColumnName("productName")).isEqualTo("first_productName");
+    }
+
+    @Test
     void switchingStrategy_cacheIsCleared() {
         // With default strategy, unannotated fields use property names.
         EntityMeta defaultMeta = EntityMetaReader.read(TProductNoAnnotation.class);

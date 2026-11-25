@@ -1,10 +1,11 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.core.convert.ConversionService;
+import org.springframework.core.convert.support.DefaultConversionService;
 
 import java.sql.Types;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Default implementation of {@link ConverterRegistry} using Spring's ConversionService.
@@ -27,8 +28,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class DefaultConverterRegistry implements ConverterRegistry {
 
     private final ConversionService conversionService;
-    private final Map<ConverterKey, ValueConverter> converterCache;
-    private final Map<Class<?>, ValueConverter> targetConverterCache;
+    static final long CONVERTER_CACHE_MAX_SIZE = 2_048;
+    static final long TARGET_CONVERTER_CACHE_MAX_SIZE = 512;
+    private static final DefaultConverterRegistry DEFAULT_INSTANCE =
+            new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+
+    private final Cache<ConverterKey, ValueConverter> converterCache;
+    private final Cache<Class<?>, ValueConverter> targetConverterCache;
+
+    /**
+     * Returns the shared registry used by framework-created executors.
+     *
+     * @return the framework default registry
+     */
+    public static DefaultConverterRegistry defaultInstance() {
+        return DEFAULT_INSTANCE;
+    }
 
     /**
      * Creates a new DefaultConverterRegistry.
@@ -37,8 +52,11 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
      */
     public DefaultConverterRegistry(ConversionService conversionService) {
         this.conversionService = conversionService;
-        this.converterCache = new ConcurrentHashMap<>();
-        this.targetConverterCache = new ConcurrentHashMap<>();
+        this.converterCache =
+                Caffeine.newBuilder().maximumSize(CONVERTER_CACHE_MAX_SIZE).build();
+        this.targetConverterCache = Caffeine.newBuilder()
+                .maximumSize(TARGET_CONVERTER_CACHE_MAX_SIZE)
+                .build();
     }
 
     @Override
@@ -49,14 +67,14 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
 
     @Override
     public ValueConverter getConverter(Class<?> targetType) {
-        return targetConverterCache.computeIfAbsent(targetType, key -> selectOptimalConverter(null, key));
+        return targetConverterCache.get(targetType, key -> selectOptimalConverter(null, key));
     }
 
     @Override
     public ValueConverter getConverter(Class<?> sourceType, Class<?> targetType) {
         // Use cache to avoid repeated converter creation
         ConverterKey key = new ConverterKey(sourceType, targetType);
-        return converterCache.computeIfAbsent(key, k -> selectOptimalConverter(sourceType, targetType));
+        return converterCache.get(key, k -> selectOptimalConverter(sourceType, targetType));
     }
 
     /**

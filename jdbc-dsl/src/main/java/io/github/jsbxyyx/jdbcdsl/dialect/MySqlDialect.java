@@ -1,7 +1,10 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.InsertSpec;
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
+import io.github.jsbxyyx.jdbcdsl.SqlRenderer;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
 import java.util.ArrayList;
@@ -31,7 +34,28 @@ public final class MySqlDialect implements Dialect {
     }
 
     @Override
+    public String applyPagination(String sql, long offset, int limit, Map<String, Object> params, LockMode lockMode) {
+        if (lockMode == null) {
+            return applyPagination(sql, offset, limit, params);
+        }
+        String lockSql = lockMode.sql();
+        if (!sql.endsWith(lockSql)) {
+            throw new IllegalArgumentException("Expected SQL to end with the specified lock clause: " + lockMode);
+        }
+        return applyPagination(sql.substring(0, sql.length() - lockSql.length()), offset, limit, params) + lockSql;
+    }
+
+    @Override
+    public <T> RenderedSql renderInsert(InsertSpec<T> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
+        return SqlRenderer.renderInsert(spec, meta, colValues);
+    }
+
+    @Override
     public RenderedSql renderUpsert(UpsertSpec<?> spec, EntityMeta meta, LinkedHashMap<String, Object> colValues) {
+        if (spec.isDoNothing()) {
+            throw new UnsupportedOperationException(
+                    "MySQL doNothing() is not supported: INSERT IGNORE can suppress non-duplicate errors");
+        }
         List<String> allCols = new ArrayList<>(colValues.keySet());
 
         StringJoiner colJoiner = new StringJoiner(", ");
@@ -40,13 +64,6 @@ public final class MySqlDialect implements Dialect {
         for (String col : allCols) {
             colJoiner.add(col);
             valJoiner.add(":" + col);
-        }
-
-        // DO NOTHING: MySQL uses INSERT IGNORE to silently skip duplicate rows.
-        if (spec.isDoNothing()) {
-            String sql =
-                    "INSERT IGNORE INTO " + meta.getTableName() + " (" + colJoiner + ") VALUES (" + valJoiner + ")";
-            return new RenderedSql(sql, params);
         }
 
         List<String> updateCols = Dialect.resolveUpdateColumns(spec, allCols, meta);

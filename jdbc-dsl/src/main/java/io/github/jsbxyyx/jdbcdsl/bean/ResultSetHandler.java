@@ -1,17 +1,18 @@
 package io.github.jsbxyyx.jdbcdsl.bean;
 
 import io.github.jsbxyyx.jdbcdsl.JdbcDslConfig;
-import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.support.JdbcUtils;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -46,8 +47,7 @@ import java.util.function.BooleanSupplier;
  */
 public final class ResultSetHandler implements ResultSetMapper {
 
-    private static final ConverterRegistry DEFAULT_CONVERTER_REGISTRY =
-            new DefaultConverterRegistry(DefaultConversionService.getSharedInstance());
+    private static final ConverterRegistry DEFAULT_CONVERTER_REGISTRY = DefaultConverterRegistry.defaultInstance();
 
     private final BeanMappingMeta meta;
     private final ColumnMapping[] columnMappings;
@@ -55,23 +55,50 @@ public final class ResultSetHandler implements ResultSetMapper {
     private final ConverterRegistry converterRegistry;
     private final MappingMode mappingMode;
     private final BooleanSupplier allowNullToPrimitiveDefault;
+    private final boolean strictFullyMappedReferenceProperties;
+
+    @FunctionalInterface
+    private interface ColumnMapper {
+        void map(ResultSet rs, Object target) throws SQLException;
+    }
 
     /**
      * Internal structure that caches optimized converter for each column.
      *
      * <p>The converter is selected based on JDBC type and property type,
-     * avoiding runtime type checks in most cases. Uses PropertyAccessor.write()
-     * to bypass double conversion.
+     * avoiding runtime type checks in most cases. JavaBean setters use their
+     * pre-adapted MethodHandle directly on the strict mapping path.
      */
     private static final class ColumnMapping {
         final PropertyAccessor accessor;
         final ValueConverter converter;
+        final Class<?> propertyType;
         final int jdbcType;
+        final boolean numericReadSafe;
+        final boolean stringReadSafe;
+        final boolean dateReadSafe;
+        final boolean decimalReadSafe;
+        final ColumnMapper strictMapper;
 
-        ColumnMapping(PropertyAccessor accessor, ValueConverter converter, int jdbcType) {
+        ColumnMapping(
+                PropertyAccessor accessor,
+                ValueConverter converter,
+                Class<?> propertyType,
+                int jdbcType,
+                boolean numericReadSafe,
+                boolean stringReadSafe,
+                boolean dateReadSafe,
+                boolean decimalReadSafe,
+                ColumnMapper strictMapper) {
             this.accessor = accessor;
             this.converter = converter;
+            this.propertyType = propertyType;
             this.jdbcType = jdbcType;
+            this.numericReadSafe = numericReadSafe;
+            this.stringReadSafe = stringReadSafe;
+            this.dateReadSafe = dateReadSafe;
+            this.decimalReadSafe = decimalReadSafe;
+            this.strictMapper = strictMapper;
         }
 
         /**
@@ -81,8 +108,13 @@ public final class ResultSetHandler implements ResultSetMapper {
          * accessor.write() to set the value without re-conversion.
          */
         void set(Object target, Object value) {
-            Object converted = converter.convert(value);
-            accessor.write(target, converted);
+            if (numericReadSafe || stringReadSafe || dateReadSafe || decimalReadSafe) {
+                // The typed JDBC getter already returns the exact property type.
+                // Skip the identity-converter dispatch on this hot path.
+                accessor.write(target, value);
+                return;
+            }
+            accessor.write(target, converter.convert(value));
         }
     }
 
@@ -150,6 +182,9 @@ public final class ResultSetHandler implements ResultSetMapper {
         this.columnMappings = new ColumnMapping[columnCount];
 
         Set<String> mappedProperties = new HashSet<>();
+        boolean builtInConverterRegistry = converterRegistry instanceof DefaultConverterRegistry;
+        boolean fullyMapped = true;
+        boolean hasPrimitiveProperty = false;
         // Preprocess: build optimized column mappings
         for (int i = 1; i <= columnCount; i++) {
             String label = rsMetaData.getColumnLabel(i);
@@ -157,6 +192,7 @@ public final class ResultSetHandler implements ResultSetMapper {
                 label = rsMetaData.getColumnName(i);
             }
             if (label == null || label.isBlank()) {
+                fullyMapped = false;
                 continue;
             }
 
@@ -166,6 +202,7 @@ public final class ResultSetHandler implements ResultSetMapper {
             // Get PropertyAccessor
             PropertyAccessor accessor = meta.getPropertyAccessor(propertyName);
             if (accessor == null) {
+                fullyMapped = false;
                 unknownColumns.handle(label, meta.getType());
                 continue;
             }
@@ -179,11 +216,106 @@ public final class ResultSetHandler implements ResultSetMapper {
             // (for example SMALLINT may be returned as Integer), therefore the
             // entity property type is the source of truth for conversion.
             Class<?> propertyType = accessor.getType();
+            hasPrimitiveProperty |= propertyType.isPrimitive();
             int jdbcType = rsMetaData.getColumnType(i);
-            ValueConverter converter = converterRegistry.getConverter(jdbcType, propertyType);
+            // Typed ResultSet getters can change the runtime value supplied to a custom
+            // ConverterRegistry. Keep the original getObject-based contract for custom
+            // registries; only the built-in registry has converters designed for these reads.
+            boolean numericReadSafe = builtInConverterRegistry
+                    && canReadSignedIntegerDirectly(jdbcType, propertyType, rsMetaData.isSigned(i));
+            boolean stringReadSafe =
+                    builtInConverterRegistry && propertyType == String.class && isCharacterType(jdbcType);
+            boolean dateReadSafe =
+                    builtInConverterRegistry && propertyType == LocalDate.class && jdbcType == Types.DATE;
+            boolean decimalReadSafe = builtInConverterRegistry
+                    && propertyType == java.math.BigDecimal.class
+                    && (jdbcType == Types.DECIMAL || jdbcType == Types.NUMERIC);
 
-            columnMappings[i - 1] = new ColumnMapping(accessor, converter, jdbcType);
+            // Safe typed getters already produce the exact target Java type. Avoid running
+            // the numeric converter's repeated runtime type/range checks for every row.
+            ValueConverter converter = numericReadSafe || stringReadSafe
+                    ? ValueConverters.identity()
+                    : converterRegistry.getConverter(jdbcType, propertyType);
+
+            ColumnMapper strictMapper = createStrictMapper(
+                    i,
+                    accessor,
+                    converter,
+                    propertyType,
+                    jdbcType,
+                    numericReadSafe,
+                    stringReadSafe,
+                    dateReadSafe,
+                    decimalReadSafe);
+            columnMappings[i - 1] = new ColumnMapping(
+                    accessor,
+                    converter,
+                    propertyType,
+                    jdbcType,
+                    numericReadSafe,
+                    stringReadSafe,
+                    dateReadSafe,
+                    decimalReadSafe,
+                    strictMapper);
         }
+        this.strictFullyMappedReferenceProperties =
+                mappingMode == MappingMode.STRICT && fullyMapped && !hasPrimitiveProperty;
+    }
+
+    private static ColumnMapper createStrictMapper(
+            int columnIndex,
+            PropertyAccessor accessor,
+            ValueConverter converter,
+            Class<?> propertyType,
+            int jdbcType,
+            boolean numericReadSafe,
+            boolean stringReadSafe,
+            boolean dateReadSafe,
+            boolean decimalReadSafe) {
+        // Reuse the prelinked LambdaMetafactory writer when available; retain the
+        // PropertyAccessor fallback for field accessors and LambdaMetafactory fallback cases.
+        BiConsumer<Object, Object> writer =
+                accessor instanceof MethodHandleAccessor methodHandleAccessor && methodHandleAccessor.usesLambdaSetter()
+                        ? methodHandleAccessor.setterInvoker()
+                        : accessor::write;
+        if (numericReadSafe) {
+            if (propertyType == byte.class || propertyType == Byte.class) {
+                return (rs, target) -> {
+                    byte value = rs.getByte(columnIndex);
+                    writer.accept(target, rs.wasNull() ? null : value);
+                };
+            }
+            if (propertyType == short.class || propertyType == Short.class) {
+                return (rs, target) -> {
+                    short value = rs.getShort(columnIndex);
+                    writer.accept(target, rs.wasNull() ? null : value);
+                };
+            }
+            if (propertyType == int.class || propertyType == Integer.class) {
+                return (rs, target) -> {
+                    int value = rs.getInt(columnIndex);
+                    writer.accept(target, rs.wasNull() ? null : value);
+                };
+            }
+            return (rs, target) -> {
+                long value = rs.getLong(columnIndex);
+                writer.accept(target, rs.wasNull() ? null : value);
+            };
+        }
+        if (stringReadSafe) {
+            return (rs, target) -> writer.accept(target, rs.getString(columnIndex));
+        }
+        if (dateReadSafe) {
+            return (rs, target) -> writer.accept(target, rs.getObject(columnIndex, LocalDate.class));
+        }
+        if (decimalReadSafe) {
+            return (rs, target) -> writer.accept(target, rs.getBigDecimal(columnIndex));
+        }
+        if (propertyType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
+            return (rs, target) ->
+                    writer.accept(target, converter.convert(rs.getObject(columnIndex, LocalDateTime.class)));
+        }
+        return (rs, target) -> writer.accept(target, converter.convert(JdbcUtils.getResultSetValue(rs, columnIndex)));
     }
 
     /**
@@ -206,6 +338,25 @@ public final class ResultSetHandler implements ResultSetMapper {
     public Object mapRow(ResultSet rs) throws SQLException {
         Object instance = meta.newInstance();
 
+        if (strictFullyMappedReferenceProperties) {
+            int currentColumnIndex = 0;
+            try {
+                for (int i = 0; i < columnCount; i++) {
+                    currentColumnIndex = i;
+                    columnMappings[i].strictMapper.map(rs, instance);
+                }
+            } catch (RuntimeException e) {
+                ColumnMapping mapping = columnMappings[currentColumnIndex];
+                throw new IllegalStateException(
+                        "Failed to map ResultSet column " + (currentColumnIndex + 1)
+                                + " to property " + mapping.accessor.getName()
+                                + " of " + meta.getType().getName()
+                                + ", property type=" + mapping.propertyType.getName(),
+                        e);
+            }
+            return instance;
+        }
+
         // Optimized path: direct calls with pre-selected converters
         for (int i = 0; i < columnCount; i++) {
             ColumnMapping mapping = columnMappings[i];
@@ -213,7 +364,16 @@ public final class ResultSetHandler implements ResultSetMapper {
                 continue; // Column not mapped to any property
             }
 
-            Object value = readValue(rs, i + 1, mapping.accessor.getType(), mapping.jdbcType, mappingMode);
+            Object value = readValue(
+                    rs,
+                    i + 1,
+                    mapping.propertyType,
+                    mapping.jdbcType,
+                    mappingMode,
+                    mapping.numericReadSafe,
+                    mapping.stringReadSafe,
+                    mapping.dateReadSafe,
+                    mapping.decimalReadSafe);
 
             // Optimized conversion and property setting:
             // - Type conversion via pre-selected optimal converter
@@ -222,14 +382,14 @@ public final class ResultSetHandler implements ResultSetMapper {
                 if (value == null && mappingMode == MappingMode.MYBATIS) {
                     continue;
                 }
-                if (value == null && mapping.accessor.getType().isPrimitive()) {
+                if (value == null && mapping.propertyType.isPrimitive()) {
                     if (!allowNullToPrimitiveDefault.getAsBoolean()) {
                         throw new IllegalStateException("SQL NULL cannot be mapped to primitive property "
                                 + mapping.accessor.getName() + " of "
                                 + meta.getType().getName()
                                 + "; enable jdbcdsl.allow-null-to-primitive-default to use the Java default value");
                     }
-                    mapping.accessor.write(instance, PrimitiveDefaults.valueOf(mapping.accessor.getType()));
+                    mapping.accessor.write(instance, PrimitiveDefaults.valueOf(mapping.propertyType));
                     continue;
                 }
                 mapping.set(instance, value);
@@ -253,6 +413,26 @@ public final class ResultSetHandler implements ResultSetMapper {
 
     static Object readValue(ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType, MappingMode mode)
             throws SQLException {
+        return readValue(rs, columnIndex, targetType, jdbcType, mode, false, false, false, false);
+    }
+
+    static Object readValue(
+            ResultSet rs, int columnIndex, Class<?> targetType, int jdbcType, MappingMode mode, boolean numericReadSafe)
+            throws SQLException {
+        return readValue(rs, columnIndex, targetType, jdbcType, mode, numericReadSafe, false, false, false);
+    }
+
+    static Object readValue(
+            ResultSet rs,
+            int columnIndex,
+            Class<?> targetType,
+            int jdbcType,
+            MappingMode mode,
+            boolean numericReadSafe,
+            boolean stringReadSafe,
+            boolean dateReadSafe,
+            boolean decimalReadSafe)
+            throws SQLException {
         if (mode == MappingMode.MYBATIS) {
             Object value = null;
             if (targetType == byte.class || targetType == Byte.class) {
@@ -268,10 +448,75 @@ public final class ResultSetHandler implements ResultSetMapper {
                 return rs.wasNull() ? null : value;
             }
         }
+        if (stringReadSafe) {
+            return rs.getString(columnIndex);
+        }
+        if (numericReadSafe) {
+            return readSignedInteger(rs, columnIndex, targetType);
+        }
+        if (dateReadSafe) {
+            return rs.getObject(columnIndex, LocalDate.class);
+        }
+        if (decimalReadSafe) {
+            return rs.getBigDecimal(columnIndex);
+        }
         if (targetType == LocalDateTime.class && jdbcType == Types.TIMESTAMP) {
             return rs.getObject(columnIndex, LocalDateTime.class);
         }
         return JdbcUtils.getResultSetValue(rs, columnIndex);
+    }
+
+    private static Object readSignedInteger(ResultSet rs, int columnIndex, Class<?> targetType) throws SQLException {
+        if (targetType == byte.class || targetType == Byte.class) {
+            byte value = rs.getByte(columnIndex);
+            return rs.wasNull() ? null : value;
+        }
+        if (targetType == short.class || targetType == Short.class) {
+            short value = rs.getShort(columnIndex);
+            return rs.wasNull() ? null : value;
+        }
+        if (targetType == int.class || targetType == Integer.class) {
+            int value = rs.getInt(columnIndex);
+            return rs.wasNull() ? null : value;
+        }
+        long value = rs.getLong(columnIndex);
+        return rs.wasNull() ? null : value;
+    }
+
+    private static boolean isCharacterType(int jdbcType) {
+        return jdbcType == Types.CHAR
+                || jdbcType == Types.VARCHAR
+                || jdbcType == Types.LONGVARCHAR
+                || jdbcType == Types.NCHAR
+                || jdbcType == Types.NVARCHAR
+                || jdbcType == Types.LONGNVARCHAR;
+    }
+
+    private static boolean canReadSignedIntegerDirectly(int jdbcType, Class<?> targetType, boolean signed) {
+        if (!signed) {
+            return false;
+        }
+        int sourceBits =
+                switch (jdbcType) {
+                    case Types.TINYINT -> 8;
+                    case Types.SMALLINT -> 16;
+                    case Types.INTEGER -> 32;
+                    case Types.BIGINT -> 64;
+                    default -> 0;
+                };
+        int targetBits;
+        if (targetType == Byte.class || targetType == byte.class) {
+            targetBits = 8;
+        } else if (targetType == Short.class || targetType == short.class) {
+            targetBits = 16;
+        } else if (targetType == Integer.class || targetType == int.class) {
+            targetBits = 32;
+        } else if (targetType == Long.class || targetType == long.class) {
+            targetBits = 64;
+        } else {
+            targetBits = 0;
+        }
+        return sourceBits > 0 && targetBits >= sourceBits;
     }
 
     @Override

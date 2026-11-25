@@ -26,7 +26,6 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import javax.sql.DataSource;
@@ -44,11 +43,16 @@ import javax.sql.DataSource;
  *   <li>PostgreSQL → {@link io.github.jsbxyyx.jdbcdsl.dialect.PostgresDialect}</li>
  *   <li>Microsoft SQL Server → {@link io.github.jsbxyyx.jdbcdsl.dialect.SqlServerDialect}</li>
  *   <li>H2 → {@link io.github.jsbxyyx.jdbcdsl.dialect.H2Dialect}</li>
- *   <li>unrecognised → {@link io.github.jsbxyyx.jdbcdsl.dialect.Sql2008Dialect} (with a {@code WARN} log)</li>
  * </ul>
+ * Detection failure stops context startup; provide a {@link Dialect} bean when detection is unavailable.
  *
  * <p>A user-provided {@link Dialect} bean always takes priority over auto-detection.
  * Similarly, a user-provided {@link JdbcDslExecutor} bean suppresses this auto-config executor.
+ *
+ * <p>In applications with multiple data sources, ensure the selected
+ * {@link NamedParameterJdbcTemplate}, {@link Dialect}, and transaction manager all correspond
+ * to the intended data source. This auto-configuration does not select or reconcile transaction
+ * managers, and a primary template is not guaranteed to use the primary {@link DataSource}.
  */
 @AutoConfiguration(after = {DataSourceAutoConfiguration.class, JdbcTemplateAutoConfiguration.class})
 @ConditionalOnClass({NamedParameterJdbcTemplate.class, JdbcDslExecutor.class})
@@ -135,8 +139,8 @@ public class JdbcDslAutoConfiguration {
             ObjectProvider<ConverterRegistry> converterRegistryProvider,
             ObjectProvider<NamingStrategy> namingStrategyProvider) {
         PropertyRefResolver.setCacheManager(cacheManager);
-        ConverterRegistry converters = converterRegistryProvider.getIfAvailable(
-                () -> new DefaultConverterRegistry(DefaultConversionService.getSharedInstance()));
+        ConverterRegistry converters =
+                converterRegistryProvider.getIfAvailable(DefaultConverterRegistry::defaultInstance);
         return new JdbcDslExecutor(
                 jdbc,
                 dialect,

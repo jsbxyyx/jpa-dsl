@@ -47,9 +47,20 @@ ValueConverter + DirectSetter
 - ✅ Reduced runtime type checks for common type combinations
 - ✅ Direct MethodHandle invocation
 
-These are design characteristics, not measured performance claims. No reproducible
-benchmark and environment are currently provided; performance relative to other
-implementations remains unverified.
+These are design characteristics, not measured performance claims. The optional
+[`jdbc-benchmarks`](../jdbc-benchmarks/README.md) module provides reproducible
+workloads, but performance relative to other implementations depends on the
+environment and must be measured for the intended workload.
+
+Record result mapping precompiles the canonical constructor for already-validated
+component values. Very wide constructors fall back to reflection because method
+handle adapters need additional JVM argument slots. The public map-based
+construction path retains reflection's primitive-widening behavior.
+
+For larger batch inserts, built-in bean and record property accessors are resolved
+once per runtime type and reused across chunks. Small batches retain direct lookup;
+custom mapping metadata retains its own `getProperty` behavior. Plans are scoped
+to one batch execution and refreshed when the underlying metadata cache changes.
 
 ### Architecture Evolution Plan
 

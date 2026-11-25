@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 
 import static io.github.jsbxyyx.jdbcdsl.SqlFunctions.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the five new DSL features (no database required):
@@ -179,12 +180,12 @@ class NewFeaturesRendererTest {
     }
 
     @Test
-    void doNothing_mysql_rendersInsertIgnore() {
+    void doNothing_mysql_rejectsUnsafeInsertIgnore() {
         UpsertSpec<TUser> spec = UpsertBuilder.into(TUser.class).doNothing().build();
 
-        RenderedSql rendered = new MySqlDialect().renderUpsert(spec, userMeta, colValues());
-        assertThat(rendered.getSql()).startsWith("INSERT IGNORE INTO t_user");
-        assertThat(rendered.getSql()).doesNotContain("ON DUPLICATE KEY UPDATE");
+        assertThatThrownBy(() -> new MySqlDialect().renderUpsert(spec, userMeta, colValues()))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("INSERT IGNORE");
     }
 
     @Test
@@ -303,8 +304,7 @@ class NewFeaturesRendererTest {
     }
 
     @Test
-    void forUpdate_notEmittedInsideSubquery() {
-        // FOR UPDATE must not appear in the inner SELECT when used as a subquery
+    void forUpdate_insideSubqueryIsRejected() {
         SelectSpec<TUser, UserDto> inner = SelectBuilder.from(TUser.class)
                 .select(TUser::getId, TUser::getUsername)
                 .forUpdate(LockMode.UPDATE_NOWAIT)
@@ -314,10 +314,9 @@ class NewFeaturesRendererTest {
                 .select(TUser::getId, TUser::getUsername)
                 .mapTo(UserDto.class);
 
-        String sql = SqlRenderer.renderSelect(outer).getSql();
-        // The outer query wraps inner as a derived table; locking only on the inner which
-        // is rendered without includeOrderBy (and thus without the lock clause)
-        assertThat(sql).doesNotContain("FOR UPDATE NOWAIT");
+        assertThatThrownBy(() -> SqlRenderer.renderSelect(outer))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Row locks");
     }
 
     // ===================================================================== //

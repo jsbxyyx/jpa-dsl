@@ -3,6 +3,10 @@ package io.github.jsbxyyx.jdbcdsl.bean;
 /**
  * Registry for managing type converters between JDBC types and Java types.
  *
+ * <p>Registry implementations may be shared by concurrent queries and must be
+ * thread-safe. Returned {@link ValueConverter} instances are cached by mapping
+ * metadata and may also be invoked concurrently; they must be thread-safe.
+ *
  * <p>This interface provides a pluggable mechanism for selecting the optimal
  * converter based on source and target types. Implementations can use different
  * strategies such as:

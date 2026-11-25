@@ -19,7 +19,7 @@ final class RecordResultSetMapper implements ResultSetMapper {
     private final BooleanSupplier allowNullToPrimitiveDefault;
 
     private record ComponentMapping(
-            int columnIndex, String name, Class<?> type, int jdbcType, ValueConverter converter) {}
+            int columnIndex, String name, Class<?> type, Class<?> boxedType, int jdbcType, ValueConverter converter) {}
 
     RecordResultSetMapper(
             ResultSet rs,
@@ -57,7 +57,12 @@ final class RecordResultSetMapper implements ResultSetMapper {
             }
             int jdbcType = metadata.getColumnType(column);
             mappings[index] = new ComponentMapping(
-                    column, names[index], types[index], jdbcType, registry.getConverter(jdbcType, types[index]));
+                    column,
+                    names[index],
+                    types[index],
+                    ClassUtils.resolvePrimitiveIfNecessary(types[index]),
+                    jdbcType,
+                    registry.getConverter(jdbcType, types[index]));
         }
         for (int i = 0; i < names.length; i++) {
             if (mappings[i] == null) {
@@ -86,7 +91,7 @@ final class RecordResultSetMapper implements ResultSetMapper {
             }
             try {
                 args[i] = mapping.converter().convert(value);
-                if (!ClassUtils.isAssignableValue(mapping.type(), args[i])) {
+                if (args[i] != null && !mapping.boxedType().isInstance(args[i])) {
                     throw new IllegalArgumentException("Converted value is incompatible with "
                             + mapping.type().getName());
                 }
@@ -100,7 +105,7 @@ final class RecordResultSetMapper implements ResultSetMapper {
                         e);
             }
         }
-        return meta.newInstance(args);
+        return meta.newMappedInstance(args);
     }
 
     @Override

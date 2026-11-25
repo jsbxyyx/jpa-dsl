@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dev/jdbc-dsl-performance
+          ref: main
 
       - uses: actions/setup-java@v4
         with:

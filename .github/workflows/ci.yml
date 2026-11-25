@@ -1,0 +1,121 @@
+name: JDBC DSL CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Run unit and H2 tests
+        run: ./mvnw -B -Pbenchmarks test
+      - name: Verify formatting did not change tracked files
+        run: git diff --exit-code
+
+  mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: benchmark
+          MYSQL_DATABASE: benchmark
+          MYSQL_USER: benchmark
+          MYSQL_PASSWORD: benchmark
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ubenchmark -pbenchmark --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    env:
+      JDBC_BENCH_URL: jdbc:mysql://127.0.0.1:3306/benchmark?useSSL=false&allowPublicKeyRetrieval=true
+      JDBC_BENCH_USER: benchmark
+      JDBC_BENCH_PASSWORD: benchmark
+      JDBC_BENCH_ALLOW_EXTERNAL: 'true'
+      MYSQL_IT_URL: jdbc:mysql://127.0.0.1:3306/benchmark?useSSL=false&allowPublicKeyRetrieval=true
+      MYSQL_IT_USERNAME: benchmark
+      MYSQL_IT_PASSWORD: benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Run MySQL correctness and locking tests
+        run: >-
+          ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am
+          -Dtest=ExternalDatabaseCorrectnessIT,ExternalBatchConcurrencyIT,ExternalLockingIT
+          -Dsurefire.failIfNoSpecifiedTests=false test
+      - name: Verify external tests actually ran
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          for name in ("ExternalDatabaseCorrectnessIT", "ExternalBatchConcurrencyIT", "ExternalLockingIT"):
+              path = Path("jdbc-benchmarks/target/surefire-reports") / f"TEST-io.github.jsbxyyx.jdbcdsl.bench.{name}.xml"
+              suite = ET.parse(path).getroot()
+              assert int(suite.get("tests", 0)) > 0 and int(suite.get("skipped", 0)) == 0, name
+              assert int(suite.get("failures", 0)) == 0 and int(suite.get("errors", 0)) == 0, name
+          PY
+      - name: Run MySQL business integration tests
+        run: >-
+          ./mvnw -B -pl jdbc-integration-tests -am -Pmysql-it
+          -Dgpg.skip=true -Dtest=InsertIgnoreTest
+          -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=OrderBusinessIT
+          -Dfailsafe.failIfNoSpecifiedTests=true verify
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: benchmark
+          POSTGRES_PASSWORD: benchmark
+          POSTGRES_DB: benchmark
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U benchmark -d benchmark"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    env:
+      JDBC_BENCH_URL: jdbc:postgresql://127.0.0.1:5432/benchmark
+      JDBC_BENCH_USER: benchmark
+      JDBC_BENCH_PASSWORD: benchmark
+      JDBC_BENCH_ALLOW_EXTERNAL: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Run PostgreSQL correctness and locking tests
+        run: >-
+          ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am
+          -Dtest=ExternalDatabaseCorrectnessIT,ExternalBatchConcurrencyIT,ExternalLockingIT,PostgresSliceIT,PostgresBatchIT,PostgresCursorIT,PostgresNumericMappingIT
+          -Dsurefire.failIfNoSpecifiedTests=false test
+      - name: Verify external tests actually ran
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          for name in ("ExternalDatabaseCorrectnessIT", "ExternalBatchConcurrencyIT", "ExternalLockingIT",
+                       "PostgresSliceIT", "PostgresBatchIT", "PostgresCursorIT", "PostgresNumericMappingIT"):
+              path = Path("jdbc-benchmarks/target/surefire-reports") / f"TEST-io.github.jsbxyyx.jdbcdsl.bench.{name}.xml"
+              suite = ET.parse(path).getroot()
+              assert int(suite.get("tests", 0)) > 0 and int(suite.get("skipped", 0)) == 0, name
+              assert int(suite.get("failures", 0)) == 0 and int(suite.get("errors", 0)) == 0, name
+          PY

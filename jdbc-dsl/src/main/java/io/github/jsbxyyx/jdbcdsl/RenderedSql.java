@@ -16,9 +16,25 @@ public final class RenderedSql {
     private final Map<String, Object> params;
 
     public RenderedSql(String sql, Map<String, Object> params) {
+        this(sql, params, false);
+    }
+
+    private RenderedSql(String sql, Map<String, Object> params, boolean takeOwnership) {
         this.sql = sql;
-        // Use LinkedHashMap copy to preserve insertion order and allow null values
-        this.params = Collections.unmodifiableMap(new LinkedHashMap<>(params));
+        // Preserve the public defensive-copy contract; internal renderers may transfer ownership.
+        this.params = takeOwnership
+                ? Collections.unmodifiableMap(params)
+                : Collections.unmodifiableMap(new LinkedHashMap<>(params));
+    }
+
+    /**
+     * Creates a result by taking ownership of a renderer-local parameter map.
+     *
+     * <p>The caller must not retain or mutate the map after this call. Public construction
+     * remains defensive and continues to copy caller-owned maps.
+     */
+    static RenderedSql takeOwnership(String sql, Map<String, Object> params) {
+        return new RenderedSql(sql, params, true);
     }
 
     public String getSql() {

@@ -36,7 +36,7 @@ public final class UpsertSpec<T> {
      * <p>SQL syntax per dialect:
      * <ul>
      *   <li>PostgreSQL: {@code ON CONFLICT [(target)] DO NOTHING}</li>
-     *   <li>MySQL: {@code INSERT IGNORE INTO …}</li>
+     *   <li>MySQL: unsupported because {@code INSERT IGNORE} also suppresses non-duplicate errors</li>
      *   <li>H2 / Oracle / SQL Server: MERGE with only a WHEN NOT MATCHED INSERT branch</li>
      * </ul>
      */

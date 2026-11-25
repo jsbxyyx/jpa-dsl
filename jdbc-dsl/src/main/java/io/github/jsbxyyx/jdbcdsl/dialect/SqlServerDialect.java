@@ -1,6 +1,7 @@
 package io.github.jsbxyyx.jdbcdsl.dialect;
 
 import io.github.jsbxyyx.jdbcdsl.EntityMeta;
+import io.github.jsbxyyx.jdbcdsl.LockMode;
 import io.github.jsbxyyx.jdbcdsl.RenderedSql;
 import io.github.jsbxyyx.jdbcdsl.UpsertSpec;
 
@@ -19,6 +20,14 @@ import java.util.StringJoiner;
  * The MERGE statement is terminated with a semicolon as required by SQL Server.
  */
 public final class SqlServerDialect implements Dialect {
+
+    @Override
+    public void validateLockMode(LockMode lockMode) {
+        if (lockMode != null) {
+            throw new UnsupportedOperationException(
+                    "SQL Server row locks require table hints, which are not supported");
+        }
+    }
 
     @Override
     public String applyPagination(String sql, long offset, int limit, Map<String, Object> params) {

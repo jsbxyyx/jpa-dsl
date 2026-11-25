@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -60,6 +61,15 @@ class JdbcDslRepositoryTest {
     }
 
     @Test
+    void saveBoundInsertSpecDelegatesToExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        var spec = InsertBuilder.of(new TUser()).ignore().build();
+        repository.save(spec);
+        verify(executor).save(spec);
+    }
+
+    @Test
     void saveAllAcceptsSetAndDelegatesToBatchInsert() {
         JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
         TestUserRepository repository = new TestUserRepository(executor);
@@ -75,6 +85,20 @@ class JdbcDslRepositoryTest {
         assertThat(captor.getValue().getEntityClass()).isEqualTo(TUser.class);
         assertThat(captor.getValue().getRows()).containsExactly(first, second);
         assertThat(captor.getValue().getColumnNames()).isEmpty();
+    }
+
+    @Test
+    void chunkedSaveAllDelegatesAndRejectsInvalidSize() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        TUser first = new TUser();
+        TUser second = new TUser();
+        repository.saveAll(List.of(first, second), 1);
+        org.mockito.ArgumentCaptor<BatchInsertSpec<TUser>> captor =
+                org.mockito.ArgumentCaptor.forClass(BatchInsertSpec.class);
+        verify(executor).executeBatchInsert(captor.capture(), org.mockito.ArgumentMatchers.eq(1));
+        assertThat(captor.getValue().getRows()).containsExactly(first, second);
+        assertThatThrownBy(() -> repository.saveAll(List.of(first), 0)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -110,6 +134,29 @@ class JdbcDslRepositoryTest {
         repository.list(spec, pageable);
 
         verify(executor).select(spec, pageable);
+    }
+
+    @Test
+    void forEachDelegatesToSharedExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
+        java.util.function.Consumer<TUser> consumer = user -> {};
+        repository.forEach(spec, consumer);
+        verify(executor).selectEach(spec, consumer);
+        JPageable<TUser> page = JPageable.of(1, 10);
+        repository.forEach(spec, page, consumer);
+        verify(executor).selectEach(spec, page, consumer);
+    }
+
+    @Test
+    void sliceDelegatesToSharedExecutor() {
+        JdbcDslExecutor executor = mock(JdbcDslExecutor.class);
+        TestUserRepository repository = new TestUserRepository(executor);
+        SelectSpec<TUser, TUser> spec = SelectBuilder.from(TUser.class).mapToEntity();
+        JPageable<TUser> pageable = JPageable.of(1, 10);
+        repository.slice(spec, pageable);
+        verify(executor).selectSlice(spec, pageable);
     }
 
     private static final class TestUserRepository extends JdbcDslRepository<TUser, Long> {

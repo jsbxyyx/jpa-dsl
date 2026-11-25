@@ -152,6 +152,17 @@ class ResultMappingIntegrationTest {
     }
 
     @Test
+    void strictBeanMappingReportsTheFailingColumnAfterEarlierColumnsWereMapped() {
+        assertThatThrownBy(() -> executor.queryOne(
+                        "SELECT 'Alice' AS name, 'invalid' AS count", Map.of(), NameAndCountDto.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("column 2")
+                .hasMessageContaining("count")
+                .hasMessageContaining("property type=java.lang.Integer")
+                .hasCauseInstanceOf(RuntimeException.class);
+    }
+
+    @Test
     void numericOverflowAndFractionalValuesAbortBeanAndRecordMapping() {
         String overflow = "SELECT CAST(2147483648 AS BIGINT) AS count";
         String fractional = "SELECT CAST(42.5 AS DECIMAL(4, 1)) AS count";
@@ -171,6 +182,27 @@ class ResultMappingIntegrationTest {
                 .isEqualTo(42);
         assertThat(executor.queryOne("SELECT CAST(2147483647 AS BIGINT) AS count", Map.of(), PrimitiveRecord.class))
                 .isEqualTo(new PrimitiveRecord(Integer.MAX_VALUE));
+    }
+
+    @Test
+    void floatingPointValuesUseExactIntegerMappingForScalarsBeansAndRecords() {
+        for (String jdbcType : List.of("REAL", "DOUBLE PRECISION")) {
+            String exact = "SELECT CAST(42.0 AS " + jdbcType + ") AS count";
+            assertThat(executor.queryOne(exact, Map.of(), Integer.class)).isEqualTo(42);
+            assertThat(executor.queryOne(exact, Map.of(), IntegerDto.class).count)
+                    .isEqualTo(42);
+            assertThat(executor.queryOne(exact, Map.of(), PrimitiveRecord.class))
+                    .isEqualTo(new PrimitiveRecord(42));
+
+            for (String input : List.of("42.5", "2147483648")) {
+                String invalid = "SELECT CAST(" + input + " AS " + jdbcType + ") AS count";
+                for (Class<?> type : List.of(Integer.class, IntegerDto.class, PrimitiveRecord.class)) {
+                    assertThatThrownBy(() -> executor.queryOne(invalid, Map.of(), type))
+                            .isInstanceOf(IllegalStateException.class)
+                            .hasCauseInstanceOf(ArithmeticException.class);
+                }
+            }
+        }
     }
 
     @Test
@@ -392,6 +424,12 @@ class ResultMappingIntegrationTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(ValidatedRecord.class.getName())
                 .hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> executor.queryOne("SELECT 'bad' AS name", Map.of(), ErrorRecord.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(ErrorRecord.class.getName())
+                .hasCauseInstanceOf(AssertionError.class);
+        assertThat(executor.queryOne("SELECT 1 AS ignored", Map.of(), EmptyRecord.class))
+                .isEqualTo(new EmptyRecord());
     }
 
     @Test
@@ -441,6 +479,19 @@ class ResultMappingIntegrationTest {
         private int primitiveValue;
     }
 
+    static class NameAndCountDto {
+        private String name;
+        private Integer count;
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public void setCount(Integer count) {
+            this.count = count;
+        }
+    }
+
     static class IntegerDto {
         private Integer count;
     }
@@ -472,6 +523,14 @@ class ResultMappingIntegrationTest {
     private record OtherPersonRecord(String firstName, String lastName) {}
 
     private record TimestampRecord(LocalDateTime createdAt) {}
+
+    private record EmptyRecord() {}
+
+    private record ErrorRecord(String name) {
+        private ErrorRecord {
+            throw new AssertionError("constructor failed");
+        }
+    }
 
     private record ValidatedRecord(String name) {
         private ValidatedRecord {

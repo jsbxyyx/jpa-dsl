@@ -145,13 +145,15 @@ public final class MapperCache {
                 label = rsMetaData.getColumnName(i);
             }
             if (label == null || label.isBlank()) {
-                columns.add(new ColumnSignature("", Types.NULL));
+                columns.add(new ColumnSignature("", Types.NULL, false));
                 continue;
             }
 
             String columnName = label.toLowerCase(Locale.ROOT);
             int jdbcType = rsMetaData.getColumnType(i);
-            columns.add(new ColumnSignature(columnName, jdbcType));
+            PropertyAccessor accessor = meta.getPropertyAccessor(columnName);
+            boolean signed = accessor != null && rsMetaData.isSigned(i);
+            columns.add(new ColumnSignature(columnName, jdbcType, signed));
         }
 
         return new MapperKey(meta.getType(), columns, new MappingContext(this, meta));

@@ -28,6 +28,7 @@ public final class BatchInsertBuilder<T> {
     private final Class<T> entityClass;
     private final List<T> rows;
     private final List<ColumnSelection> columns = new ArrayList<>();
+    private String tableNameOverride;
 
     private BatchInsertBuilder(Class<T> entityClass, List<T> rows) {
         this.entityClass = entityClass;
@@ -69,11 +70,29 @@ public final class BatchInsertBuilder<T> {
     }
 
     /**
+     * Overrides the entity-mapped table name for this batch insert.
+     *
+     * <p>This is useful when the same entity mapping is executed against an isolated or temporary table.
+     * The value must be a simple SQL identifier; schema-qualified names are not accepted.
+     *
+     * @param tableName target table name
+     * @return {@code this} (fluent chaining)
+     * @throws IllegalArgumentException if the value is not a simple SQL identifier
+     */
+    public BatchInsertBuilder<T> into(String tableName) {
+        if (tableName == null || !tableName.matches("[A-Za-z][A-Za-z0-9_]{0,63}")) {
+            throw new IllegalArgumentException("tableName must be a simple SQL identifier");
+        }
+        this.tableNameOverride = tableName;
+        return this;
+    }
+
+    /**
      * 构建 {@link BatchInsertSpec}。
      *
      * @return 不可变的批量插入规格描述符
      */
     public BatchInsertSpec<T> build() {
-        return new BatchInsertSpec<>(entityClass, rows, columns);
+        return new BatchInsertSpec<>(entityClass, rows, columns, tableNameOverride);
     }
 }
