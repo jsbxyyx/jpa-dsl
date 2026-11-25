@@ -1,0 +1,150 @@
+name: JDBC DSL PostgreSQL Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Benchmark duration
+        required: true
+        type: choice
+        default: smoke
+        options:
+          - smoke
+          - formal
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jdbc-dsl-postgresql-benchmark
+  cancel-in-progress: false
+
+jobs:
+  postgres-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: benchmark
+          POSTGRES_PASSWORD: benchmark
+          POSTGRES_DB: benchmark
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U benchmark -d benchmark"
+          --health-interval=10s --health-timeout=5s --health-retries=20
+    env:
+      JDBC_BENCH_URL: jdbc:postgresql://127.0.0.1:5432/benchmark
+      JDBC_BENCH_USER: benchmark
+      JDBC_BENCH_PASSWORD: benchmark
+      JDBC_BENCH_ALLOW_EXTERNAL: 'true'
+      BENCH_DATABASE_LABEL: github-actions-postgresql-16-colocated
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev/jdbc-dsl-performance
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Record PostgreSQL benchmark environment
+        run: |
+          mkdir -p benchmark-results
+          {
+            echo "UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "Commit: $(git rev-parse HEAD)"
+            echo "Runner: ${RUNNER_OS} / ${RUNNER_ARCH}"
+            echo "CPU count: $(nproc)"
+            free -h
+            uname -a
+            java -version 2>&1
+            ./mvnw -version
+            docker exec "$(docker ps --filter ancestor=postgres:16 --format '{{.ID}}' | head -n1)" postgres --version
+            echo "Profile: ${{ inputs.profile || 'formal' }}"
+            echo "Database placement: PostgreSQL service shares the GitHub Actions runner VM with JMH"
+          } > benchmark-results/environment.txt
+
+      - name: Run PostgreSQL correctness gates
+        run: >-
+          ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am
+          -Dtest=ExternalDatabaseCorrectnessIT,ExternalBatchConcurrencyIT,ExternalLockingIT,PostgresSliceIT,PostgresBatchIT,PostgresCursorIT,PostgresNumericMappingIT
+          -Dsurefire.failIfNoSpecifiedTests=false test
+
+      - name: Verify PostgreSQL correctness tests actually ran
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          names = ("ExternalDatabaseCorrectnessIT", "ExternalBatchConcurrencyIT", "ExternalLockingIT",
+                   "PostgresSliceIT", "PostgresBatchIT", "PostgresCursorIT", "PostgresNumericMappingIT")
+          for name in names:
+              path = Path("jdbc-benchmarks/target/surefire-reports") / f"TEST-io.github.jsbxyyx.jdbcdsl.bench.{name}.xml"
+              suite = ET.parse(path).getroot()
+              assert int(suite.get("tests", 0)) > 0 and int(suite.get("skipped", 0)) == 0, name
+              assert int(suite.get("failures", 0)) == 0 and int(suite.get("errors", 0)) == 0, name
+          PY
+
+      - name: Build JMH benchmarks
+        run: ./mvnw -B -Pbenchmarks -pl jdbc-benchmarks -am -DskipTests package
+
+      - name: Run PostgreSQL JMH benchmark matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=jdbc-benchmarks/target/benchmarks.jar
+          test -f "$JAR"
+          SELECTOR='.*FrameworkExecutionBenchmark\.(jdbcHandwritten|springJdbcHandwritten|springJdbcBeanProperty|springNamedJdbcHandwritten|jpaDslMapped|myBatisDefaultMapping|myBatisResultMap|jooqDsl|jooqDslPrebuilt|jpaDslBuildAndSelect|jpaDsl|jpaDslRawSql)'
+          if [[ "${{ inputs.profile || 'formal' }}" == "formal" ]]; then
+            FORKS=3; WARMUPS=3; MEASUREMENTS=3; ITER_SECONDS=2
+          else
+            FORKS=1; WARMUPS=1; MEASUREMENTS=2; ITER_SECONDS=1
+          fi
+          echo "JMH forks=$FORKS warmups=$WARMUPS measurements=$MEASUREMENTS seconds=$ITER_SECONDS" >> benchmark-results/environment.txt
+
+          run_benchmark() {
+            local label="$1"; shift
+            local rows="100,10000"
+            if [[ "${1:-}" == "10000" ]]; then rows="$1"; shift; fi
+            echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Running $label (rowCount=$rows)"
+            local started=$SECONDS
+            java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" -p rowCount="$rows" "$@" \
+              -wi "$WARMUPS" -i "$MEASUREMENTS" -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+              -foe true -rf json -rff "benchmark-results/$label.json" > "benchmark-results/$label.log" 2>&1
+            echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Finished $label in $((SECONDS - started))s"
+          }
+
+          run_benchmark postgresql-avgt -bm avgt
+          run_benchmark postgresql-throughput-1t 10000 -bm thrpt -t 1
+          run_benchmark postgresql-throughput-4t 10000 -bm thrpt -t 4
+          run_benchmark postgresql-sample-4t 10000 -bm sample -t 4
+
+          MAPPING_SELECTOR='.*JdbcMappingPhaseBenchmark\.(jdbcGetterMapping|jpaDslMapping|jdbcUtilsMapping|jdbcGetObjectMapping|springHandwrittenRowMapper|springHandwrittenSetterRowMapper|springBeanPropertyRowMapper)'
+          java -Xms256m -Xmx2g -jar "$JAR" "$MAPPING_SELECTOR" -p rowCount=10000 -bm avgt -t 1 \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -foe true -rf json -rff benchmark-results/postgresql-mapping-phase.json > benchmark-results/postgresql-mapping-phase.log 2>&1
+
+          RENDERING_SELECTOR='.*SqlRenderingBenchmark\.(buildSpecOnly|renderPrebuiltSpec|buildAndRender|buildJooqQueryOnly|renderJooqPrebuiltQuery|buildAndRenderJooq)'
+          java -Xms256m -Xmx2g -jar "$JAR" "$RENDERING_SELECTOR" -bm avgt \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -foe true -rf json -rff benchmark-results/postgresql-sql-rendering.json > benchmark-results/postgresql-sql-rendering.log 2>&1
+
+          java -Xms256m -Xmx2g -jar "$JAR" "$SELECTOR" -p rowCount=10000 -bm avgt -t 1 \
+            -wi "$WARMUPS" -i "$MEASUREMENTS" -w "${ITER_SECONDS}s" -r "${ITER_SECONDS}s" -f "$FORKS" \
+            -prof gc -foe true -rf json -rff benchmark-results/postgresql-gc-10000.json \
+            > benchmark-results/postgresql-gc-10000.log 2>&1
+
+      - name: Upload PostgreSQL benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdbc-dsl-postgresql-benchmark-${{ inputs.profile || 'formal' }}-${{ github.run_id }}
+          path: |
+            benchmark-results/
+            jdbc-benchmarks/target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 30
