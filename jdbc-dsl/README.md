@@ -496,7 +496,12 @@ jdbcdsl:
   allow-empty-where: false
   logical-delete-auto-filter: true
   naming-strategy: snake_case
+  cache:
+    converter-cache-max-size: 2048
+    target-converter-cache-max-size: 512
 ```
+
+`jdbcdsl.cache.converter-cache-max-size` 控制 source/target 类型对转换器缓存容量，默认 `2048`；`jdbcdsl.cache.target-converter-cache-max-size` 控制仅按目标类型选择的转换器缓存容量，默认 `512`。两项可独立设置为 `0` 以禁用对应缓存，不能设置为负数。Spring 自动配置使用这些容量创建默认 `DefaultConverterRegistry`；自定义 `ConverterRegistry` Bean 优先，不受这两个属性影响。非 Spring Boot 场景可使用 `DefaultConverterRegistry(ConversionService, converterCacheMaxSize, targetConverterCacheMaxSize)` 指定容量。
 
 显式声明的 `@Table` / `@Column` 映射优先于命名策略。`logical-delete-auto-filter` 只为 DSL SELECT 的根实体追加正常态条件，不会自动过滤 JOIN 关联实体；`query` / `queryOne` 执行的 Raw SQL 也不会自动追加逻辑删除条件。自定义 `NamingStrategy` Spring Bean 优先于 `jdbcdsl.naming-strategy` 属性。若不使用 Spring Boot 自动配置，请自行创建 `NamedParameterJdbcTemplate` 和 `JdbcDslExecutor`；执行器可自动检测常见数据库方言，也可通过构造器显式传入 `Dialect`。
 

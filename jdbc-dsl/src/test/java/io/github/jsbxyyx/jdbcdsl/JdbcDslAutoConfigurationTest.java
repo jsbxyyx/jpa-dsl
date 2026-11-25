@@ -53,6 +53,21 @@ class JdbcDslAutoConfigurationTest {
     }
 
     @Test
+    void converterCacheCapacitiesArePropertyConfigurable() {
+        contextRunner
+                .withPropertyValues(
+                        "jdbcdsl.cache.converter-cache-max-size=128",
+                        "jdbcdsl.cache.target-converter-cache-max-size=32")
+                .run(context -> {
+                    io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties.Cache cache = context.getBean(
+                                    io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties.class)
+                            .getCache();
+                    assertThat(cache.getConverterCacheMaxSize()).isEqualTo(128);
+                    assertThat(cache.getTargetConverterCacheMaxSize()).isEqualTo(32);
+                });
+    }
+
+    @Test
     void primitiveNullDefaultMappingIsDisabledByDefaultAndPropertyConfigurable() {
         contextRunner.run(context -> {
             assertThat(context.getBean(io.github.jsbxyyx.jdbcdsl.spring.JdbcDslProperties.class)

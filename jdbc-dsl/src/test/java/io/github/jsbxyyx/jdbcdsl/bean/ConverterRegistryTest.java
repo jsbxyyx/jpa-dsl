@@ -35,6 +35,43 @@ class ConverterRegistryTest {
     }
 
     @Test
+    void customCacheCapacitiesAreApplied() throws Exception {
+        DefaultConverterRegistry custom =
+                new DefaultConverterRegistry(DefaultConversionService.getSharedInstance(), 1, 1);
+
+        custom.getConverter(String.class, Integer.class);
+        custom.getConverter(String.class, Long.class);
+        custom.getConverter(String.class, Integer.class);
+        custom.getConverter(Integer.class);
+        custom.getConverter(Long.class);
+        custom.getConverter(Integer.class);
+
+        java.lang.reflect.Field converterCacheField = DefaultConverterRegistry.class.getDeclaredField("converterCache");
+        converterCacheField.setAccessible(true);
+        com.github.benmanes.caffeine.cache.Cache<?, ?> converterCache =
+                (com.github.benmanes.caffeine.cache.Cache<?, ?>) converterCacheField.get(custom);
+        java.lang.reflect.Field targetCacheField =
+                DefaultConverterRegistry.class.getDeclaredField("targetConverterCache");
+        targetCacheField.setAccessible(true);
+        com.github.benmanes.caffeine.cache.Cache<?, ?> targetCache =
+                (com.github.benmanes.caffeine.cache.Cache<?, ?>) targetCacheField.get(custom);
+        converterCache.cleanUp();
+        targetCache.cleanUp();
+        assertTrue(converterCache.estimatedSize() <= 1);
+        assertTrue(targetCache.estimatedSize() <= 1);
+    }
+
+    @Test
+    void negativeCacheCapacityIsRejected() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new DefaultConverterRegistry(DefaultConversionService.getSharedInstance(), -1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new DefaultConverterRegistry(DefaultConversionService.getSharedInstance(), 1, -1));
+    }
+
+    @Test
     void testGetConverterByJdbcType() {
         ValueConverter converter = registry.getConverter(Types.VARCHAR, String.class);
         assertNotNull(converter, "Converter should not be null");

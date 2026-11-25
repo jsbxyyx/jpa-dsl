@@ -81,6 +81,8 @@ public class JdbcDslProperties {
         private long serializedLambdaMaxSize = 10_000;
         private long beanMappingMaxSize = 10_000;
         private long mapperCacheMaxSize = 1024;
+        private long converterCacheMaxSize = 2_048;
+        private long targetConverterCacheMaxSize = 512;
 
         public long getPropertyRefMaxSize() {
             return propertyRefMaxSize;
@@ -120,6 +122,22 @@ public class JdbcDslProperties {
 
         public void setMapperCacheMaxSize(long mapperCacheMaxSize) {
             this.mapperCacheMaxSize = mapperCacheMaxSize;
+        }
+
+        public long getConverterCacheMaxSize() {
+            return converterCacheMaxSize;
+        }
+
+        public void setConverterCacheMaxSize(long converterCacheMaxSize) {
+            this.converterCacheMaxSize = converterCacheMaxSize;
+        }
+
+        public long getTargetConverterCacheMaxSize() {
+            return targetConverterCacheMaxSize;
+        }
+
+        public void setTargetConverterCacheMaxSize(long targetConverterCacheMaxSize) {
+            this.targetConverterCacheMaxSize = targetConverterCacheMaxSize;
         }
     }
 

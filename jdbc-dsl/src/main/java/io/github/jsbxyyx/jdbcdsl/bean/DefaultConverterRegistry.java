@@ -51,12 +51,29 @@ public final class DefaultConverterRegistry implements ConverterRegistry {
      * @param conversionService the conversion service to use for type conversions
      */
     public DefaultConverterRegistry(ConversionService conversionService) {
+        this(conversionService, CONVERTER_CACHE_MAX_SIZE, TARGET_CONVERTER_CACHE_MAX_SIZE);
+    }
+
+    /**
+     * Creates a registry with configurable cache capacities.
+     *
+     * @param conversionService the conversion service to use for type conversions
+     * @param converterCacheMaxSize maximum number of source/target converter pairs to cache;
+     *                              zero disables this cache
+     * @param targetConverterCacheMaxSize maximum number of target-type converters to cache;
+     *                                    zero disables this cache
+     * @throws IllegalArgumentException if either cache capacity is negative
+     */
+    public DefaultConverterRegistry(
+            ConversionService conversionService, long converterCacheMaxSize, long targetConverterCacheMaxSize) {
+        if (converterCacheMaxSize < 0 || targetConverterCacheMaxSize < 0) {
+            throw new IllegalArgumentException("Converter cache maximum sizes must not be negative");
+        }
         this.conversionService = conversionService;
         this.converterCache =
-                Caffeine.newBuilder().maximumSize(CONVERTER_CACHE_MAX_SIZE).build();
-        this.targetConverterCache = Caffeine.newBuilder()
-                .maximumSize(TARGET_CONVERTER_CACHE_MAX_SIZE)
-                .build();
+                Caffeine.newBuilder().maximumSize(converterCacheMaxSize).build();
+        this.targetConverterCache =
+                Caffeine.newBuilder().maximumSize(targetConverterCacheMaxSize).build();
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import javax.sql.DataSource;
@@ -139,8 +140,11 @@ public class JdbcDslAutoConfiguration {
             ObjectProvider<ConverterRegistry> converterRegistryProvider,
             ObjectProvider<NamingStrategy> namingStrategyProvider) {
         PropertyRefResolver.setCacheManager(cacheManager);
-        ConverterRegistry converters =
-                converterRegistryProvider.getIfAvailable(DefaultConverterRegistry::defaultInstance);
+        JdbcDslProperties.Cache cache = properties.getCache();
+        ConverterRegistry converters = converterRegistryProvider.getIfAvailable(() -> new DefaultConverterRegistry(
+                DefaultConversionService.getSharedInstance(),
+                cache.getConverterCacheMaxSize(),
+                cache.getTargetConverterCacheMaxSize()));
         return new JdbcDslExecutor(
                 jdbc,
                 dialect,
