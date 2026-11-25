@@ -1,0 +1,72 @@
+name: Publish to Maven Central
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maven-central-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Java and Maven Central credentials
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          server-id: io.github.jsbxyyx
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+
+      - name: Validate publishing secrets
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$MAVEN_CENTRAL_USERNAME" || { echo "Missing MAVEN_CENTRAL_USERNAME"; exit 1; }
+          test -n "$MAVEN_CENTRAL_PASSWORD" || { echo "Missing MAVEN_CENTRAL_PASSWORD"; exit 1; }
+          test -n "$GPG_PRIVATE_KEY" || { echo "Missing GPG_PRIVATE_KEY"; exit 1; }
+          test -n "$GPG_PASSPHRASE" || { echo "Missing GPG_PASSPHRASE"; exit 1; }
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: Verify release version
+        run: |
+          set -euo pipefail
+          VERSION="$(./mvnw -q -DforceStdout help:evaluate -Dexpression=revision)"
+          echo "Publishing version: $VERSION"
+          if [[ -z "$VERSION" || "$VERSION" == *SNAPSHOT* ]]; then
+            echo "Refusing to publish an empty or SNAPSHOT version."
+            exit 1
+          fi
+
+      - name: Test and publish jdbc-dsl to Maven Central
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          ./mvnw -B -Prelease -pl jdbc-dsl -am clean deploy \
+            -Dgpg.passphrase="$GPG_PASSPHRASE"
